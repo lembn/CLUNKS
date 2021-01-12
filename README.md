@@ -8,7 +8,7 @@
 ### New Server
 The user first needs to create the **CLUNK** server, this will manage all the user accounts, security and direct traffic. The user will specify the IP:port that the server should host to and the server will configure itself with these settings and set its admin to the user who created the server.
 ```
->>> server [ip]:[port]
+>>> server [servername] [ip]:[port]
 ```
 
 ### New User
@@ -81,7 +81,9 @@ There should be commands to show room structure, rooms within rooms and user ele
 ## Things
 Asymmetric symmetric encryption <br>
 Handshake (and digest) <br>
-Different user levels have different privelleges
+Different user levels have different privelleges <br>
+Elevation codes <br>
+Groups (temporary rooms) <br>
 
 ## Maybes
  - email password recovery??
