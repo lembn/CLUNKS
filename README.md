@@ -101,6 +101,7 @@ There are commands that users can run to obtain information about the subserver.
 ## Technical Specifications
  - Written in C# (.NET Core)
  - Email password recovery
+ - Heartbeat standards follow IEEE spec: https://stackoverflow.com/questions/1442189/heartbeat-protocols-algorithms-or-best-practices
 
 ### Data Flow
 The program will use sockets to send data over the network the UDP transmission protocol. A broadcasting user will send: the frame of their video, the audio frame, which user they are and the total size of the data in a C# class object seriliazed into XML. The receiving user will display the frames using the Gstreamer multimedia library. The user identification will only be used when managing calls with more than 2 members, but will be present in all data objects as part of the protocol used by CLUNKS.
