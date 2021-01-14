@@ -7,7 +7,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Serialization;
 
-namespace ChatApplication
+namespace Common
 {
     // ----------------
     // Packet Structure
@@ -39,12 +39,6 @@ namespace ChatApplication
         #endregion
 
         #region Public Properties
-
-        public int BodyLength
-        {
-            get { return bodyLength; }
-            set { bodyLength = value; }
-        }
 
         public DataID DataIdentifier
         {
@@ -96,8 +90,8 @@ namespace ChatApplication
             bodyLength = BitConverter.ToInt32(dataStream, 0);
             dataID = (DataID)BitConverter.ToInt32(dataStream, METADATA_SIZE);
             userID = BitConverter.ToInt32(dataStream, 2 * METADATA_SIZE);
-            dataStream.Skip(3 * METADATA_SIZE);
-            byte[] bodyBytes = (byte[])dataStream.Take(bodyLength);
+            byte[] bodyBytes = dataStream.Skip(3 * METADATA_SIZE).Take(bodyLength).ToArray();
+            string a = Encoding.UTF8.GetString(bodyBytes);
             body = JObject.Parse(Encoding.UTF8.GetString(bodyBytes));
         }
 

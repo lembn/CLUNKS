@@ -1,12 +1,11 @@
-﻿using System;
-
-namespace Server
+﻿namespace Server
 {
     class Program
     {
         static void Main(string[] args)
         {
-            Console.WriteLine("Hello World!");
+            var server = new EchoServer();
+            server.Start();
         }
     }
 }

@@ -1,12 +1,11 @@
-﻿using System;
-
-namespace Client
+﻿namespace Client
 {
     class Program
     {
         static void Main(string[] args)
         {
-            Console.WriteLine("Hello World!");
+            var test = new TestClass(0);
+            test.Send();
         }
     }
 }
