@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading;
 
 namespace Common
 {
@@ -8,12 +10,25 @@ namespace Common
     {
         #region Private Members
 
+        private protected Queue<byte[]> inPackets;
+        private protected Queue<Packet> outPackets;
+        private protected List<Thread> threads;
         private protected byte[] dataStream;
         private protected int bufferSize;
         private protected Socket socket;
         private protected EndPoint endpoint;
+        private protected CancellationToken ctoken;
+        private protected object hbLock; //Heartbeat lock
         private bool disposedValue;
+        
+        #endregion
 
+        #region Public Members
+
+        public delegate void DispatchEventHandler(object sender, PacketEventArgs e);
+        public event DispatchEventHandler Dispatch;
+        public CancellationTokenSource cts;       
+        
         #endregion
 
         #region Methods
@@ -24,18 +39,30 @@ namespace Common
             dataStream = new byte[bufferSize];
             socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
             endpoint = new IPEndPoint(address, port);
+            //socket.Bind(endpoint);
+            inPackets = new Queue<byte[]>();
+            outPackets = new Queue<Packet>();
+            threads = new List<Thread>();
+            cts = new CancellationTokenSource();
+            ctoken = cts.Token;
+            hbLock = new object();
         }
 
-        protected abstract void Start();
+        public abstract void Start();
+        protected abstract void Heartbeat();
 
         protected abstract void ReceiveData(IAsyncResult ar);
-
         protected abstract void SendData(Packet packet);
 
-        protected abstract void Dispatch(Packet packet);
+        public virtual void Add(Packet packet) => outPackets.Enqueue(packet);
 
-        protected abstract void SendHeartbeat();
-        
+        public virtual void OnDispatch(Packet packet)
+        {
+            if (Dispatch != null)
+            {
+                Dispatch(this, new PacketEventArgs() { Packet = packet });
+            }
+        }
 
         #region IDisposable implementation
 
@@ -45,6 +72,7 @@ namespace Common
             {
                 if (disposing)
                 {
+                    cts.Cancel();
                     socket.Dispose();
                 }
 

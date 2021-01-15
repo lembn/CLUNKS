@@ -29,34 +29,30 @@ namespace Server
         {
             Console.WriteLine("Echoserver started");
        
-            var clients = new IPEndPoint(IPAddress.Any, 0);
-            var senderEP = (EndPoint)clients;
+            EndPoint senderEP = new IPEndPoint(IPAddress.Any, 0);
 
             Console.WriteLine("Listening");
 
-            socket.BeginReceiveFrom(dataStream, 0, dataStream.Length, SocketFlags.None, ref senderEP, new AsyncCallback(ReceiveData), senderEP);
+            socket.BeginReceiveFrom(dataStream, 0, dataStream.Length, SocketFlags.None, ref senderEP, new AsyncCallback(ReceiveData), null);
             var task = Task.Run(() => { while (true) { Console.ReadLine(); } });
             task.Wait();
-
         }
 
         private void ReceiveData(IAsyncResult asyncResult)
         {
-            var inPacket = new Packet(dataStream);
-            var outPacket = new Packet(inPacket.DataIdentifier, inPacket.UserIdentifier);
-            outPacket.Body = inPacket.Body;
+            var packet = new Packet(dataStream);
+            packet.body.Add("server", true);
 
-            var clients = new IPEndPoint(IPAddress.Any, 0);
-            var senderEP = (EndPoint)clients;
+            EndPoint senderEP = new IPEndPoint(IPAddress.Any, 0);
 
             socket.EndReceiveFrom(asyncResult, ref senderEP);
 
-            byte[] data = outPacket.GetDataStream();
+            byte[] data = packet.GetDataStream();
 
-            socket.BeginSendTo(data, 0, data.Length, SocketFlags.None, senderEP, new AsyncCallback((IAsyncResult ar) => { socket.EndSend(ar); }), senderEP);
-            Console.WriteLine($"Echo {senderEP}");
+            socket.BeginSendTo(data, 0, data.Length, SocketFlags.None, senderEP, new AsyncCallback((IAsyncResult ar) => { socket.EndSend(ar); }), null);
+            Console.WriteLine($"Echoing: {senderEP}");
 
-            socket.BeginReceiveFrom(dataStream, 0, dataStream.Length, SocketFlags.None, ref senderEP, new AsyncCallback(ReceiveData), senderEP);
+            socket.BeginReceiveFrom(dataStream, 0, dataStream.Length, SocketFlags.None, ref senderEP, new AsyncCallback(ReceiveData), null);
         }
 
         #endregion

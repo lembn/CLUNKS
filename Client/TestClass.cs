@@ -29,9 +29,9 @@ namespace Client
         public void Send()
         {
             Packet outPacket = new Packet(DataID.Heartbeat, id);
-            outPacket.Body.Add("test", 909);
+            outPacket.body.Add("test", 909);
 
-            Console.WriteLine($"Sending: {outPacket.Body}");
+            Console.WriteLine($"Sending: {outPacket.body}");
 
             byte[] byteData = outPacket.GetDataStream();
 
@@ -48,7 +48,7 @@ namespace Client
 
             var inPacket = new Packet(dataStream);
 
-            Console.WriteLine($"Got: {inPacket.Body}");
+            Console.WriteLine($"Got: {inPacket.body}");
 
             dataStream = new byte[1024];
 

@@ -1,107 +1,144 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
-using System.Threading.Tasks;
+using System.Threading;
 
 namespace Common
 {
-    class ClientChannel : Channel
+    public class ClientChannel : Channel
     {
         #region Private Memebers
 
-        private Queue<byte[]> inPackets;
-        private Queue<Packet> outPackets;
         private int userID;
-
-        #endregion
-
-        #region Constructor
-
-        public ClientChannel(int bufferSize, IPAddress address, int port, int userID) : base(bufferSize, address, port)
-        {
-            inPackets = new Queue<byte[]>();
-            outPackets = new Queue<Packet>();
-            this.userID = userID;
-        }
+        private bool receivedHB = false; //Received Heatbeat
+        private int missedHBs = 0; //Missed Hearbeats
+        private bool listening = false;
+        private ManualResetEvent initial;
+        private bool waited = false;
 
         #endregion
 
         #region Methods
 
-        //TODO: Add Cancellation token
-        protected override void Start()
+        public ClientChannel(int bufferSize, IPAddress address, int port, int userID) : base(bufferSize, address, port)
         {
-            Task.Run(() => {
-                while (true)
+            this.userID = userID;
+            initial = new ManualResetEvent(false);
+        }        
+
+        public override void Start()
+        {
+            threads.Add(new Thread(() =>
+            {
+                while (true && !ctoken.IsCancellationRequested)
                 {
-                    //TODO: Add flag to make sure this is always only run once at a time, lock??
-                    _ = socket.BeginReceiveFrom(dataStream, 0, dataStream.Length, SocketFlags.None, ref endpoint, new AsyncCallback(ReceiveData), null);             
+                    Heartbeat();
                 }
-            });
+            }));
 
-            Task.Run(() => {
-                while (true)
+            threads.Add(new Thread(() =>
+            {
+                while (true && !ctoken.IsCancellationRequested)
                 {
-                    byte[] packetBytes;
-                    if (inPackets.TryDequeue(out packetBytes))
-                    {
-                        Dispatch(new Packet(packetBytes));
-                    }
-                }                
-            });
-
-
-            Task.Run(() => {
-                while (true)
-                {
-                    foreach (var packet in outPackets)
+                    Packet packet;
+                    bool packetAvailable;
+                    lock (outPackets) { packetAvailable = outPackets.TryDequeue(out packet); }
+                    if (packetAvailable)
                     {
                         SendData(packet);
                     }
-                }                
-            });
-
-            Task.Run(() => {
-                while (true)
-                {
-                    SendHeartbeat();
                 }
-            });
+            }));
 
+            threads.Add(new Thread(() =>
+            {
+                while (true && !ctoken.IsCancellationRequested)
+                {                    
+                    if (!waited)
+                    {
+                        initial.WaitOne();                        
+                    }                    
+                    if (!listening)
+                    {
+                        listening = true;
+                        _ = socket.BeginReceiveFrom(dataStream, 0, dataStream.Length, SocketFlags.None, ref endpoint, new AsyncCallback(ReceiveData), null);
+                    }                    
+                }
+            }));
+
+            threads.Add(new Thread(() =>
+            {
+                while (true && !ctoken.IsCancellationRequested)
+                {
+                    byte[] packetBytes;
+                    bool packetAvailable;
+                    lock (inPackets) { packetAvailable = inPackets.TryDequeue(out packetBytes); }
+                    if (packetAvailable)
+                    {
+                        var inPacket = new Packet(packetBytes);
+                        if (inPacket.dataID == DataID.Heartbeat)
+                        {
+                            OnDispatch(inPacket);
+                            lock (hbLock) { receivedHB = true; }
+                        }
+                        else
+                        {
+                            OnDispatch(inPacket);
+                        }
+                    }
+                }
+            }));
+
+            foreach (var thread in threads)
+            {
+                thread.Start();
+            }
+        }
+
+        protected override void Heartbeat()
+        {
+            var heartbeat = new Packet(DataID.Heartbeat, userID);
+            lock (outPackets) { outPackets.Enqueue(heartbeat); }            
+            Thread.Sleep(5000);
+            lock (hbLock)
+            {
+                if (receivedHB)
+                {
+                    receivedHB = false;
+                    missedHBs = 0;
+                }
+                else
+                {
+                    missedHBs += 1;
+                    if (missedHBs == 2)
+                    {
+                        Dispose();
+                        //TODO: alert owner of ClientChannel that connection has died
+                        Console.WriteLine("Connection to server has died");
+                    }
+                }
+            }
         }
 
         protected override void SendData(Packet packet)
         {
-            Console.WriteLine($"Sending: {packet.Body}");
-
             byte[] byteData = packet.GetDataStream();
 
-            socket.BeginSendTo(byteData, 0, byteData.Length, SocketFlags.None, endpoint, new AsyncCallback((IAsyncResult ar) => { socket.EndSend(ar); }), null);
+            socket.BeginSendTo(byteData, 0, byteData.Length, SocketFlags.None, endpoint, new AsyncCallback((IAsyncResult ar) => { socket.EndSendTo(ar); }), null);
 
-            socket.BeginReceiveFrom(dataStream, 0, dataStream.Length, SocketFlags.None, ref endpoint, new AsyncCallback(ReceiveData), null);
-            var task = Task.Run(() => { while (true) { Console.ReadLine(); } });
-            task.Wait();
+            if (!waited)
+            {
+                initial.Set();
+                waited = true;
+            }
         }
 
         protected override void ReceiveData(IAsyncResult ar)
         {
-            socket.EndReceive(ar);
-            inPackets.Enqueue((byte[])dataStream.Clone());
+            _ = socket.EndReceiveFrom(ar, ref endpoint);
+            lock (inPackets) { inPackets.Enqueue((byte[])dataStream.Clone()); }
             dataStream = new byte[bufferSize];
-        }
-
-        protected override void Dispatch(Packet packet)
-        {
-            throw new NotImplementedException();
-        }
-
-        protected override void SendHeartbeat()
-        {
-            var heartbeat = new Packet(DataID.Heartbeat, userID);
-            outPackets.Enqueue(heartbeat);
-            Task.Delay(5000);
+            listening = false;
         }
 
         #endregion

@@ -32,32 +32,15 @@ namespace Common
         private readonly JsonSerializer serializer;
         private readonly JsonSerializerSettings settings;
         private int bodyLength;
-        private DataID dataID;
-        private int userID;
-        private JObject body;
-        
+
         #endregion
 
-        #region Public Properties
+        #region Public Members
 
-        public DataID DataIdentifier
-        {
-            get { return dataID; }
-            set { dataID = value; }
-        }
-
-        public int UserIdentifier
-        {
-            get { return userID; }
-            set { userID = value; }
-        }
-
-        public JObject Body
-        {
-            get { return body; }
-            set { body = value; }
-        }
-
+        public DataID dataID;
+        public int userID;
+        public JObject body;
+        
         #endregion
 
         #region Methods
@@ -91,8 +74,22 @@ namespace Common
             dataID = (DataID)BitConverter.ToInt32(dataStream, METADATA_SIZE);
             userID = BitConverter.ToInt32(dataStream, 2 * METADATA_SIZE);
             byte[] bodyBytes = dataStream.Skip(3 * METADATA_SIZE).Take(bodyLength).ToArray();
-            string a = Encoding.UTF8.GetString(bodyBytes);
             body = JObject.Parse(Encoding.UTF8.GetString(bodyBytes));
+
+            settings = new JsonSerializerSettings
+            {
+                Formatting = Formatting.Indented,
+                DateTimeZoneHandling = DateTimeZoneHandling.Utc,
+                ContractResolver = new DefaultContractResolver
+                {
+                    NamingStrategy = new CamelCaseNamingStrategy
+                    {
+                        ProcessDictionaryKeys = false
+                    }
+                }
+            };
+            settings.PreserveReferencesHandling = PreserveReferencesHandling.None;
+            serializer = JsonSerializer.Create(settings);
         }
 
         // Converts the packet into a byte array for sending/receiving 
@@ -114,5 +111,10 @@ namespace Common
         }
 
         #endregion
+    }
+
+    public class PacketEventArgs : EventArgs
+    {
+        public Packet Packet { get; set; }
     }
 }
