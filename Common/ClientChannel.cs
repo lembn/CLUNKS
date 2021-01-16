@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Common.Helpers;
+using System;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
@@ -28,63 +29,45 @@ namespace Common
 
         public override void Start()
         {
-            threads.Add(new Thread(() =>
-            {
-                while (true && !ctoken.IsCancellationRequested)
+            threads.Add(ThreadHelper.GetECThread(ctoken, Heartbeat));
+
+            threads.Add(ThreadHelper.GetECThread(ctoken, () => {
+                Packet packet;
+                bool packetAvailable;
+                lock (outPackets) { packetAvailable = outPackets.TryDequeue(out packet); }
+                if (packetAvailable)
                 {
-                    Heartbeat();
+                    SendData(packet);
                 }
             }));
 
-            threads.Add(new Thread(() =>
-            {
-                while (true && !ctoken.IsCancellationRequested)
+            threads.Add(ThreadHelper.GetECThread(ctoken, () => {
+                if (!waited)
                 {
-                    Packet packet;
-                    bool packetAvailable;
-                    lock (outPackets) { packetAvailable = outPackets.TryDequeue(out packet); }
-                    if (packetAvailable)
+                    initial.WaitOne();
+                }
+                if (!listening)
+                {
+                    listening = true;
+                    _ = socket.BeginReceiveFrom(dataStream, 0, dataStream.Length, SocketFlags.None, ref endpoint, new AsyncCallback(ReceiveData), null);
+                }
+            }));
+
+            threads.Add(ThreadHelper.GetECThread(ctoken, () => {
+                byte[] packetBytes;
+                bool packetAvailable;
+                lock (inPackets) { packetAvailable = inPackets.TryDequeue(out packetBytes); }
+                if (packetAvailable)
+                {
+                    var inPacket = new Packet(packetBytes);
+                    if (inPacket.dataID == DataID.Heartbeat)
                     {
-                        SendData(packet);
+                        OnDispatch(inPacket);
+                        lock (hbLock) { receivedHB = true; }
                     }
-                }
-            }));
-
-            threads.Add(new Thread(() =>
-            {
-                while (true && !ctoken.IsCancellationRequested)
-                {                    
-                    if (!waited)
+                    else
                     {
-                        initial.WaitOne();                        
-                    }                    
-                    if (!listening)
-                    {
-                        listening = true;
-                        _ = socket.BeginReceiveFrom(dataStream, 0, dataStream.Length, SocketFlags.None, ref endpoint, new AsyncCallback(ReceiveData), null);
-                    }                    
-                }
-            }));
-
-            threads.Add(new Thread(() =>
-            {
-                while (true && !ctoken.IsCancellationRequested)
-                {
-                    byte[] packetBytes;
-                    bool packetAvailable;
-                    lock (inPackets) { packetAvailable = inPackets.TryDequeue(out packetBytes); }
-                    if (packetAvailable)
-                    {
-                        var inPacket = new Packet(packetBytes);
-                        if (inPacket.dataID == DataID.Heartbeat)
-                        {
-                            OnDispatch(inPacket);
-                            lock (hbLock) { receivedHB = true; }
-                        }
-                        else
-                        {
-                            OnDispatch(inPacket);
-                        }
+                        OnDispatch(inPacket);
                     }
                 }
             }));
