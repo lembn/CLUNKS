@@ -26,6 +26,7 @@ namespace Common
         private List<byte> outSaltList; //The list of salts from packets sent to the server
         private List<byte> inSaltList; //The list of salts from packets received from the server
         private bool handshaking = true; //A boolean to check if the channel is currently performing a handshake
+        private EncryptionConfig.Strength strength;
 
         #endregion
 
@@ -38,13 +39,15 @@ namespace Common
         /// <param name="address">The IP address of the server to connect to</param>
         /// <param name="port">The port the server is hosting on</param>
         /// <param name="connectAttempts">The maximum amount of handshakes to attempt before aborting</param>
-        public ClientChannel(int bufferSize, IPAddress address, int port, int connectAttempts) : base(bufferSize, address, port)
+        /// <param name="encStrength">The level of encryption used by the channel</param>
+        public ClientChannel(int bufferSize, IPAddress address, int port, int connectAttempts, EncryptionConfig.Strength strength) : base(bufferSize, address, port)
         {
             initial = new ManualResetEvent(false);
             this.connectAttempts = connectAttempts;
             Packet.SetValues();
             outSaltList = new List<byte>();
             inSaltList = new List<byte>();
+            this.strength = strength;
         }        
 
         /// <summary>
@@ -95,6 +98,7 @@ namespace Common
                 attempts++;
                 if (Handshake())
                 {
+                    Packet.encCfg.captureSalts = false;
                     foreach (var thread in threads)
                         thread.Start();
                     break;
@@ -114,84 +118,102 @@ namespace Common
         private bool Handshake()
         {
             handshaking = true;
+            Packet outPacket;
+            Packet inPacket;
+            JObject body;
+            byte[] signature;
             initial.Reset();
-            try {
-                Console.WriteLine($"Connecting to {endpoint}...");
-
-                RSAParameters priv;
-                RSAParameters pub;
-                using (RSACryptoServiceProvider rsa = new RSACryptoServiceProvider(Packet.RSA_KEY_BITS))
-                {
-                    pub = rsa.ExportParameters(false);
-                    priv = rsa.ExportParameters(true);
-                }
-
-                JObject body = new JObject();
-                body.Add(Packet.bodyToString[Packet.BodyTag.Key], ObjectConverter.GetJObject(pub));
-                var packet = new Packet(Packet.DataID.Hello, userID, body);
-                SendData(packet);
+            try
+            {
+                Console.WriteLine($"Connecting to {endpoint} ...");
+                Packet.InitEncCfg(EncryptionConfig.Strength.Strong);
+                body = new JObject();
+                body.Add(Packet.bodyToString[Packet.BodyTag.Strength], Convert.ToBase64String(BitConverter.GetBytes((int)strength)));
+                outPacket = new Packet(Packet.DataID.Hello, userID, body);
+                SendData(outPacket);
 
                 _ = socket.BeginReceiveFrom(dataStream, 0, dataStream.Length, SocketFlags.None, ref endpoint, new AsyncCallback((IAsyncResult ar) =>
                 {
                     _ = socket.EndReceiveFrom(ar, ref endpoint);
-                    var inPacket = new Packet(dataStream, ref inSaltList);
+                    inPacket = new Packet(dataStream, ref inSaltList);
                     dataStream = new byte[bufferSize];
-                    if (inPacket.dataID != Packet.DataID.Hello)
+                    if (inPacket.dataID != Packet.DataID.Ack)
                         throw new HandshakeException();
 
-                    string serverParamString = inPacket.body.GetValue(Packet.bodyToString[Packet.BodyTag.Key]).ToString();
-                    RSAParameters serverParams = JsonConvert.DeserializeObject<RSAParameters>(serverParamString);
-                    Packet.SetRSAParameters(serverParams, priv);
-                    var outPacket = new Packet(Packet.DataID.Ack, userID, new JObject()); //Not null so that salt can be added to it
+                    Packet.InitEncCfg(strength);
+                    using (RSACryptoServiceProvider rsa = new RSACryptoServiceProvider(Packet.encCfg.RSA_KEY_BITS))
+                    {
+                        Packet.encCfg.pub = rsa.ExportParameters(false);
+                        Packet.encCfg.priv = rsa.ExportParameters(true);
+                    }
+                    
+                    body = new JObject();
+                    body.Add(Packet.bodyToString[Packet.BodyTag.Key], ObjectConverter.GetJObject(Packet.encCfg.pub));
+                    outPacket = new Packet(Packet.DataID.Info, userID, body);
                     SendData(outPacket);
 
                     _ = socket.BeginReceiveFrom(dataStream, 0, dataStream.Length, SocketFlags.None, ref endpoint, new AsyncCallback((IAsyncResult ar) =>
                     {
                         _ = socket.EndReceiveFrom(ar, ref endpoint);
-                        var inPacket = new Packet(dataStream, ref inSaltList);
+                        inPacket = new Packet(dataStream, ref inSaltList);
                         dataStream = new byte[bufferSize];
-                        if (inPacket.dataID != Packet.DataID.Info)
+                        if (inPacket.dataID != Packet.DataID.Hello)
                             throw new HandshakeException();
 
-                        userID = Convert.ToUInt32(inPacket.body.GetValue(Packet.bodyToString[Packet.BodyTag.ID]).ToString());
-                        
-                        byte[] signature;
-                        using (RSACryptoServiceProvider rsa = new RSACryptoServiceProvider())
-                        {
-                            rsa.ImportParameters(priv);
-                            signature = rsa.SignData(outSaltList.ToArray(), SHA512.Create());
-                        }
-
-                        var body = new JObject();
-                        body.Add(Packet.bodyToString[Packet.BodyTag.Signature], Convert.ToBase64String(signature));
-                        var outPacket = new Packet(Packet.DataID.Signature, userID, body);
+                        string serverParamString = inPacket.body.GetValue(Packet.bodyToString[Packet.BodyTag.Key]).ToString();
+                        Packet.encCfg.recipient = JsonConvert.DeserializeObject<RSAParameters>(serverParamString);
+                        Packet.encCfg.useCrpyto = true;
+                        outPacket = new Packet(Packet.DataID.Ack, userID, new JObject()); //Not null so that salt can be added to it
                         SendData(outPacket);
 
                         _ = socket.BeginReceiveFrom(dataStream, 0, dataStream.Length, SocketFlags.None, ref endpoint, new AsyncCallback((IAsyncResult ar) =>
                         {
                             _ = socket.EndReceiveFrom(ar, ref endpoint);
-                            var inPacket = new Packet(dataStream);
+                            inPacket = new Packet(dataStream, ref inSaltList);
                             dataStream = new byte[bufferSize];
-                            if (inPacket.dataID != Packet.DataID.Signature)
+                            if (inPacket.dataID != Packet.DataID.Info)
                                 throw new HandshakeException();
 
-                            byte[] serverSig = Convert.FromBase64String(inPacket.body.GetValue(Packet.bodyToString[Packet.BodyTag.Signature]).ToString());
-                            if (Convert.ToBase64String(serverSig) == FAILURE)
-                                throw new HandshakeException();
+                            userID = Convert.ToUInt32(inPacket.body.GetValue(Packet.bodyToString[Packet.BodyTag.ID]).ToString());
 
                             using (RSACryptoServiceProvider rsa = new RSACryptoServiceProvider())
                             {
-                                rsa.ImportParameters(serverParams);
-                                if (!rsa.VerifyData(inSaltList.ToArray(), SHA512.Create(), serverSig))
-                                    throw new HandshakeException();
-                            }                              
+                                rsa.ImportParameters(Packet.encCfg.priv);
+                                signature = rsa.SignData(outSaltList.ToArray(), SHA512.Create());
+                            }
 
-                            initial.Set();
+                            body = new JObject();
+                            body.Add(Packet.bodyToString[Packet.BodyTag.Signature], Convert.ToBase64String(signature));
+                            outPacket = new Packet(Packet.DataID.Signature, userID, body);
+                            SendData(outPacket);
+
+                            _ = socket.BeginReceiveFrom(dataStream, 0, dataStream.Length, SocketFlags.None, ref endpoint, new AsyncCallback((IAsyncResult ar) =>
+                            {
+                                _ = socket.EndReceiveFrom(ar, ref endpoint);
+                                inPacket = new Packet(dataStream);
+                                dataStream = new byte[bufferSize];
+                                if (inPacket.dataID != Packet.DataID.Signature)
+                                    throw new HandshakeException();
+
+                                signature = Convert.FromBase64String(inPacket.body.GetValue(Packet.bodyToString[Packet.BodyTag.Signature]).ToString());
+                                if (Convert.ToBase64String(signature) == FAILURE)
+                                    throw new HandshakeException();
+
+                                using (RSACryptoServiceProvider rsa = new RSACryptoServiceProvider())
+                                {
+                                    rsa.ImportParameters(Packet.encCfg.recipient);
+                                    if (!rsa.VerifyData(inSaltList.ToArray(), SHA512.Create(), signature))
+                                        throw new HandshakeException();
+                                }
+
+                                initial.Set();
+                            }), null);
+
                         }), null);
 
-                    }), null);                
-                
-                }), null);                
+                    }), null);
+
+                }), null);
             }
             catch (HandshakeException)
             {

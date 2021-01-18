@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Net;
 using Common;
+using Common.Helpers;
 
 namespace Client
 {
@@ -9,7 +10,7 @@ namespace Client
         static void Main(string[] args)
         {
             int id = 0;
-            var channel = new ClientChannel(10000, IPAddress.Loopback, 30000, id);
+            var channel = new ClientChannel(10000, IPAddress.Loopback, 30000, id, EncryptionConfig.Strength.Strong);
             channel.Dispatch += Printer;
             channel.Start();       
             Console.ReadLine();

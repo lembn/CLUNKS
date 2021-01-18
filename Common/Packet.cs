@@ -31,22 +31,13 @@ namespace Common
         #region Private Members
 
         private const int HEADER_SIZE = 4; //bodyLength is a 32 bit integer
-        private const int AES_KEY_BITS = 256; //AES key size (in bits)
-        private const int AES_KEY_LENGTH = 32; //AES key size (in bytes)
-        private const int AES_IV_LENGTH = 16; //AES iv size (in bytes)        
-        private const int RSA_OUTPUT = 256; //length of encryptionData (size of output arr from RSA encryption) (in bytes)
-        private const int SALT_SIZE = 8; //size of body salt (in bytes)
 
         private byte[] salt; //The body salt of the packet
 
         private static JsonSerializer serializer; //Used for serializing JObjects
-        private static bool useCrypto = false; //Used to check if packets should be encrypted
-        private static RSAParameters encParams; //Public key for asymmetric encryption
-        private static RSAParameters decParams; //Private key for asymmetric decryption
         private static Dictionary<DataID, string> dataToString; //Dictionary to convert DataID values to their bytestring representation
         private static Dictionary<PayloadTag, string> payloadToString; //Dictionary to convert PayloadTag values to their bytestring representation
         private static RNGCryptoServiceProvider rngCsp; //Secure random generator used for generating body salts
-
 
         //Used to tag elements in the payload
         private enum PayloadTag
@@ -79,11 +70,12 @@ namespace Common
             Key, //The element is an asymmetric public key
             Signature, //The element is a verification signature
             ID, //The element is the ID number of the user
-            Salt // The element is a body salt
+            Salt, // The element is a body salt
+            Strength //The element specifies the strength of encryption being used by a user
         }
 
         public static Dictionary<BodyTag, string> bodyToString; //Dictionary to convert BodyTag values to their bytestring representation
-        public const int RSA_KEY_BITS = 2048; //RSA key size (in bits)
+        public static EncryptionConfig encCfg; //The settings to use for encrypting and decrpyting packets
 
         public DataID dataID;
         public uint userID;
@@ -110,25 +102,26 @@ namespace Common
         /// A Packet constructor for rebuilding packets from an existing data source.
         /// </summary>
         /// <param name="dataStream">The Packet.GetDataStream() output of the original Packet</param>
+        /// <param name="encCfg">The encryption settings to use when decrypting the dataStream</param>
         public Packet(byte[] dataStream)
         {
             int bodyLength = BitConverter.ToInt32(dataStream.Take(HEADER_SIZE).ToArray());
-            byte[] e_aesData = dataStream.Skip(HEADER_SIZE).Take(RSA_OUTPUT).ToArray();
-            byte[] payloadBytes = dataStream.Skip(HEADER_SIZE + RSA_OUTPUT).Take(bodyLength).ToArray();
+            byte[] e_aesData = dataStream.Skip(HEADER_SIZE).Take(encCfg.RSA_OUTPUT).ToArray();
+            byte[] payloadBytes = dataStream.Skip(HEADER_SIZE + encCfg.RSA_OUTPUT).Take(bodyLength).ToArray();
 
-            if (useCrypto)
+            if (encCfg.useCrpyto)
             {
                 using (AesCryptoServiceProvider aes = new AesCryptoServiceProvider())
                 {
-                    aes.KeySize = AES_KEY_BITS;
+                    aes.KeySize = encCfg.AES_KEY_BITS;
                     aes.Padding = PaddingMode.PKCS7;
 
-                    using (RSACryptoServiceProvider rsa = new RSACryptoServiceProvider(RSA_KEY_BITS))
+                    using (RSACryptoServiceProvider rsa = new RSACryptoServiceProvider(encCfg.RSA_KEY_BITS))
                     {
-                        rsa.ImportParameters(decParams);
+                        rsa.ImportParameters(encCfg.priv);
                         byte[] d_aesData = rsa.Decrypt(e_aesData, RSAEncryptionPadding.Pkcs1);
-                        aes.Key = d_aesData.Take(AES_KEY_LENGTH).ToArray();
-                        aes.IV = d_aesData.Skip(AES_KEY_LENGTH).Take(AES_IV_LENGTH).ToArray();
+                        aes.Key = d_aesData.Take(encCfg.AES_KEY_LENGTH).ToArray();
+                        aes.IV = d_aesData.Skip(encCfg.AES_KEY_LENGTH).Take(encCfg.AES_IV_LENGTH).ToArray();
                     }
 
                     using (var decryptor = aes.CreateDecryptor(aes.Key, aes.IV))
@@ -159,6 +152,7 @@ namespace Common
         /// </summary>
         /// <param name="dataStream">The Packet.GetDataStream() output of the original Packet</param>
         /// <param name="saltList">A reference to the list in which the body salt should be appened to</param>
+        /// <param name="encCfg">The encryption settings to use when decrypting the dataStream</param>
         public Packet(byte[] dataStream, ref List<byte> saltList) : this(dataStream)
         {
             if (salt != null)
@@ -191,16 +185,12 @@ namespace Common
         }
 
         /// <summary>
-        /// A method to set the aymmetric keys which will be use for encryption.
-        /// Packets will not be encrytped or decrypted until this method has been called.
+        /// A method to initialise the static EncryptionConfig object used by the classs
         /// </summary>
-        /// <param name="eparams">The asymmetric public key to use for encryption<./param>
-        /// <param name="dparams">The asymmetric private key to use for decryption.</param>
-        public static void SetRSAParameters(RSAParameters eparams, RSAParameters dparams)
+        /// <param name="strength">The strength of encryption</param>
+        public static void InitEncCfg(EncryptionConfig.Strength strength)
         {
-            encParams = eparams;
-            decParams = dparams;
-            useCrypto = true;
+            encCfg = new EncryptionConfig(strength);
         }
 
         /// <summary>
@@ -219,11 +209,13 @@ namespace Common
         /// the packet can be sent over the network and reconstructed on delivery.
         /// </summary>
         /// <returns>The byte array representation of the packet.</returns>
+        /// <param name="encCfg">The encryption settings to use when encrypting the dataStream</param>
         public byte[] GetDataStream()
         {
             var b_dataID = BitConverter.GetBytes((int)dataID);
             var b_userID = BitConverter.GetBytes(userID);
-            SaltBody(body);
+            if (encCfg.captureSalts)
+                SaltBody(body);
             var sb = new StringBuilder();
             var sw = new StringWriter(sb);
             serializer.Serialize(sw, body);
@@ -238,19 +230,19 @@ namespace Common
             serializer.Serialize(sw, json);
             byte[] payload = Encoding.UTF8.GetBytes(sb.ToString());
 
-            byte[] e_aesData = new byte[RSA_OUTPUT];
+            byte[] e_aesData = new byte[encCfg.RSA_OUTPUT];
 
-            if (useCrypto)
+            if (encCfg.useCrpyto)
             {
                 using (AesCryptoServiceProvider aes = new AesCryptoServiceProvider())
                 {
-                    aes.KeySize = AES_KEY_BITS;
+                    aes.KeySize = encCfg.AES_KEY_BITS;
                     aes.Padding = PaddingMode.PKCS7;
 
                     using (RSACryptoServiceProvider rsa = new RSACryptoServiceProvider())
                     {
-                        rsa.ImportParameters(encParams);
-                        rsa.KeySize = RSA_KEY_BITS;
+                        rsa.ImportParameters(encCfg.recipient);
+                        rsa.KeySize = encCfg.RSA_KEY_BITS;
                         byte[] d_aesData = aes.Key.Concat(aes.IV).ToArray();
                         e_aesData = rsa.Encrypt(d_aesData, RSAEncryptionPadding.Pkcs1);
                     }                
@@ -272,6 +264,7 @@ namespace Common
         /// the packet can be sent over the network and reconstructed on delivery. It also adds the generated
         /// body salt of the packet to the supplied list for signature creation.
         /// </summary>
+        /// <param name="encCfg">The encryption settings to use when encrypting the dataStream</param>
         /// <param name="saltList">A reference to the list which the body salt should be added to.</param>
         /// <returns>The byte array representation of the packet.</returns>
         public byte[] GetDataStream(ref List<byte> saltList)
@@ -310,7 +303,7 @@ namespace Common
         /// <param name="body">The JObject representing the body</param>
         private void SaltBody(JObject body)
         {   
-            salt = new byte[SALT_SIZE];
+            salt = new byte[encCfg.SALT_SIZE];
             rngCsp.GetBytes(salt);
             if (body != null)
                 body.Add(bodyToString[BodyTag.Salt], Convert.ToBase64String(salt));

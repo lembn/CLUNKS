@@ -23,9 +23,6 @@ namespace Server._Testing
         private List<byte> outSaltList;
         private List<byte> inSaltList;
         private int counter = 0;
-        private RSAParameters priv;
-        private RSAParameters pub;
-        private RSAParameters clientPub;
 
         #endregion
 
@@ -49,6 +46,7 @@ namespace Server._Testing
             Console.WriteLine("Listening");
 
             Packet.SetValues();
+            Packet.InitEncCfg(EncryptionConfig.Strength.Strong);
 
             socket.BeginReceiveFrom(dataStream, 0, dataStream.Length, SocketFlags.None, ref senderEP, new AsyncCallback(ReceiveData), null);
             var task = Task.Run(() => { while (true) { Console.ReadLine(); } });
@@ -57,7 +55,7 @@ namespace Server._Testing
 
         private void ReceiveData(IAsyncResult asyncResult)
         {
-            if (counter < 2)
+            if (counter < 3)
             {
                 packet = new Packet(dataStream, ref inSaltList);
                 counter++;
@@ -70,21 +68,28 @@ namespace Server._Testing
             socket.EndReceiveFrom(asyncResult, ref senderEP);            
 
             switch (packet.dataID)
-            {                
+            {
                 case Packet.DataID.Hello:
+                    string strengthString = packet.body.GetValue(Packet.bodyToString[Packet.BodyTag.Strength]).ToString();
+                    Packet.InitEncCfg((EncryptionConfig.Strength)BitConverter.ToInt32(Convert.FromBase64String(strengthString)));
+                    packet = new Packet(Packet.DataID.Ack, 1, new JObject());
+                    data = packet.GetDataStream(ref outSaltList);
+                    socket.BeginSendTo(data, 0, data.Length, SocketFlags.None, senderEP, new AsyncCallback((IAsyncResult ar) => { socket.EndSend(ar); }), null);
+                    break;
+                case Packet.DataID.Info:
                     string clientKey = packet.body.GetValue(Packet.bodyToString[Packet.BodyTag.Key]).ToString();
-                    using (RSACryptoServiceProvider rsa = new RSACryptoServiceProvider(Packet.RSA_KEY_BITS))
+                    using (RSACryptoServiceProvider rsa = new RSACryptoServiceProvider(Packet.encCfg.RSA_KEY_BITS))
                     {
-                        clientPub = JsonConvert.DeserializeObject<RSAParameters>(clientKey);
-                        priv = rsa.ExportParameters(true);
-                        pub = rsa.ExportParameters(false);
+                        Packet.encCfg.recipient = JsonConvert.DeserializeObject<RSAParameters>(clientKey);
+                        Packet.encCfg.priv = rsa.ExportParameters(true);
+                        Packet.encCfg.pub = rsa.ExportParameters(false);
                     }
                     body = new JObject();
-                    body.Add(Packet.bodyToString[Packet.BodyTag.Key], ObjectConverter.GetJObject(pub));
+                    body.Add(Packet.bodyToString[Packet.BodyTag.Key], ObjectConverter.GetJObject(Packet.encCfg.pub));
                     packet = new Packet(Packet.DataID.Hello, 2, body);
                     data = packet.GetDataStream(ref outSaltList);
                     socket.BeginSendTo(data, 0, data.Length, SocketFlags.None, senderEP, new AsyncCallback((IAsyncResult ar) => { socket.EndSend(ar); }), null);
-                    Packet.SetRSAParameters(clientPub, priv);
+                    Packet.encCfg.useCrpyto = true;
                     break;
                 case Packet.DataID.Ack:
                     body = new JObject();
@@ -100,12 +105,12 @@ namespace Server._Testing
                     string signatureStr;
                     using (RSACryptoServiceProvider rsa = new RSACryptoServiceProvider())
                     {
-                        rsa.ImportParameters(clientPub);
+                        rsa.ImportParameters(Packet.encCfg.recipient);
                         if (!rsa.VerifyData(inSaltList.ToArray(), SHA512.Create(), clientSignature))
                             signatureStr = "FAILURE";
                         else
                         {
-                            rsa.ImportParameters(priv);
+                            rsa.ImportParameters(Packet.encCfg.priv);
                             signature = rsa.SignData(outSaltList.ToArray(), SHA512.Create());
                             signatureStr = Convert.ToBase64String(signature);
                         }
