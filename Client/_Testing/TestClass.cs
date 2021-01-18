@@ -28,7 +28,7 @@ namespace Client._Testing
 
         public void Send()
         {
-            Packet outPacket = new Packet(Packet.DataID.Heartbeat, id, Packet.EmptyBody);
+            Packet outPacket = new Packet(Packet.DataID.Heartbeat, id, null);
             outPacket.body.Add("test", 909);
 
             Console.WriteLine($"Sending: {outPacket.body}");

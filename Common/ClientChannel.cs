@@ -142,7 +142,7 @@ namespace Common
                     string serverParamString = inPacket.body.GetValue(Packet.bodyToString[Packet.BodyTag.Key]).ToString();
                     RSAParameters serverParams = JsonConvert.DeserializeObject<RSAParameters>(serverParamString);
                     Packet.SetRSAParameters(serverParams, priv);
-                    var outPacket = new Packet(Packet.DataID.Ack, userID, Packet.EmptyBody);
+                    var outPacket = new Packet(Packet.DataID.Ack, userID, new JObject()); //Not null so that salt can be added to it
                     SendData(outPacket);
 
                     _ = socket.BeginReceiveFrom(dataStream, 0, dataStream.Length, SocketFlags.None, ref endpoint, new AsyncCallback((IAsyncResult ar) =>
@@ -211,7 +211,7 @@ namespace Common
         /// </summary>
         private protected override void Heartbeat()
         {
-            var heartbeat = new Packet(Packet.DataID.Heartbeat, userID, Packet.EmptyBody);
+            var heartbeat = new Packet(Packet.DataID.Heartbeat, userID, null);
             lock (outPackets)
                 outPackets.Enqueue(heartbeat);            
             Thread.Sleep(5000);

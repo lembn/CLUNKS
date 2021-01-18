@@ -1,6 +1,5 @@
 ﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using Newtonsoft.Json.Serialization;
 using System;
 using System.IO;
 using System.Text;
@@ -13,8 +12,14 @@ namespace Common.Helpers
     /// </summary>
     public static class ObjectConverter
     {
+        #region Private Members
+
         private static bool madeSerializer = false; //A boolean to check if the seriliazer has be initialised
         private static JsonSerializer serializer; //A serializer used for serializing objects into JSON strings
+
+        #endregion
+
+        #region Methods
 
         /// <summary>
         /// A method for converting enum values to strings holding the bytes which represent value
@@ -46,22 +51,18 @@ namespace Common.Helpers
         /// Creates a custom JsonSerializer
         /// </summary>
         /// <returns>The JsonSerializer</returns>
-        private static JsonSerializer GetJsonSerializer()
+        public static JsonSerializer GetJsonSerializer()
         {
             var settings = new JsonSerializerSettings
             {
+                NullValueHandling = NullValueHandling.Ignore,
                 Formatting = Formatting.None,
                 DateTimeZoneHandling = DateTimeZoneHandling.Utc,
-                ContractResolver = new DefaultContractResolver
-                {
-                    NamingStrategy = new CamelCaseNamingStrategy
-                    {
-                        ProcessDictionaryKeys = false
-                    }
-                }
             };
             settings.PreserveReferencesHandling = PreserveReferencesHandling.None;
             return JsonSerializer.Create(settings);
         }
+
+        #endregion
     }
 }

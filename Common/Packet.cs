@@ -83,7 +83,6 @@ namespace Common
         }
 
         public static Dictionary<BodyTag, string> bodyToString; //Dictionary to convert BodyTag values to their bytestring representation
-        public static JObject EmptyBody; //Placeholder empty body (since null can't be used)
         public const int RSA_KEY_BITS = 2048; //RSA key size (in bits)
 
         public DataID dataID;
@@ -105,7 +104,7 @@ namespace Common
             this.dataID = dataID;
             this.userID = userID;
             this.body = body;
-            serializer = JsonSerializer.Create();
+            serializer = ObjectConverter.GetJsonSerializer();
         }
         /// <summary>
         /// A Packet constructor for rebuilding packets from an existing data source.
@@ -113,7 +112,7 @@ namespace Common
         /// <param name="dataStream">The Packet.GetDataStream() output of the original Packet</param>
         public Packet(byte[] dataStream)
         {
-            int bodyLength = BitConverter.ToInt32(dataStream.Take(HEADER_SIZE).ToArray());            
+            int bodyLength = BitConverter.ToInt32(dataStream.Take(HEADER_SIZE).ToArray());
             byte[] e_aesData = dataStream.Skip(HEADER_SIZE).Take(RSA_OUTPUT).ToArray();
             byte[] payloadBytes = dataStream.Skip(HEADER_SIZE + RSA_OUTPUT).Take(bodyLength).ToArray();
 
@@ -140,16 +139,20 @@ namespace Common
             var payload = JObject.Parse(Encoding.UTF8.GetString(payloadBytes));
             string dataIDString = payload.GetValue(payloadToString[PayloadTag.DataID]).ToString();
             string userIDString = payload.GetValue(payloadToString[PayloadTag.UserID]).ToString();
-            string bodyString = payload.GetValue(payloadToString[PayloadTag.Body]).ToString();
+            string bodyString_b64 = payload.GetValue(payloadToString[PayloadTag.Body]).ToString();
             dataID = (DataID)BitConverter.ToInt32(Convert.FromBase64String(dataIDString));
             userID = BitConverter.ToUInt32(Convert.FromBase64String(userIDString));
-            body = JObject.Parse(Encoding.UTF8.GetString(Convert.FromBase64String(bodyString)));
-            if (body.GetValue(bodyToString[BodyTag.Salt]).ToString() != null)
-                salt = Convert.FromBase64String(body.GetValue(bodyToString[BodyTag.Salt]).ToString());
-            else
-                salt = null;
+            string bodyString = Encoding.UTF8.GetString(Convert.FromBase64String(bodyString_b64));
+            if (bodyString != "null")
+            {
+                body = JObject.Parse(bodyString);
+                if (body.GetValue(bodyToString[BodyTag.Salt]).ToString() != null)
+                    salt = Convert.FromBase64String(body.GetValue(bodyToString[BodyTag.Salt]).ToString());
+                else
+                    salt = null;
+            }
 
-           serializer = JsonSerializer.Create();
+            serializer = ObjectConverter.GetJsonSerializer();
         }
         /// <summary>
         /// A Packet constructor for rebuilding packets from an existing data source, and storing their body salts for building signatures
@@ -171,7 +174,6 @@ namespace Common
             dataToString = new Dictionary<DataID, string>();
             payloadToString = new Dictionary<PayloadTag, string>();
             bodyToString = new Dictionary<BodyTag, string>();
-            EmptyBody = new JObject();
             rngCsp = new RNGCryptoServiceProvider();
 
             foreach (DataID data in Enum.GetValues(typeof(DataID)))
@@ -310,7 +312,8 @@ namespace Common
         {   
             salt = new byte[SALT_SIZE];
             rngCsp.GetBytes(salt);
-            body.Add(bodyToString[BodyTag.Salt], Convert.ToBase64String(salt));
+            if (body != null)
+                body.Add(bodyToString[BodyTag.Salt], Convert.ToBase64String(salt));
         }
 
         #endregion
