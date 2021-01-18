@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Common.Packets;
+using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
@@ -88,7 +89,7 @@ namespace Common
                 if (disposing)
                 {
                     cts.Cancel();
-                    Packet.Cleanup();
+                    PacketFactory.Cleanup();
                     socket.Dispose();
                 }
 

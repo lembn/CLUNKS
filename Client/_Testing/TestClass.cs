@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Net.Sockets;
 using System.Net;
-using Common;
 using System.Threading.Tasks;
+using Common.Packets;
 
 namespace Client._Testing
 {
@@ -28,12 +28,12 @@ namespace Client._Testing
 
         public void Send()
         {
-            Packet outPacket = new Packet(Packet.DataID.Heartbeat, id, null);
+            Packet outPacket = new Packet(PacketFactory.DataID.Heartbeat, id, null);
             outPacket.body.Add("test", 909);
 
             Console.WriteLine($"Sending: {outPacket.body}");
 
-            byte[] byteData = outPacket.GetDataStream();
+            byte[] byteData = PacketFactory.GetDataStream(outPacket);
 
             socket.BeginSendTo(byteData, 0, byteData.Length, SocketFlags.None, serverEP, new AsyncCallback((IAsyncResult ar) => { socket.EndSend(ar); }), null);
 
@@ -46,7 +46,7 @@ namespace Client._Testing
         {
             socket.EndReceive(ar);
 
-            var inPacket = new Packet(dataStream);
+            var inPacket = PacketFactory.BuildPacket(dataStream);
 
             Console.WriteLine($"Got: {inPacket.body}");
 

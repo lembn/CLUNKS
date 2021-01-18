@@ -39,7 +39,7 @@ namespace Common.Helpers
         public RSAParameters priv;
         public RSAParameters recipient;
         public bool useCrpyto = false;
-        public bool captureSalts = true;
+        public bool captureSalts = false;
 
         #endregion
 

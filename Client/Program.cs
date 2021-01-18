@@ -2,6 +2,7 @@
 using System.Net;
 using Common;
 using Common.Helpers;
+using Common.Packets;
 
 namespace Client
 {

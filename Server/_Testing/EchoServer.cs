@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Net.Sockets;
 using System.Net;
-using Common;
+using Common.Packets;
 using System.Threading.Tasks;
 
 namespace Server._Testing
@@ -39,14 +39,14 @@ namespace Server._Testing
 
         private void ReceiveData(IAsyncResult asyncResult)
         {
-            var packet = new Packet(dataStream);
+            var packet = PacketFactory.BuildPacket(dataStream);
             packet.body.Add("server", true);
 
             EndPoint senderEP = new IPEndPoint(IPAddress.Any, 0);
 
             socket.EndReceiveFrom(asyncResult, ref senderEP);
 
-            byte[] data = packet.GetDataStream();
+            byte[] data = PacketFactory.GetDataStream(packet);
 
             socket.BeginSendTo(data, 0, data.Length, SocketFlags.None, senderEP, new AsyncCallback((IAsyncResult ar) => { socket.EndSend(ar); }), null);
             Console.WriteLine($"Echoing: {senderEP}");

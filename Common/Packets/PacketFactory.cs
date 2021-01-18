@@ -8,31 +8,17 @@ using Common.Helpers;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
-namespace Common
+namespace Common.Packets
 {
 
     /// <summary>
-    /// A class to represent packages of data to be sent over the network between channels.
-    /// ----------------
-    /// Packet Structure
-    /// ----------------
-    ///
-    /// Description   -> | bodyLength | encyptionData |   payload    |
-    /// Size in bytes -> |     4      |      256      |  bodyLength  |
-    ///
-    /// bodyLength is a 32 bit integer
-    /// encyptionData contains the key/iv pair requred to decrypt the paylood.
-    /// encyptionData is encrypted with the user's public key
-    /// payload contains: dataId, userId, body
-    /// ------------------------------------------------
+    /// A class for creating and managing Packets
     /// </summary>
-    public class Packet
+    public static class PacketFactory
     {
         #region Private Members
 
         private const int HEADER_SIZE = 4; //bodyLength is a 32 bit integer
-
-        private byte[] salt; //The body salt of the packet
 
         private static JsonSerializer serializer; //Used for serializing JObjects
         private static Dictionary<DataID, string> dataToString; //Dictionary to convert DataID values to their bytestring representation
@@ -77,33 +63,18 @@ namespace Common
         public static Dictionary<BodyTag, string> bodyToString; //Dictionary to convert BodyTag values to their bytestring representation
         public static EncryptionConfig encCfg; //The settings to use for encrypting and decrpyting packets
 
-        public DataID dataID;
-        public uint userID;
-        public JObject body;
+        public static List<byte> incomingSalts;
+        public static List<byte> outgoingSalts;
 
         #endregion
 
         #region Methods
 
         /// <summary>
-        /// A Packet constructor for creating new packets
-        /// </summary>
-        /// <param name="dataID">The type of data stored in the Packet</param>
-        /// <param name="userID">The user ID of the user creating the Packet (or the user who the Packet is for in the case of the server)</param>
-        /// <param name="body">The data</param>
-        public Packet(DataID dataID, uint userID, JObject body)
-        {
-            this.dataID = dataID;
-            this.userID = userID;
-            this.body = body;
-            serializer = ObjectConverter.GetJsonSerializer();
-        }
-        /// <summary>
         /// A Packet constructor for rebuilding packets from an existing data source.
         /// </summary>
-        /// <param name="dataStream">The Packet.GetDataStream() output of the original Packet</param>
-        /// <param name="encCfg">The encryption settings to use when decrypting the dataStream</param>
-        public Packet(byte[] dataStream)
+        /// <param name="dataStream">the byte representation of the packet to build</param>
+        public static Packet BuildPacket(byte[] dataStream)
         {
             int bodyLength = BitConverter.ToInt32(dataStream.Take(HEADER_SIZE).ToArray());
             byte[] e_aesData = dataStream.Skip(HEADER_SIZE).Take(encCfg.RSA_OUTPUT).ToArray();
@@ -133,30 +104,22 @@ namespace Common
             string dataIDString = payload.GetValue(payloadToString[PayloadTag.DataID]).ToString();
             string userIDString = payload.GetValue(payloadToString[PayloadTag.UserID]).ToString();
             string bodyString_b64 = payload.GetValue(payloadToString[PayloadTag.Body]).ToString();
-            dataID = (DataID)BitConverter.ToInt32(Convert.FromBase64String(dataIDString));
-            userID = BitConverter.ToUInt32(Convert.FromBase64String(userIDString));
+            DataID dataID = (DataID)BitConverter.ToInt32(Convert.FromBase64String(dataIDString));
+            uint userID = BitConverter.ToUInt32(Convert.FromBase64String(userIDString));
             string bodyString = Encoding.UTF8.GetString(Convert.FromBase64String(bodyString_b64));
+            JObject body = null;
+            byte[] salt = new byte[0];
             if (bodyString != "null")
             {
                 body = JObject.Parse(bodyString);
-                if (body.GetValue(bodyToString[BodyTag.Salt]).ToString() != null)
+                if (encCfg.captureSalts)
                     salt = Convert.FromBase64String(body.GetValue(bodyToString[BodyTag.Salt]).ToString());
-                else
-                    salt = null;
+                    incomingSalts.AddRange(salt);
             }
 
-            serializer = ObjectConverter.GetJsonSerializer();
-        }
-        /// <summary>
-        /// A Packet constructor for rebuilding packets from an existing data source, and storing their body salts for building signatures
-        /// </summary>
-        /// <param name="dataStream">The Packet.GetDataStream() output of the original Packet</param>
-        /// <param name="saltList">A reference to the list in which the body salt should be appened to</param>
-        /// <param name="encCfg">The encryption settings to use when decrypting the dataStream</param>
-        public Packet(byte[] dataStream, ref List<byte> saltList) : this(dataStream)
-        {
-            if (salt != null)
-                saltList.AddRange(salt);
+            Packet packet = new Packet(dataID, userID, body);
+            packet.salt = salt;            
+            return packet;
         }
 
         /// <summary>
@@ -169,6 +132,9 @@ namespace Common
             payloadToString = new Dictionary<PayloadTag, string>();
             bodyToString = new Dictionary<BodyTag, string>();
             rngCsp = new RNGCryptoServiceProvider();
+            serializer = ObjectConverter.GetJsonSerializer();
+            incomingSalts = new List<byte>();
+            outgoingSalts = new List<byte>();
 
             foreach (DataID data in Enum.GetValues(typeof(DataID)))
             {
@@ -208,17 +174,16 @@ namespace Common
         /// A method to get the representation of a packet in the form of a byte array so that
         /// the packet can be sent over the network and reconstructed on delivery.
         /// </summary>
-        /// <returns>The byte array representation of the packet.</returns>
-        /// <param name="encCfg">The encryption settings to use when encrypting the dataStream</param>
-        public byte[] GetDataStream()
+        /// <returns>The byte representation of the packet.</returns>
+        public static byte[] GetDataStream(Packet packet)
         {
-            var b_dataID = BitConverter.GetBytes((int)dataID);
-            var b_userID = BitConverter.GetBytes(userID);
+            var b_dataID = BitConverter.GetBytes((int)packet.dataID);
+            var b_userID = BitConverter.GetBytes(packet.userID);
             if (encCfg.captureSalts)
-                SaltBody(body);
+                SaltBody(packet);
             var sb = new StringBuilder();
             var sw = new StringWriter(sb);
-            serializer.Serialize(sw, body);
+            serializer.Serialize(sw, packet.body);
             var bodyBytes = Encoding.UTF8.GetBytes(sb.ToString());
 
             var json = new JObject();
@@ -245,12 +210,12 @@ namespace Common
                         rsa.KeySize = encCfg.RSA_KEY_BITS;
                         byte[] d_aesData = aes.Key.Concat(aes.IV).ToArray();
                         e_aesData = rsa.Encrypt(d_aesData, RSAEncryptionPadding.Pkcs1);
-                    }                
+                    }
 
                     using (var encryptor = aes.CreateEncryptor(aes.Key, aes.IV))
                         payload = DoCrypto(payload, encryptor);
                 }
-            }           
+            }
 
             List<byte> dataStream = new List<byte>();
             dataStream.AddRange(BitConverter.GetBytes(payload.Length));
@@ -259,20 +224,6 @@ namespace Common
 
             return dataStream.ToArray();
         }
-        /// <summary>
-        /// A method to get the representation of a packet in the form of a byte array so that
-        /// the packet can be sent over the network and reconstructed on delivery. It also adds the generated
-        /// body salt of the packet to the supplied list for signature creation.
-        /// </summary>
-        /// <param name="encCfg">The encryption settings to use when encrypting the dataStream</param>
-        /// <param name="saltList">A reference to the list which the body salt should be added to.</param>
-        /// <returns>The byte array representation of the packet.</returns>
-        public byte[] GetDataStream(ref List<byte> saltList)
-        {            
-            byte[] dataStream = GetDataStream();
-            saltList.AddRange(salt);
-            return dataStream;
-        }
 
         /// <summary>
         /// A method to perform a symmetric cryptographic operation on an array of bytes.
@@ -280,7 +231,7 @@ namespace Common
         /// <param name="dataStream">The array of bytes to perform the operation on.</param>
         /// <param name="transform">The operation to perform</param>
         /// <returns></returns>
-        private byte[] DoCrypto(byte[] dataStream, ICryptoTransform transform)
+        private static byte[] DoCrypto(byte[] dataStream, ICryptoTransform transform)
         {
             using (var ms = new MemoryStream())
             {
@@ -292,31 +243,24 @@ namespace Common
                         cryptoStream.FlushFinalBlock();
                         return ms.ToArray();
                     }
-                    catch (CryptographicException) { throw; }                    
+                    catch (CryptographicException) { throw; }
                 }
-            }            
+            }
         }
 
         /// <summary>
         /// A method to generate a secure random salt value and add it to a body.
         /// </summary>
         /// <param name="body">The JObject representing the body</param>
-        private void SaltBody(JObject body)
-        {   
-            salt = new byte[encCfg.SALT_SIZE];
-            rngCsp.GetBytes(salt);
-            if (body != null)
-                body.Add(bodyToString[BodyTag.Salt], Convert.ToBase64String(salt));
+        private static void SaltBody(Packet packet)
+        {
+            packet.salt = new byte[encCfg.SALT_SIZE];
+            rngCsp.GetBytes(packet.salt);
+            if (packet.body != null)
+                packet.body.Add(bodyToString[BodyTag.Salt], Convert.ToBase64String(packet.salt));
+            outgoingSalts.AddRange(packet.salt);
         }
 
         #endregion
-    }
-
-    /// <summary>
-    /// A class for passing packets between event handlers.
-    /// </summary>
-    public class PacketEventArgs : EventArgs
-    {
-        public Packet Packet { get; set; }
     }
 }
