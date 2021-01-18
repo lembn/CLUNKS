@@ -96,6 +96,12 @@ There are commands that users can run to obtain information about the subserver.
 
 *Structure:* ```stucture``` will show the structure of the current sub-server, in a tree-type view. This includes any rooms and groups that haven't been marked as hidden.
 
+*Notifications:* ```notifications``` will show the any notifications the user has from the server, such as missed calls. The user can clear their notifications, otherwise all uncleared notifications will be loaded when the command is run. (Add limit per user to prevent inifite database expansion?)
+
+*Stats:* ```stats``` will show logged statistics to the user. This can include information such as processed packets per second; how many datagrams are too large for the buffer size as a percentage, etc. The user can use these statistics to make informed decisions on which settings to set in ```settings```
+
+*Settings:* ```settings``` will allow the user to configure the program to run differently to optimise efficiency and improve the user experience for them personally.
+
 ----
 
 ## Technical Specifications
