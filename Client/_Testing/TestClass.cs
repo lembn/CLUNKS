@@ -4,14 +4,14 @@ using System.Net;
 using Common;
 using System.Threading.Tasks;
 
-namespace Client
+namespace Client._Testing
 {
     public class TestClass
     {
         #region Private Members
 
         private Socket socket;
-        private int id;
+        private uint id;
         private EndPoint serverEP;
         private byte[] dataStream = new byte[1024];
 
@@ -19,7 +19,7 @@ namespace Client
 
         #region Methods
 
-        public TestClass(int userID)
+        public TestClass(uint userID)
         {
             id = userID;
             socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
@@ -28,7 +28,7 @@ namespace Client
 
         public void Send()
         {
-            Packet outPacket = new Packet(DataID.Heartbeat, id);
+            Packet outPacket = new Packet(Packet.DataID.Heartbeat, id, Packet.EmptyBody);
             outPacket.body.Add("test", 909);
 
             Console.WriteLine($"Sending: {outPacket.body}");

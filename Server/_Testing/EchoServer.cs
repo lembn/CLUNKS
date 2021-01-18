@@ -1,11 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Net.Sockets;
 using System.Net;
 using Common;
 using System.Threading.Tasks;
 
-namespace Server
+namespace Server._Testing
 {
     public class EchoServer
     {

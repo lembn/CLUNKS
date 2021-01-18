@@ -1,10 +1,12 @@
-﻿namespace Server
+﻿using Server._Testing;
+
+namespace Server
 {
     class Program
     {
         static void Main(string[] args)
         {
-            var server = new EchoServer();
+            var server = new HandshakeServer();
             server.Start();
         }
     }
