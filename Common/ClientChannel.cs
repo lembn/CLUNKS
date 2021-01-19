@@ -292,11 +292,15 @@ namespace Common
         /// <param name="ar">An object representing the result of the asynchoronous task</param>
         private protected override void ReceiveData(IAsyncResult ar)
         {
-            _ = socket.EndReceiveFrom(ar, ref endpoint);
-            lock (inPackets)
-                inPackets.Enqueue((byte[])dataStream.Clone());
-            dataStream = new byte[bufferSize];
-            listening = false;
+            try
+            {
+                _ = socket.EndReceiveFrom(ar, ref endpoint);
+                lock (inPackets)
+                    inPackets.Enqueue((byte[])dataStream.Clone());
+                dataStream = new byte[bufferSize];
+                listening = false;
+            }
+            catch (ObjectDisposedException) { }            
         }
 
         #endregion

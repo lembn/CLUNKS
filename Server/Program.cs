@@ -6,7 +6,7 @@ namespace Server
     {
         static void Main(string[] args)
         {
-            var server = new HandshakeEchoServer();
+            var server = new HandshakeServer();
             server.Start();
         }
     }
