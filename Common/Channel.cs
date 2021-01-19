@@ -113,9 +113,4 @@ namespace Common
 
         #endregion
     }
-
-    /// <summary>
-    /// A class used to represent a problem during a handshake
-    /// </summary>
-    public class HandshakeException : Exception { }
 }
