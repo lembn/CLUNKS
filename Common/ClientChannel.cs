@@ -56,7 +56,8 @@ namespace Common
         {
             threads.Add(ThreadHelper.GetECThread(ctoken, Heartbeat));
 
-            threads.Add(ThreadHelper.GetECThread(ctoken, () => {
+            threads.Add(ThreadHelper.GetECThread(ctoken, () =>
+            {
                 Packet packet;
                 bool packetAvailable;
                 lock (outPackets)
@@ -65,13 +66,14 @@ namespace Common
                     SendData(packet);
             })); //Send packets
 
-            threads.Add(ThreadHelper.GetECThread(ctoken, () => {
+            threads.Add(ThreadHelper.GetECThread(ctoken, () =>
+            {
                 if (!listening)
                 {
                     listening = true;
                     try
                     {
-                        _ = socket.BeginReceiveFrom(dataStream, 0, dataStream.Length, SocketFlags.None, ref endpoint, new AsyncCallback(ReceiveData), null);                        
+                        _ = socket.BeginReceiveFrom(dataStream, 0, dataStream.Length, SocketFlags.None, ref endpoint, new AsyncCallback(ReceiveData), null);
                     }
                     catch (SocketException)
                     {
@@ -81,7 +83,8 @@ namespace Common
                 }
             })); //Listen
 
-            threads.Add(ThreadHelper.GetECThread(ctoken, () => {
+            threads.Add(ThreadHelper.GetECThread(ctoken, () =>
+            {
                 if (packetCount > 10 && largePackets / packetCount > packetLossThresh)
                 {
                     Console.WriteLine("Your buffer size is causing significant packet loss. Please consider increasing it.");
@@ -89,7 +92,8 @@ namespace Common
                 Thread.Sleep(30000);
             })); //Watch packet loss
 
-            threads.Add(ThreadHelper.GetECThread(ctoken, () => {
+            threads.Add(ThreadHelper.GetECThread(ctoken, () =>
+            {
                 byte[] packetBytes;
                 bool packetAvailable;
                 lock (inPackets)
