@@ -157,3 +157,7 @@ C# Socket Programming: https://www.youtube.com/channel/UCUg_M6wvaS-DhHpFpW7aC6w
 C# Customise Command Prompt: https://www.dotnetperls.com/console-color
 
 C# Parse Command Line: https://www.nuget.org/packages/Mono.Options/, https://github.com/xamarin/XamarinComponents/tree/master/XPlat/Mono.Options
+
+# Keep in mind
+If buffer is too small to perform handshake, handshake is treated as failed <br>
+ATM, when encryption level <= EncryptionConfig.Strength.Light, the size of the key is too small for certificates. This is because the size of the key is too small to compensate for the salt which is generated with EncryptionConfig.Strength.Strong settings (as per the Handshake protocol) <br>

@@ -10,7 +10,6 @@ using Newtonsoft.Json.Linq;
 
 namespace Common.Packets
 {
-
     /// <summary>
     /// A class for creating and managing Packets
     /// </summary>

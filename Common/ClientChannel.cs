@@ -165,14 +165,6 @@ namespace Common
                     switch (inPacket.dataID)
                     {
                         case PacketFactory.DataID.Ack:
-                            PacketFactory.InitEncCfg(strength);
-                            PacketFactory.encCfg.useCrpyto = false;
-                            PacketFactory.encCfg.captureSalts = true;
-                            using (RSACryptoServiceProvider rsa = new RSACryptoServiceProvider(PacketFactory.encCfg.RSA_KEY_BITS))
-                            {
-                                PacketFactory.encCfg.pub = rsa.ExportParameters(false);
-                                PacketFactory.encCfg.priv = rsa.ExportParameters(true);
-                            }
                             body = new JObject();
                             body.Add(PacketFactory.bodyToString[PacketFactory.BodyTag.Key], ObjectConverter.GetJObject(PacketFactory.encCfg.pub));
                             outPacket = new Packet(PacketFactory.DataID.Info, userID, body);
@@ -232,7 +224,15 @@ namespace Common
                 }
             }            
             
-            SendData(outPacket);       
+            SendData(outPacket);
+            PacketFactory.InitEncCfg(strength);
+            PacketFactory.encCfg.useCrpyto = false;
+            PacketFactory.encCfg.captureSalts = true;
+            using (RSACryptoServiceProvider rsa = new RSACryptoServiceProvider(PacketFactory.encCfg.RSA_KEY_BITS))
+            {
+                PacketFactory.encCfg.pub = rsa.ExportParameters(false);
+                PacketFactory.encCfg.priv = rsa.ExportParameters(true);
+            }
             _ = socket.BeginReceiveFrom(dataStream, 0, dataStream.Length, SocketFlags.None, ref endpoint, new AsyncCallback(HandshakeRecursive), null);
             complete.WaitOne();
             if (!failed)
