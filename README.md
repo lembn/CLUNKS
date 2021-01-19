@@ -57,9 +57,24 @@ This will send a call to the desired user, which can be accepted or rejected by 
 [subservername]
 CLNKS>>> [username] is calling. Accept?
 ```
-The user can enter ```y``` to accept or ```n``` to decline. After two seconds with no response, the request is repeated again. Requests are repeated 10 times until they are automatically quit. The orignal user would be informed that the call was not picked up.
+The user can enter ```y``` to accept or ```n``` to decline. After two seconds with no response, the request is repeated again. Requests are repeated 10 times until they are automatically quit. The orignal user would be informed that the call was not picked up. The intended receiver would have notification added to their notificatioons if they missed the call
 
 For large conference calls, the user can also create a call on the server with the ```call``` command This creates a conference call that anyone on the subserver can join into by running ```joincall```.
+
+### **Messaging**
+Messaging is another base feature of sub-servers. Users can message each other with:
+```
+[subservername]
+CLNKS>>> message [username] [message]
+```
+
+This will send a message to the user. Messages are stored in the database. To see message history a user can run:
+```
+[subservername]
+CLNKS>>> chat [username] [message]
+```
+
+This will display the message history along with a line at the bottom where users can send messages, creating a chat-room like experience. The user can configure how far back the message history should show in their settings.
 
 ### **Rooms**
 For group calls, the user can call the sub-server, and any member of the sub-server is able to join that call, however if a user wanted to make a group call that didn't include all members of the sub-server, they can create a room.
@@ -87,12 +102,16 @@ A user can create a group with ```makegroup``` or join a group with ```joingroup
 
 The group will exist until all its members quit the program. If they leave the group but still have the program open, the group will be kept alive until the last group member quits the program (in case anyone wants to rejoin).
 
+### **Call actions**
+
+When in large group calls, the screen may become crowded by camera feeds of all the other users. To manage this, the user can user use ```hide [username]``` and ```show [username]``` to toggle which user's are shown. When a user is hidden, you can only hear them, but not see. A user in a call can be completely ignored with ```mute [username]```. ```mute``` can be undone with ```unmute```. Passing ```self``` into the ```[username]``` argument will perfrom the action on the user.
+
 ### **User commands**
 There are commands that users can run to obtain information about the subserver. 
 
 *Contacts:* ```contacts``` will show all the contacts of whatever space the user is in. If the user runs ```contacts``` from a sub-server, they will see a list of all the sub-server's members, but running ```contacts``` from a room will show the contact list of the current room.
 
-*Info:* ```info``` will show the information of the user who calls it, it can show things like: granted permissions, joined rooms, number of calls, etc.
+*Self:* ```self``` will show the information of the user who calls it, it can show things like: granted permissions, joined rooms, number of calls, etc. Running ```self``` during a call will show wether the user is muted and camera is showing.
 
 *Structure:* ```stucture``` will show the structure of the current sub-server, in a tree-type view. This includes any rooms and groups that haven't been marked as hidden.
 
@@ -136,3 +155,5 @@ C# Access Webcam: https://www.google.com/search?q=c%23+access+webcam&rlz=1C1CHBF
 C# Socket Programming: https://www.youtube.com/channel/UCUg_M6wvaS-DhHpFpW7aC6w
 
 C# Customise Command Prompt: https://www.dotnetperls.com/console-color
+
+C# Parse Command Line: https://www.nuget.org/packages/Mono.Options/, https://github.com/xamarin/XamarinComponents/tree/master/XPlat/Mono.Options
