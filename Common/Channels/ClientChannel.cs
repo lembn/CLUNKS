@@ -134,10 +134,9 @@ namespace Common.Channels
             while (true)
             {
                 attempts++;
-                if (true)//Handshake())
+                if (Handshake())
                 {
-                    //PacketFactory.encCfg.captureSalts = false;
-                    PacketFactory.InitEncCfg(EncryptionConfig.Strength.None);
+                    PacketFactory.encCfg.captureSalts = false;
                     foreach (var thread in threads)
                         thread.Start();
                     break;
