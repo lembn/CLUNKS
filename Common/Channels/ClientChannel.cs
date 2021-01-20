@@ -44,7 +44,7 @@ namespace Common.Channels
         /// <param name="connectAttempts">The maximum amount of handshakes to attempt before aborting</param>
         /// <param name="strength">The level of encryption used by the channel</param>
         /// <param name="packetLossThresh">The threshold of packet loss</param>
-        public ClientChannel(int bufferSize, IPAddress address, int port, EncryptionConfig.Strength strength, int connectAttempts = 3, double packetLossThresh = 0.05) : base(bufferSize, address, port)
+        public ClientChannel(int bufferSize, IPAddress address, int port, EncryptionConfig.Strength strength, int connectAttempts = 3, double packetLossThresh = 0.05) : base(bufferSize)
         {
             this.connectAttempts = connectAttempts;
             this.strength = strength;

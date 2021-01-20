@@ -29,7 +29,7 @@ namespace Common.Channels
         private protected const int HEADER_SIZE = 4; //Size of the packet header for TCP
         private protected const int UDP_PORT = 30000; //Port used by the server for UDP
         private protected const int TCP_PORT = 40000; //Port used by the server for TCP
-        private bool disposedValue; //A boolean to represent if the channel has been closed or not
+        private protected bool disposedValue; //A boolean to represent if the channel has been closed or not
 
         #endregion
 
@@ -49,7 +49,7 @@ namespace Common.Channels
         /// <param name="bufferSize">The size to allocate to the buffer of the channel (in bytes)</param>
         /// <param name="address">The IP address of the server</param>
         /// <param name="port">The port that the server is hosting on</param>
-        private protected Channel(int bufferSize, IPAddress address, int port)
+        private protected Channel(int bufferSize)
         {
             this.bufferSize = bufferSize;
             dataStream = new byte[bufferSize];
