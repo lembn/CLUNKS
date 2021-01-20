@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Net;
-using Common;
+using Common.Channels;
 using Common.Helpers;
 using Common.Packets;
 

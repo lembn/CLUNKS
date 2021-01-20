@@ -9,7 +9,7 @@ using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Threading;
 
-namespace Common
+namespace Common.Channels
 {
     /// <summary>
     /// A class used by clients to communicate over the network with the server, and with other users via the server
@@ -23,10 +23,13 @@ namespace Common
         private int missedHBs = 0; //A counter of how many hearbeats have been missed
         private bool listening = false; //A boolean to check if the channel is currently listening on the socket
         private int connectAttempts; //The maximum amount of handshakes to attempt before aborting
-        private EncryptionConfig.Strength strength;
-        private int largePackets = 0;
-        private int packetCount;
-        private double packetLossThresh;
+        private EncryptionConfig.Strength strength; //Strength of encryption being used on the ClientChannel
+        private int largePackets = 0; //Number of datagrams that were too large for the buffer size
+        private int packetCount; //Number of packets received in total
+        private double packetLossThresh; //Threshold to alert user about significant packet loss
+        private EndPoint server; //Represents the endpoint of the server
+        private IPAddress serverAdd; //Server IP
+        private ManualResetEvent connected; //An event to represent if a connection has been made to the server when using TCP
 
         #endregion
 
@@ -46,7 +49,16 @@ namespace Common
             this.connectAttempts = connectAttempts;
             this.strength = strength;
             this.packetLossThresh = packetLossThresh;
-            PacketFactory.SetValues();        
+            PacketFactory.SetValues();
+            serverAdd = address;
+            socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            server = (EndPoint)new IPEndPoint(serverAdd, TCP_PORT);
+            connected = new ManualResetEvent(false);
+            socket.BeginConnect(server, new AsyncCallback((IAsyncResult ar) => {
+                socket.EndConnect(ar);
+                connected.Set();
+            }), null);
+            connected.WaitOne();
         }        
 
         /// <summary>
@@ -63,7 +75,7 @@ namespace Common
                 lock (outPackets)
                     packetAvailable = outPackets.TryDequeue(out packet);
                 if (packetAvailable)
-                    SendData(packet);
+                    SendPacket(packet);
             })); //Send packets
 
             threads.Add(ThreadHelper.GetECThread(ctoken, () =>
@@ -73,7 +85,14 @@ namespace Common
                     listening = true;
                     try
                     {
-                        _ = socket.BeginReceiveFrom(dataStream, 0, dataStream.Length, SocketFlags.None, ref endpoint, new AsyncCallback(ReceiveData), null);
+                        lock (server)
+                        {
+                            if (socket.ProtocolType == ProtocolType.Udp)
+                                socket.BeginReceiveFrom(dataStream, 0, dataStream.Length, SocketFlags.None, ref server, new AsyncCallback(ReceiveUDPCallback), null);
+                            else
+                                socket.BeginReceive(TCPHeaderBuffer, 0, HEADER_SIZE, SocketFlags.None, new AsyncCallback(ReceiveTCPCallback), null);
+                        }
+                        
                     }
                     catch (SocketException)
                     {
@@ -115,9 +134,10 @@ namespace Common
             while (true)
             {
                 attempts++;
-                if (Handshake())
+                if (true)//Handshake())
                 {
-                    PacketFactory.encCfg.captureSalts = false;
+                    //PacketFactory.encCfg.captureSalts = false;
+                    PacketFactory.InitEncCfg(EncryptionConfig.Strength.None);
                     foreach (var thread in threads)
                         thread.Start();
                     break;
@@ -128,6 +148,36 @@ namespace Common
                     break;
                 }
             }            
+        }
+
+        /// <summary>
+        /// A method to change the protocol used by the ClientChannel
+        /// </summary>
+        /// <param name="protocol">The protocol to change to</param>
+        public void ChangeProtocol(ProtocolType protocol)
+        {
+            if (socket.ProtocolType != protocol)
+            {
+                lock (socket)
+                {
+                    if (protocol == ProtocolType.Udp)
+                    {
+                        socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+                        server = (EndPoint)new IPEndPoint(serverAdd, UDP_PORT);
+                    }
+                    else
+                    {
+                        connected.Reset();
+                        socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                        server = (EndPoint)new IPEndPoint(serverAdd, TCP_PORT);
+                        socket.BeginConnect(server, new AsyncCallback((IAsyncResult ar) => {
+                            socket.EndConnect(ar);
+                            connected.Set();
+                        }), null);
+                        connected.WaitOne();
+                    }
+                }
+            }
         }
 
         /// <summary>
@@ -142,7 +192,7 @@ namespace Common
             byte[] signature;
             ManualResetEvent complete = new ManualResetEvent(false);
             bool failed = false;
-            Console.WriteLine($"Connecting to {endpoint} ...");
+            Console.WriteLine($"Connecting to {server} ...");
             PacketFactory.InitEncCfg(EncryptionConfig.Strength.Strong);
             PacketFactory.encCfg.useCrpyto = false;
             PacketFactory.encCfg.captureSalts = true;
@@ -156,7 +206,7 @@ namespace Common
             {
                 try
                 { 
-                    _ = socket.EndReceiveFrom(ar, ref endpoint);
+                    socket.EndReceiveFrom(ar, ref server);
                     inPacket = PacketFactory.BuildPacket(dataStream);
                     dataStream = new byte[bufferSize];
 
@@ -217,8 +267,8 @@ namespace Common
 
                     if (!complete.WaitOne(0))
                     {
-                        SendData(outPacket);
-                        _ = socket.BeginReceiveFrom(dataStream, 0, dataStream.Length, SocketFlags.None, ref endpoint, new AsyncCallback(HandshakeRecursive), null);
+                        SendPacket(outPacket);
+                        socket.BeginReceiveFrom(dataStream, 0, dataStream.Length, SocketFlags.None, ref server, new AsyncCallback(HandshakeRecursive), null);
                     }
                 }
                 catch (SocketException)
@@ -226,9 +276,9 @@ namespace Common
                     complete.Set();
                     failed = true;
                 }
-            }            
-            
-            SendData(outPacket);
+            }
+
+            SendPacket(outPacket);
             PacketFactory.InitEncCfg(strength);
             PacketFactory.encCfg.useCrpyto = false;
             PacketFactory.encCfg.captureSalts = true;
@@ -237,7 +287,7 @@ namespace Common
                 PacketFactory.encCfg.pub = rsa.ExportParameters(false);
                 PacketFactory.encCfg.priv = rsa.ExportParameters(true);
             }
-            _ = socket.BeginReceiveFrom(dataStream, 0, dataStream.Length, SocketFlags.None, ref endpoint, new AsyncCallback(HandshakeRecursive), null);
+            socket.BeginReceiveFrom(dataStream, 0, dataStream.Length, SocketFlags.None, ref server, new AsyncCallback(HandshakeRecursive), null);
             complete.WaitOne();
             if (!failed)
             {
@@ -283,22 +333,61 @@ namespace Common
         /// A method used to send Packets from the Client to the server
         /// </summary>
         /// <param name="packet">The packet to send</param>
-        private protected override void SendData(Packet packet)
+        private protected override void SendPacket(Packet packet)
         {
-            byte[] dataStream;
-            dataStream = PacketFactory.GetDataStream(packet);
-            socket.BeginSendTo(dataStream, 0, dataStream.Length, SocketFlags.None, endpoint, new AsyncCallback((IAsyncResult ar) => { socket.EndSendTo(ar); }), null);            
+            byte[] data = PacketFactory.GetDataStream(packet);
+            if (socket.ProtocolType == ProtocolType.Udp)
+                socket.BeginSendTo(data, 0, data.Length, SocketFlags.None, server, new AsyncCallback((IAsyncResult ar) => { socket.EndSendTo(ar); }), null);
+            else
+            {
+                ManualResetEvent sent = new ManualResetEvent(false);
+                byte[] header = BitConverter.GetBytes(data.Length);
+                socket.BeginSend(header, 0, header.Length, 0, new AsyncCallback((IAsyncResult ar) => { 
+                    socket.EndSend(ar);
+                    sent.Set();
+                }), null);
+                sent.WaitOne();
+                socket.BeginSend(data, 0, data.Length, 0, new AsyncCallback((IAsyncResult ar) => { socket.EndSend(ar); }), null);
+            }
         }
 
         /// <summary>
-        /// The callback to run when packets are recieved from the server
+        /// The callback to run when TCP packets are recieved from the server
         /// </summary>
         /// <param name="ar">An object representing the result of the asynchoronous task</param>
-        private protected override void ReceiveData(IAsyncResult ar)
+        private protected override void ReceiveTCPCallback(IAsyncResult ar)
+        {
+            int bytesRead = socket.EndReceive(ar);
+            ManualResetEvent received = new ManualResetEvent(false);
+            int bytesToRead = BitConverter.ToInt32(TCPHeaderBuffer);
+            if (bytesRead > 0)
+            {
+                try
+                {
+                    socket.BeginReceive(dataStream, 0, bytesToRead, SocketFlags.None, new AsyncCallback((IAsyncResult ar) => { 
+                        socket.EndReceive(ar);
+                        received.Set();
+                    }), null);
+                    received.WaitOne();
+                    lock (inPackets)
+                        inPackets.Enqueue((byte[])dataStream.Clone());
+                    dataStream = new byte[bufferSize];
+                    TCPHeaderBuffer = new byte[HEADER_SIZE];
+                    listening = false;
+                }
+                catch (ObjectDisposedException) { }
+            }
+        }
+
+        /// <summary>
+        /// The callback to run when datagrams are recieved from the server
+        /// </summary>
+        /// <param name="ar">An object representing the result of the asynchoronous task</param>
+        private protected override void ReceiveUDPCallback(IAsyncResult ar)
         {
             try
             {
-                _ = socket.EndReceiveFrom(ar, ref endpoint);
+                socket.EndReceiveFrom(ar, ref server);
                 lock (inPackets)
                     inPackets.Enqueue((byte[])dataStream.Clone());
                 dataStream = new byte[bufferSize];

@@ -6,7 +6,7 @@ namespace Server
     {
         static void Main(string[] args)
         {
-            var server = new HandshakeServer();
+            var server = new TCPEchoServer();
             server.Start();
         }
     }

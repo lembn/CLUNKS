@@ -10,7 +10,7 @@ using Newtonsoft.Json.Linq;
 
 namespace Server._Testing
 {
-    class HandshakeEchoServer
+    class UDPHandshakeEchoServer
     {
         #region Private Memebers
 
@@ -25,7 +25,7 @@ namespace Server._Testing
 
         #region Methods
 
-        public HandshakeEchoServer()
+        public UDPHandshakeEchoServer()
         {
             socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
             var server = new IPEndPoint(IPAddress.Loopback, 30000);

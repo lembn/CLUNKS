@@ -6,18 +6,18 @@ using System.Threading.Tasks;
 
 namespace Server._Testing
 {
-    public class EchoServer
+    public class UDPEchoServer
     {
         #region Private Members
 
         private Socket socket;
-        private byte[] dataStream = new byte[1024];
+        private byte[] dataStream = new byte[10000];
 
         #endregion
 
         #region Methods
 
-        public EchoServer()
+        public UDPEchoServer()
         {
             socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
             var server = new IPEndPoint(IPAddress.Loopback, 30000);

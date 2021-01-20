@@ -5,7 +5,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 
-namespace Common
+namespace Common.Channels
 {
     /// <summary>
     /// The base class for all Channel implementations.
@@ -18,15 +18,19 @@ namespace Common
         private protected Queue<Packet> outPackets; //A queue to hold outgoing packets
         private protected List<Thread> threads; //A list to keep track of running threads
         private protected byte[] dataStream; //The buffer used for receiving messages
+        private protected byte[] TCPHeaderBuffer; //The buffer used for receiving messages
         private protected int bufferSize; //The size of the receiving buffer
         private protected Socket socket; //The socket to listen on and send over
-        private protected EndPoint endpoint; //A representation of the server in the form of an IP address and port
         private protected CancellationToken ctoken; //A token used for cancelling threads when the channel is closed
         private protected object hbLock; //A lock used for thread synchronisation when processing heartbeats
         private protected const string SUCCESS = "success"; //A constant value used for identifying a sucessfull operation
         private protected const string FAILURE = "failure"; //A constant value used for identifying a failed operation
+        private protected const int NULL_ID = 1; //User ID for users who haven't been assigned ID yet
+        private protected const int HEADER_SIZE = 4; //Size of the packet header for TCP
+        private protected const int UDP_PORT = 30000; //Port used by the server for UDP
+        private protected const int TCP_PORT = 40000; //Port used by the server for TCP
         private bool disposedValue; //A boolean to represent if the channel has been closed or not
-        
+
         #endregion
 
         #region Public Members
@@ -49,8 +53,7 @@ namespace Common
         {
             this.bufferSize = bufferSize;
             dataStream = new byte[bufferSize];
-            socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-            endpoint = new IPEndPoint(address, port);
+            TCPHeaderBuffer = new byte[HEADER_SIZE];
             inPackets = new Queue<byte[]>();
             outPackets = new Queue<Packet>();
             threads = new List<Thread>();
@@ -62,8 +65,9 @@ namespace Common
         public abstract void Start();
         private protected abstract void Heartbeat();
 
-        private protected abstract void ReceiveData(IAsyncResult ar);
-        private protected abstract void SendData(Packet packet);
+        private protected abstract void ReceiveUDPCallback(IAsyncResult ar);
+        private protected abstract void ReceiveTCPCallback(IAsyncResult ar);
+        private protected abstract void SendPacket(Packet packet);
 
         /// <summary>
         /// A method to expose the outPackets queue so that members outside the Channel class can
