@@ -11,7 +11,7 @@ When the user first installs the product, they will need to create a *CLUNK serv
 
 To create a CLUNK server, the user must be an admin/superuser on their system. They will run a setup program on their intended server machine that will allow the admin to conigure IPs, create sub-servers, manage user elevation levels, etc. After the the server has been configured it only needs to be started.
 
-A CLUNK server hosts *sub-servers*. Sub-servers are designed to create physical separation withing the server, each sub-server will have its own database. Because of this design, a user registered to a sub-server, will not exist in any other sub-server unless they are created in the other sub-servers also. This allows the admin of the CLUNK server to create separation within the server. For example, a school may use CLUNKS for meetings, but create seperate subservers for each year group.
+A CLUNK server hosts *sub-servers*. Sub-servers are designed to create physical separation withing the server, each sub-server be represented as a seperate entity in the database. Because of this design, a user registered to a sub-server, will not exist in any other sub-server unless they are created in the other sub-servers also. This allows the admin of the CLUNK server to create separation within the server. For example, a school may use CLUNKS for meetings, but create seperate subservers for each year group.
 
 The server admin can also create *global users*. These are users who are not tied to one specific sub-sever but exist globally to the entire server. In the school scenario, this would be used to create accounts for teachers, since it allows the admin to create the user once, rather than making a new one for each year group sub-sever.
 
@@ -22,7 +22,7 @@ The ability to run commands within CLUNKS is controlled by the server admin. The
 ## Using **CLUNKS**
 As the name suggests, **CLUNKS**, is a command line application, the recommded usage is to add **CLUNKS** to the user's environment variables so they can call the program from their command prompt/terminal.
 
-To run the program, users will call ```clunks```, (or whatever the program is named in the user's environment variables). They can tell they're in the **CLUNKS** environment as their command promt/terminal will change to:
+To run the program, users will call ```clunks [serverIP]```, (or whatever the program is named in the user's environment variables). They can tell they're in the **CLUNKS** environment as their command promt/terminal will change to:
 ```
 CLNKS>>>
 ```
@@ -123,29 +123,6 @@ There are commands that users can run to obtain information about the subserver.
 
 ----
 
-## Technical Specifications
- - Written in C# (.NET Core)
- - Email password recovery
- - Heartbeat standards follow IEEE spec: https://stackoverflow.com/questions/1442189/heartbeat-protocols-algorithms-or-best-practices
-
-### Data Flow
-The program will use sockets to send data over the network the UDP transmission protocol. A broadcasting user will send: the frame of their video, the audio frame, which user they are and the total size of the data in a C# class object seriliazed into XML. The receiving user will display the frames using the Gstreamer multimedia library. The user identification will only be used when managing calls with more than 2 members, but will be present in all data objects as part of the protocol used by CLUNKS.
-
-UDP is being used because it creates very small packets, (about 60% smaller than TCP). It is also much faster than TCP by nature because it doesn't contain the slow error checking methods that TCP uses, doesn't wait for acknowledgement from the receiver, is connectionless, so an active connection doesn't need to be managed, doesn't compensate for lost packets and also doesn't attempt to guarantee packet delivery. Although this means that the packets recieved by the user may not be an accurate representation of what was originally sent, the eventual consistency reliant nature of the protocol (the philosophy that even if a few audiovisual frames are dropped in the process, the overall data received should be good enough to provide a good user experience) combined with the speed of data transfer makes it ideal for audiovisual streaming over a network.
-
-### Security (Server)
-The CLUNK server will use SQLite for database managmemnt. The only senstive information stored in the databases on the CLUNK server are the passwords used for user, rooms and groups. They will all be hashed with bcrypt.
-
-### Security (User)
-The combination of encryption and hashing will be used to create a digital certificate protocol that provides security, integrity and confidentiality.
-
-First the data will be encrypted using the receiver's public key. The ciphertext produced by the encryption will then be hashed to create a digest. After hashing, the digest will be encrypted with the sender's private key (not public). This produces the signature. The signature will be sent alognside the original ciphertext.
-
-When the receiver receives the data, they will first decrypt the signature using the sender's public key (not private). The receiver will then perform a hash function on the ciphertext. The hash function must be used by both parties. If the digest generated by the receiver is the same hash provided by the sender, then the transfer can be authenticated.
-
-This process provides: security via the encryption; integrity via the hash (because if the data was changed the hashes wouldn't match) and confidentially via the signing of the asymmetric keys (since the intended sender would be the only person who had the correct private key to be able to sign the original digest).
-
-This process will use RSA for the asymmetric encryption and a relatively cheap hash function for digesting. The hash function has to be cheap because if the hashes take to long to compute, the process will create heavy latency in the system. The user will be assigned RSA keys upon joining a sub-server.
 
 # Research
 C# Send Email: https://www.google.com/search?rlz=1C1CHBF_en-GBGB777GB777&sxsrf=ALeKk031_qPKoOIFowLL7Lrg2_e-ZTZgCw%3A1610481594743&ei=uv_9X-TcLPOF1fAP3Pu5wAc&q=c%23+send+email+smtp&oq=c%23+send+emai&gs_lcp=CgZwc3ktYWIQAxgBMgQIIxAnMgcIABDJAxBDMgUIABCRAjIECAAQQzIECAAQQzICCAAyAggAMgIIADICCAAyAggAOgQIABBHOgcIIxDJAxAnOgUIABCxAzoKCAAQsQMQFBCHAjoHCAAQFBCHAjoICAAQsQMQgwE6BAgAEApQn0FY7UlglVRoAHACeACAAeYBiAHbCJIBBTUuNC4xmAEAoAEBqgEHZ3dzLXdpesgBCMABAQ&sclient=psy-ab
@@ -163,6 +140,32 @@ If buffer is too small to perform handshake, handshake is treated as failed <br>
 ATM, when encryption level <= EncryptionConfig.Strength.Light, the size of the key is too small for certificates. This is because the size of the key is too small to compensate for the salt which is generated with EncryptionConfig.Strength.Strong settings (as per the Handshake protocol) <br>
 
 # Technical Notes
+## Data Flow
+Network commmunication mainly used TCP because of the intergrety it ensures, but during video calls, The program will use UDP instead. A broadcasting user will send: the frame of their video, the audio frame, which user they are and the total size of the data in a C# class object seriliazed into JSON which will be serialized again into a bytestream. The receiving user will display the frames using the Gstreamer multimedia library. The user identification will only be used when managing calls with more than 2 members, but will be present in all data objects as part of the protocol used by CLUNKS.
+
+UDP is being used because it creates very small packets, (about 60% smaller than TCP). It is also much faster than TCP by nature because it doesn't contain the slow error checking methods that TCP uses, doesn't wait for acknowledgement from the receiver, is connectionless, so an active connection doesn't need to be managed, doesn't compensate for lost packets and also doesn't attempt to guarantee packet delivery. Although this means that the packets recieved by the user may not be an accurate representation of what was originally sent, the eventual consistency reliant nature of the protocol (the philosophy that even if a few audiovisual frames are dropped in the process, the overall data received should be good enough to provide a good user experience) combined with the speed of data transfer makes it ideal for audiovisual streaming over a network.
+
+## Security (Server)
+The CLUNK server will use SQLite for database managmemnt. The only senstive information stored in the databases on the CLUNK server are the passwords used for user, rooms and groups. They will all be hashed with bcrypt.
+
+## Security (User)
+The client and server will perform a handshake on connection to ensure confididentiality and setup the asymmetric key exchange.
+
+The handshake starts with the user sending a 'Hello' message to the server. This message contains the strength of encrpytion being used by the client, the server responds with an 'Ack' (acknowledgement). The second stage of the handshake starts with an 'Info' message from the client containing the client's public key to use for encryption. The server responds to this with a 'Hello' message containing its public key. The third roudntrip begins with an 'Ack' message from the client. responded to with an 'Info' message from the server containing the userID that the server has chosen to assing the client. This is responded to with the clients digital signature.
+
+The digital signatures are created with the combination of encryption and hashing. Prior to the signature exchange, all messages have a *salt* added to them. Salts are randomly generated values which are appended to the body of a data payload to use for digital signature creation. The idea behind this is that at the end of the handshake, both parties need some data to sign to use for the encryption, usually this would be a log of all messages sent betweent the client and server (since it would be common to both) but in this case since the stages of the handshake are always the same, the data used to create the certificate would aways be the same too. To solve this, the salts are captured and stored by both parties and used to create the certificated at the end of the handshake.
+
+To create a certificate:
+ - The creator first hashes the list of all the salts they have sent out to create the certificate
+ - The hash is then signed (encrypted) with the creators PRIVATE key (very important to note that the private key is being used for encryption instead of the public one)
+ - The signed certificate can then be sent off to and verified by the other party
+
+To verify a certificate:
+ - The verifier decrypts the certificate they have been sent using the sender's PUBLIC key
+ - They then hash the list of all the salts they have received (using the same hash functions as the creator) to create their own version of the same certificate
+ - The two certificates can then be compared and if they match then the signature is verfied
+
+This process is done once from server to client, then from client to server to provide security, integrity and confidentiality on both ends. It provides: security via the encryption; integrity via the hash (because if the data was changed the hashes wouldn't match) and confidentially via the signing of the asymmetric keys (since the intended sender would be the only person who had the correct private key to be able to sign the original digest).
 
 ## CPU Performance
 ### Thread Sleeping (on continuous threads)
