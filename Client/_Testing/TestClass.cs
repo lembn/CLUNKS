@@ -14,6 +14,7 @@ namespace Client._Testing
         private uint id;
         private EndPoint serverEP;
         private byte[] dataStream = new byte[1024];
+        PacketFactory packetFactory;
 
         #endregion
 
@@ -24,16 +25,17 @@ namespace Client._Testing
             id = userID;
             socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
             serverEP = new IPEndPoint(IPAddress.Loopback, 30000);
+            packetFactory = new PacketFactory();
         }
 
         public void Send()
         {
-            Packet outPacket = new Packet(PacketFactory.DataID.Heartbeat, id, null);
+            Packet outPacket = new Packet(DataID.Heartbeat, id);
             outPacket.body.Add("test", 909);
 
             Console.WriteLine($"Sending: {outPacket.body}");
 
-            byte[] byteData = PacketFactory.GetDataStream(outPacket);
+            byte[] byteData = packetFactory.GetDataStream(outPacket);
 
             socket.BeginSendTo(byteData, 0, byteData.Length, SocketFlags.None, serverEP, new AsyncCallback((IAsyncResult ar) => { socket.EndSend(ar); }), null);
 
@@ -46,7 +48,7 @@ namespace Client._Testing
         {
             socket.EndReceive(ar);
 
-            var inPacket = PacketFactory.BuildPacket(dataStream);
+            var inPacket = packetFactory.BuildPacket(dataStream);
 
             Console.WriteLine($"Got: {inPacket.body}");
 

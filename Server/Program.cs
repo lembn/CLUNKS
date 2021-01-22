@@ -1,4 +1,5 @@
-﻿using Server._Testing;
+﻿using Common.Channels;
+using System.Net;
 
 namespace Server
 {
@@ -6,7 +7,7 @@ namespace Server
     {
         static void Main(string[] args)
         {
-            var server = new TCPEchoServer();
+            var server = new ServerChannel(10000, IPAddress.Loopback);
             server.Start();
         }
     }

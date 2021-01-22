@@ -10,19 +10,33 @@ using Newtonsoft.Json.Linq;
 
 namespace Common.Packets
 {
+    //Used to identify the type of data the packet contains
+    public enum DataID
+    {
+        Command, //The packet is a command/request from the user to the server
+        Ack, //The packet is an acknowledgment packet
+        Info, //The packet contains information from the server to the user
+        Signature, //The packet contains a verification signature
+        Heartbeat, //The packet is a heartbeat
+        AV, //The packet conatains AudioVisual frames
+        Hello, //The packet is the first packet of a handshake
+        Status, //The packet contains a status value
+        Null
+    }
+   
     /// <summary>
     /// A class for creating and managing Packets
     /// </summary>
-    public static class PacketFactory
+    public class PacketFactory : IDisposable
     {
         #region Private Members
 
-        private const int HEADER_SIZE = 4; //bodyLength is a 32 bit integer
+        private const int HEADER_SIZE = 4; //bodyLength is a 32 bit integer        
 
         private static JsonSerializer serializer; //Used for serializing JObjects
-        private static Dictionary<DataID, string> dataToString; //Dictionary to convert DataID values to their bytestring representation
-        private static Dictionary<PayloadTag, string> payloadToString; //Dictionary to convert PayloadTag values to their bytestring representation
         private static RNGCryptoServiceProvider rngCsp; //Secure random generator used for generating body salts
+        
+        private bool disposedValue;
 
         //Used to tag elements in the payload
         private enum PayloadTag
@@ -32,48 +46,48 @@ namespace Common.Packets
             Body, //Used to identify that an element in the payload is the body of the Packet
         }
 
+        //Used to tag elements in the payload body
+        private enum BodyTag
+        {
+            Salt
+        }
+        
         #endregion
 
         #region Public Members
 
-        //Used to identify the type of data the packet contains
-        public enum DataID
-        {
-            Command, //The packet is a command/request from the user to the server
-            Ack, //The packet is an acknowledgment packet
-            Info, //The packet contains information from the server to the user
-            Signature, //The packet contains a verification signature
-            Heartbeat, //The packet is a heartbeat
-            AV, //The packet conatains AudioVisual frames
-            Hello, //The packet is the first packet of a handshake
-            Null
-        }
-
-        //Used to tag elements in the body (of the payload)
-        public enum BodyTag
-        {
-            Key, //The element is an asymmetric public key
-            Signature, //The element is a verification signature
-            ID, //The element is the ID number of the user
-            Salt, // The element is a body salt
-            Strength //The element specifies the strength of encryption being used by a user
-        }
-
-        public static Dictionary<BodyTag, string> bodyToString; //Dictionary to convert BodyTag values to their bytestring representation
-        public static EncryptionConfig encCfg; //The settings to use for encrypting and decrpyting packets
-
-        public static List<byte> incomingSalts;
-        public static List<byte> outgoingSalts;
+        public EncryptionConfig encCfg; //The settings to use for encrypting and decrpyting packets
+        public List<byte> incomingSalts;
+        public List<byte> outgoingSalts;
 
         #endregion
 
         #region Methods
 
+        public PacketFactory()
+        {
+            incomingSalts = new List<byte>();
+            outgoingSalts = new List<byte>();
+            if (serializer == null)
+                rngCsp = new RNGCryptoServiceProvider();
+            if (serializer == null)
+                serializer = ObjectConverter.GetJsonSerializer();
+        }
+
+        /// <summary>
+        /// A method to initialise the static EncryptionConfig object used by the classs
+        /// </summary>
+        /// <param name="strength">The strength of encryption</param>
+        public void InitEncCfg(EncryptionConfig.Strength strength)
+        {
+            encCfg = new EncryptionConfig(strength);
+        }
+        
         /// <summary>
         /// A Packet constructor for rebuilding packets from an existing data source.
         /// </summary>
         /// <param name="dataStream">the byte representation of the packet to build</param>
-        public static Packet BuildPacket(byte[] dataStream)
+        public Packet BuildPacket(byte[] dataStream)
         {
             int bodyLength = BitConverter.ToInt32(dataStream.Take(HEADER_SIZE).ToArray());
             byte[] e_aesData = dataStream.Skip(HEADER_SIZE).Take(encCfg.RSA_OUTPUT).ToArray();
@@ -100,73 +114,23 @@ namespace Common.Packets
             }
 
             var payload = JObject.Parse(Encoding.UTF8.GetString(payloadBytes));
-            string dataIDString = payload.GetValue(payloadToString[PayloadTag.DataID]).ToString();
-            string userIDString = payload.GetValue(payloadToString[PayloadTag.UserID]).ToString();
-            string bodyString_b64 = payload.GetValue(payloadToString[PayloadTag.Body]).ToString();
-            DataID dataID = (DataID)BitConverter.ToInt32(Convert.FromBase64String(dataIDString));
-            uint userID = BitConverter.ToUInt32(Convert.FromBase64String(userIDString));
+            string dataIDString = payload.GetValue(PayloadTag.DataID.ToString()).ToString();
+            string userIDString = payload.GetValue(PayloadTag.UserID.ToString()).ToString();
+            string bodyString_b64 = payload.GetValue(PayloadTag.Body.ToString()).ToString();
+            DataID dataID = (DataID)Convert.ToInt32(dataIDString);
+            uint userID = Convert.ToUInt32(userIDString);
             string bodyString = Encoding.UTF8.GetString(Convert.FromBase64String(bodyString_b64));
             JObject body = null;
-            byte[] salt = new byte[0];
             if (bodyString != "null")
             {
                 body = JObject.Parse(bodyString);
                 if (encCfg.captureSalts)
-                    salt = Convert.FromBase64String(body.GetValue(bodyToString[BodyTag.Salt]).ToString());
-                    incomingSalts.AddRange(salt);
+                    incomingSalts.AddRange(Convert.FromBase64String(body.GetValue(BodyTag.Salt.ToString()).ToString()));
             }
 
-            Packet packet = new Packet(dataID, userID, body);
-            packet.salt = salt;            
+            Packet packet = new Packet(dataID, userID);
+            packet.body = body;
             return packet;
-        }
-
-        /// <summary>
-        /// A method to initialise the construcatble static attribues of the Packet class.
-        /// Should be called before any packets are made.
-        /// </summary>
-        public static void SetValues()
-        {
-            dataToString = new Dictionary<DataID, string>();
-            payloadToString = new Dictionary<PayloadTag, string>();
-            bodyToString = new Dictionary<BodyTag, string>();
-            rngCsp = new RNGCryptoServiceProvider();
-            serializer = ObjectConverter.GetJsonSerializer();
-            incomingSalts = new List<byte>();
-            outgoingSalts = new List<byte>();
-
-            foreach (DataID data in Enum.GetValues(typeof(DataID)))
-            {
-                dataToString.Add(data, ObjectConverter.EnumToByteString(data));
-            }
-            foreach (PayloadTag payload in Enum.GetValues(typeof(PayloadTag)))
-            {
-                payloadToString.Add(payload, ObjectConverter.EnumToByteString(payload));
-            }
-            foreach (BodyTag body in Enum.GetValues(typeof(BodyTag)))
-            {
-                bodyToString.Add(body, ObjectConverter.EnumToByteString(body));
-            }
-        }
-
-        /// <summary>
-        /// A method to initialise the static EncryptionConfig object used by the classs
-        /// </summary>
-        /// <param name="strength">The strength of encryption</param>
-        public static void InitEncCfg(EncryptionConfig.Strength strength)
-        {
-            encCfg = new EncryptionConfig(strength);
-        }
-
-        /// <summary>
-        /// A method to dispose of any static IDisposable objects created in the class and nullify large fields.
-        /// </summary>
-        public static void Cleanup()
-        {
-            dataToString = null;
-            payloadToString = null;
-            bodyToString = null;
-            rngCsp.Dispose();
         }
 
         /// <summary>
@@ -174,10 +138,10 @@ namespace Common.Packets
         /// the packet can be sent over the network and reconstructed on delivery.
         /// </summary>
         /// <returns>The byte representation of the packet.</returns>
-        public static byte[] GetDataStream(Packet packet)
+        public byte[] GetDataStream(Packet packet)
         {
-            var b_dataID = BitConverter.GetBytes((int)packet.dataID);
-            var b_userID = BitConverter.GetBytes(packet.userID);
+            string dataID = ((int)packet.dataID).ToString();
+            string userID = packet.userID.ToString();
             if (encCfg.captureSalts)
                 SaltBody(packet);
             var sb = new StringBuilder();
@@ -186,9 +150,9 @@ namespace Common.Packets
             var bodyBytes = Encoding.UTF8.GetBytes(sb.ToString());
 
             var json = new JObject();
-            json.Add(payloadToString[PayloadTag.DataID], Convert.ToBase64String(b_dataID));
-            json.Add(payloadToString[PayloadTag.UserID], Convert.ToBase64String(b_userID));
-            json.Add(payloadToString[PayloadTag.Body], Convert.ToBase64String(bodyBytes));
+            json.Add(PayloadTag.DataID.ToString(), dataID);
+            json.Add(PayloadTag.UserID.ToString(), userID);
+            json.Add(PayloadTag.Body.ToString(), Convert.ToBase64String(bodyBytes));
             sb = new StringBuilder();
             sw = new StringWriter(sb);
             serializer.Serialize(sw, json);
@@ -225,12 +189,26 @@ namespace Common.Packets
         }
 
         /// <summary>
+        /// A method to generate a secure random salt value and add it to a body.
+        /// </summary>
+        /// <param name="body">The JObject representing the body</param>
+        private void SaltBody(Packet packet)
+        {
+            packet.salt = new byte[encCfg.SALT_SIZE];
+            rngCsp.GetBytes(packet.salt);
+            if (packet.body == null)
+                packet.body = new JObject();
+            packet.body.Add(BodyTag.Salt.ToString(), Convert.ToBase64String(packet.salt));
+            outgoingSalts.AddRange(packet.salt);
+        }
+        
+        /// <summary>
         /// A method to perform a symmetric cryptographic operation on an array of bytes.
         /// </summary>
         /// <param name="dataStream">The array of bytes to perform the operation on.</param>
         /// <param name="transform">The operation to perform</param>
         /// <returns></returns>
-        private static byte[] DoCrypto(byte[] dataStream, ICryptoTransform transform)
+        private byte[] DoCrypto(byte[] dataStream, ICryptoTransform transform)
         {
             using (var ms = new MemoryStream())
             {
@@ -247,18 +225,28 @@ namespace Common.Packets
             }
         }
 
-        /// <summary>
-        /// A method to generate a secure random salt value and add it to a body.
-        /// </summary>
-        /// <param name="body">The JObject representing the body</param>
-        private static void SaltBody(Packet packet)
+        #region IDisposable Implementation
+
+        protected virtual void Dispose(bool disposing)
         {
-            packet.salt = new byte[encCfg.SALT_SIZE];
-            rngCsp.GetBytes(packet.salt);
-            if (packet.body != null)
-                packet.body.Add(bodyToString[BodyTag.Salt], Convert.ToBase64String(packet.salt));
-            outgoingSalts.AddRange(packet.salt);
+            if (!disposedValue)
+            {
+                if (disposing)
+                {
+                    rngCsp.Dispose();
+                }
+
+                disposedValue = true;
+            }
         }
+
+        public void Dispose()
+        {
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
+        }
+
+        #endregion
 
         #endregion
     }

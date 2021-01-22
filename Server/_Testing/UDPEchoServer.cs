@@ -12,6 +12,7 @@ namespace Server._Testing
 
         private Socket socket;
         private byte[] dataStream = new byte[10000];
+        private PacketFactory packetFactory;
 
         #endregion
 
@@ -22,6 +23,7 @@ namespace Server._Testing
             socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
             var server = new IPEndPoint(IPAddress.Loopback, 30000);
             socket.Bind(server);
+            packetFactory = new PacketFactory();
         }
 
         public void Start()
@@ -39,14 +41,14 @@ namespace Server._Testing
 
         private void ReceiveData(IAsyncResult asyncResult)
         {
-            var packet = PacketFactory.BuildPacket(dataStream);
+            var packet = packetFactory.BuildPacket(dataStream);
             packet.body.Add("server", true);
 
             EndPoint senderEP = new IPEndPoint(IPAddress.Any, 0);
 
             socket.EndReceiveFrom(asyncResult, ref senderEP);
 
-            byte[] data = PacketFactory.GetDataStream(packet);
+            byte[] data = packetFactory.GetDataStream(packet);
 
             socket.BeginSendTo(data, 0, data.Length, SocketFlags.None, senderEP, new AsyncCallback((IAsyncResult ar) => { socket.EndSend(ar); }), null);
             Console.WriteLine($"Echoing: {senderEP}");

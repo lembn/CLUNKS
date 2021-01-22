@@ -1,6 +1,5 @@
 ﻿using System;
 using Newtonsoft.Json.Linq;
-using static Common.Packets.PacketFactory;
 
 namespace Common.Packets
 {
@@ -28,6 +27,10 @@ namespace Common.Packets
         public DataID dataID;
         public uint userID;
         public JObject body;
+        public int dataCounter = 0;
+
+        public const string DATA = "data-{0}";
+        public static readonly string BODYFIRST = String.Format(DATA, 0);
 
         #endregion
 
@@ -39,11 +42,27 @@ namespace Common.Packets
         /// <param name="dataID">The type of data stored in the Packet</param>
         /// <param name="userID">The user ID of the user creating the Packet (or the user who the Packet is for in the case of the server)</param>
         /// <param name="body">The data</param>
-        public Packet(DataID dataID, uint userID, JObject body)
+        public Packet(DataID dataID, uint userID)
         {
             this.dataID = dataID;
             this.userID = userID;
-            this.body = body;
+        }
+
+        /// <summary>
+        /// A method to add items to the body of a packet
+        /// </summary>
+        /// <param name="packet">The packet being populated</param>
+        /// <param name="data">The data to add</param>
+        public void Add<T>(params T[] data)
+        {
+            if (body == null)
+                body = new JObject();
+
+            foreach (T item in data)
+            {
+                body.Add(String.Format(DATA, dataCounter++), JToken.FromObject(item));
+            }
+
         }
 
         #endregion

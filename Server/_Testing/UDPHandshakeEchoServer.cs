@@ -20,6 +20,7 @@ namespace Server._Testing
         private byte[] data;
         private Packet packet;
         private bool handshaking = true;
+        private PacketFactory packetFactory;
 
         #endregion
 
@@ -30,6 +31,10 @@ namespace Server._Testing
             socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
             var server = new IPEndPoint(IPAddress.Loopback, 30000);
             socket.Bind(server);
+            packetFactory = new PacketFactory();
+            packetFactory.InitEncCfg(EncryptionConfig.Strength.Strong);
+            packetFactory.encCfg.useCrpyto = false;
+            packetFactory.encCfg.captureSalts = true;
         }
 
         public void Start()
@@ -38,12 +43,7 @@ namespace Server._Testing
 
             EndPoint senderEP = new IPEndPoint(IPAddress.Any, 0);
 
-            Console.WriteLine("Listening");
-
-            PacketFactory.SetValues();
-            PacketFactory.InitEncCfg(EncryptionConfig.Strength.Strong);
-            PacketFactory.encCfg.useCrpyto = false;
-            PacketFactory.encCfg.captureSalts = true;
+            Console.WriteLine("Listening");            
 
             socket.BeginReceiveFrom(dataStream, 0, dataStream.Length, SocketFlags.None, ref senderEP, new AsyncCallback(ReceiveData), null);
             var task = Task.Run(() => { while (true) { Console.ReadLine(); } });
@@ -52,7 +52,7 @@ namespace Server._Testing
 
         private void ReceiveData(IAsyncResult asyncResult)
         {
-            packet = PacketFactory.BuildPacket(dataStream);
+            packet = packetFactory.BuildPacket(dataStream);
 
             EndPoint senderEP = new IPEndPoint(IPAddress.Any, 0);
 
@@ -62,69 +62,64 @@ namespace Server._Testing
             {
                 switch (packet.dataID)
                 {
-                    case PacketFactory.DataID.Hello:
-                        string strengthString = packet.body.GetValue(PacketFactory.bodyToString[PacketFactory.BodyTag.Strength]).ToString();
-                        PacketFactory.InitEncCfg((EncryptionConfig.Strength)BitConverter.ToInt32(Convert.FromBase64String(strengthString)));
-                        PacketFactory.encCfg.useCrpyto = false;
-                        PacketFactory.encCfg.captureSalts = true;
-                        packet = new Packet(PacketFactory.DataID.Ack, 1, new JObject());
-                        data = PacketFactory.GetDataStream(packet);
+                    case DataID.Hello:
+                        string strengthString = packet.body.GetValue(Packet.BODYFIRST).ToString();
+                        packetFactory.InitEncCfg((EncryptionConfig.Strength)BitConverter.ToInt32(Convert.FromBase64String(strengthString)));
+                        packetFactory.encCfg.useCrpyto = false;
+                        packetFactory.encCfg.captureSalts = true;
+                        packet = new Packet(DataID.Ack, 1);
+                        data = packetFactory.GetDataStream(packet);
                         socket.BeginSendTo(data, 0, data.Length, SocketFlags.None, senderEP, new AsyncCallback((IAsyncResult ar) => { socket.EndSend(ar); }), null);
                         break;
-                    case PacketFactory.DataID.Info:
-                        string clientKey = packet.body.GetValue(PacketFactory.bodyToString[PacketFactory.BodyTag.Key]).ToString();
-                        using (RSACryptoServiceProvider rsa = new RSACryptoServiceProvider(PacketFactory.encCfg.RSA_KEY_BITS))
+                    case DataID.Info:
+                        string clientKey = packet.body.GetValue(Packet.BODYFIRST).ToString();
+                        using (RSACryptoServiceProvider rsa = new RSACryptoServiceProvider(packetFactory.encCfg.RSA_KEY_BITS))
                         {
-                            PacketFactory.encCfg.recipient = JsonConvert.DeserializeObject<RSAParameters>(clientKey);
-                            PacketFactory.encCfg.priv = rsa.ExportParameters(true);
-                            PacketFactory.encCfg.pub = rsa.ExportParameters(false);
+                            packetFactory.encCfg.recipient = JsonConvert.DeserializeObject<RSAParameters>(clientKey);
+                            packetFactory.encCfg.priv = rsa.ExportParameters(true);
+                            packetFactory.encCfg.pub = rsa.ExportParameters(false);
                         }
-                        body = new JObject();
-                        body.Add(PacketFactory.bodyToString[PacketFactory.BodyTag.Key], ObjectConverter.GetJObject(PacketFactory.encCfg.pub));
-                        packet = new Packet(PacketFactory.DataID.Hello, 2, body);
-                        data = PacketFactory.GetDataStream(packet);
+                        packet = new Packet(DataID.Hello, 2);
+                        packet.Add(ObjectConverter.GetJObject(packetFactory.encCfg.pub));
+                        data = packetFactory.GetDataStream(packet);
                         socket.BeginSendTo(data, 0, data.Length, SocketFlags.None, senderEP, new AsyncCallback((IAsyncResult ar) => { socket.EndSend(ar); }), null);
-                        PacketFactory.encCfg.useCrpyto = true;
+                        packetFactory.encCfg.useCrpyto = true;
                         break;
-                    case PacketFactory.DataID.Ack:
-                        body = new JObject();
-                        body.Add(PacketFactory.bodyToString[PacketFactory.BodyTag.ID], 0);
-                        packet = new Packet(PacketFactory.DataID.Info, 2, body);
-                        data = PacketFactory.GetDataStream(packet);
+                    case DataID.Ack:
+                        packet = new Packet(DataID.Info, 2);
+                        packet.Add(0);
+                        data = packetFactory.GetDataStream(packet);
                         socket.BeginSendTo(data, 0, data.Length, SocketFlags.None, senderEP, new AsyncCallback((IAsyncResult ar) => { socket.EndSend(ar); }), null);
-                        PacketFactory.encCfg.captureSalts = false;
+                        packetFactory.encCfg.captureSalts = false;
                         break;
-                    case PacketFactory.DataID.Signature:
-                        string clientSignatureStr = packet.body.GetValue(PacketFactory.bodyToString[PacketFactory.BodyTag.Signature]).ToString();
+                    case DataID.Signature:
+                        string clientSignatureStr = packet.body.GetValue(Packet.BODYFIRST).ToString();
                         byte[] clientSignature = Convert.FromBase64String(clientSignatureStr);
                         byte[] signature;
                         string signatureStr;
                         using (RSACryptoServiceProvider rsa = new RSACryptoServiceProvider())
                         {
-                            rsa.ImportParameters(PacketFactory.encCfg.recipient);
-                            if (!rsa.VerifyData(PacketFactory.incomingSalts.ToArray(), SHA512.Create(), clientSignature))
+                            rsa.ImportParameters(packetFactory.encCfg.recipient);
+                            if (!rsa.VerifyData(packetFactory.incomingSalts.ToArray(), SHA512.Create(), clientSignature))
                                 signatureStr = "failure";
                             else
                             {
-                                rsa.ImportParameters(PacketFactory.encCfg.priv);
-                                signature = rsa.SignData(PacketFactory.outgoingSalts.ToArray(), SHA512.Create());
+                                rsa.ImportParameters(packetFactory.encCfg.priv);
+                                signature = rsa.SignData(packetFactory.outgoingSalts.ToArray(), SHA512.Create());
                                 signatureStr = Convert.ToBase64String(signature);
                             }
                         }
-                        body = new JObject();
-                        body.Add(PacketFactory.bodyToString[PacketFactory.BodyTag.Signature], signatureStr);
-                        packet = new Packet(PacketFactory.DataID.Signature, 2, body);
-                        data = PacketFactory.GetDataStream(packet);
+                        packet = new Packet(DataID.Signature, 2);
+                        packet.Add(signatureStr);
+                        data = packetFactory.GetDataStream(packet);
                         socket.BeginSendTo(data, 0, data.Length, SocketFlags.None, senderEP, new AsyncCallback((IAsyncResult ar) => { socket.EndSend(ar); }), null);
                         handshaking = false;
-                        break;
-                    default:
                         break;
                 }
             }
             else
             {
-                byte[] data = PacketFactory.GetDataStream(packet);
+                byte[] data = packetFactory.GetDataStream(packet);
                 socket.BeginSendTo(data, 0, data.Length, SocketFlags.None, senderEP, new AsyncCallback((IAsyncResult ar) => { socket.EndSend(ar); }), null);
                 Console.WriteLine($"Echoing: {senderEP}");
             }
