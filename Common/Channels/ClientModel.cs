@@ -6,6 +6,9 @@ using System.Net.Sockets;
 
 namespace Common.Channels
 {
+    /// <summary>
+    /// A class used by the ServerChannel to model the attributes of a client
+    /// </summary>
     public class ClientModel : DataStream, IDisposable
     {
         private Socket handler;

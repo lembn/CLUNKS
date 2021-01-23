@@ -27,7 +27,11 @@ namespace Common.Channels
 
         #region Methods
 
-        public ServerChannel(int bufferSize, IPAddress address) : base(bufferSize)
+        /// <summary>
+        /// Server constructor
+        /// </summary>
+        /// <param name="address">The IP address to bind to</param>
+        public ServerChannel(IPAddress address) : base()
         {
             clientList = new List<ClientModel>();
             inPackets = new BlockingCollection<(Packet, ClientModel)>();
@@ -41,6 +45,9 @@ namespace Common.Channels
             TCPSocket.Listen(128);
         }
 
+        /// <summary>
+        /// A method to start the threads of the ServerChannel
+        /// </summary>
         public override void Start()
         {
             Console.WriteLine("ServerChannel started");
@@ -140,8 +147,18 @@ namespace Common.Channels
                 thread.Start();
         }
 
+        /// <summary>
+        /// A method to add packets for the ServerChannel to send
+        /// </summary>
+        /// <param name="packet">The packet to send</param>
+        /// <param name="client">The recipient</param>
         public void Add(Packet packet, ClientModel client) => outPackets.Add((packet, client));
 
+        /// <summary>
+        /// A method to perform a handshake with a connecting client
+        /// </summary>
+        /// <param name="client">The connecting client</param>
+        /// <returns>true if the handshake was successful, false otherwise</returns>
         private bool Handshake(ClientModel client)
         {
             Packet outPacket = null;
@@ -260,6 +277,11 @@ namespace Common.Channels
                 return true;
         }
 
+        /// <summary>
+        /// The asynchronous callback to call when a TCP packet is received on a socket
+        /// </summary>
+        /// <param name="ar">The asynchronus result holding client </param>
+        /// <param name="bytesToRead">The number of bytes left to read</param>
         private protected override void ReceiveTCPCallback(IAsyncResult ar, int bytesToRead = 0)
         {
             ClientModel client = (ClientModel)ar.AsyncState;
@@ -287,7 +309,10 @@ namespace Common.Channels
             }
             catch (ObjectDisposedException) { }
         }
-
+        /// <summary>
+        /// The asynchronous callback to call when a UDP packet is received on a socket
+        /// </summary>
+        /// <param name="ar">The asynchronus result holding client </param>
         private protected override void ReceiveUDPCallback(IAsyncResult ar)
         {
             ClientModel client = (ClientModel)ar.AsyncState;
@@ -305,6 +330,11 @@ namespace Common.Channels
             catch (ObjectDisposedException) { }
         }
 
+        /// <summary>
+        /// A method to send a packet to a client
+        /// </summary>
+        /// <param name="packet">The packet to send</param>
+        /// <param name="client">The recipient</param>
         private void SendPacket(Packet packet, ClientModel client)
         {
             byte[] data = client.packetFactory.GetDataStream(packet);
@@ -322,12 +352,20 @@ namespace Common.Channels
                 UDPSocket.BeginSendTo(data, 0, data.Length, SocketFlags.None, client.Handler.RemoteEndPoint, new AsyncCallback((IAsyncResult ar) => { UDPSocket.EndSendTo(ar); }), null);
         }
 
+        /// <summary>
+        /// A method to remove disconnected clients from the clientList
+        /// </summary>
+        /// <param name="client">The client to remove</param>
         private void RemoveClient(ClientModel client)
         {
             clientList.Remove(client);
             client.Dispose();
         }
         
+        /// <summary>
+        /// A method to free resources used by the ServerChannel on closure
+        /// </summary>
+        /// <param name="disposing">A boolean to represent the closing state of the ServerChannel</param>
         private protected override void Dispose(bool disposing)
         {
             if (!disposedValue)
