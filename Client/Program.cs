@@ -10,9 +10,10 @@ namespace Client
     {
         static void Main(string[] args)
         {
-            var channel = new ClientChannel(10000, IPAddress.Loopback, EncryptionConfig.Strength.Strong);
+            var channel = new ClientChannel(1024, IPAddress.Loopback, EncryptionConfig.Strength.Strong);
             channel.Dispatch += Printer;
-            channel.Start();       
+            channel.Start();
+            channel.Add(new Packet(DataID.AV, channel.id));
             Console.ReadLine();
             channel.cts.Cancel();
         }

@@ -16,15 +16,14 @@ namespace Common.Channels
         #region Private Members
 
         private uint currentUserID = 2;
-        private List<ClientModel> clientList;
         private BlockingCollection<(Packet, ClientModel)> inPackets; //A queue to hold incoming packets
         private BlockingCollection<(Packet, ClientModel)> outPackets; //A queue to hold outgoing packets
         private Socket TCPSocket;
         private Socket UDPSocket;
-        private DataStream UDPDataStream;
-        private readonly int bufferSize;
 
         #endregion
+        
+        public List<ClientModel> clientList;
 
         #region Methods
 
@@ -33,8 +32,6 @@ namespace Common.Channels
             clientList = new List<ClientModel>();
             inPackets = new BlockingCollection<(Packet, ClientModel)>();
             outPackets = new BlockingCollection<(Packet, ClientModel)>();
-            this.bufferSize = bufferSize;
-            UDPDataStream = new DataStream(bufferSize);
             TCPSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             UDPSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
             var tcpEP = new IPEndPoint(address, TCP_PORT);
@@ -106,7 +103,7 @@ namespace Common.Channels
                             }
                             else
                             {
-                                UDPSocket.BeginReceiveFrom(UDPDataStream.New(), 0, bufferSize, SocketFlags.None, ref client.endpoint, new AsyncCallback(ReceiveUDPCallback), client);
+                                UDPSocket.BeginReceiveFrom(client.New(), 0, bufferSize, SocketFlags.None, ref client.endpoint, new AsyncCallback(ReceiveUDPCallback), client);
                             }
                         }
                     }
@@ -136,12 +133,14 @@ namespace Common.Channels
                     if (output.Item1.dataID == DataID.Heartbeat)
                         lock (output.Item2.hbLock)
                             output.Item2.receivedHB = true;
-                    else OnDispatch(output.Item1);
+                    else OnDispatch(output);
             })); //Dispatch
 
             foreach (var thread in threads)
                 thread.Start();
         }
+
+        public void Add(Packet packet, ClientModel client) => outPackets.Add((packet, client));
 
         private bool Handshake(ClientModel client)
         {
@@ -263,9 +262,9 @@ namespace Common.Channels
 
         private protected override void ReceiveTCPCallback(IAsyncResult ar, int bytesToRead = 0)
         {
+            ClientModel client = (ClientModel)ar.AsyncState;
             try
             {
-                ClientModel client = (ClientModel)ar.AsyncState;
                 int bytesRead = client.Handler.EndReceive(ar);
                 if (client.receivingHeader)
                 {
@@ -282,18 +281,26 @@ namespace Common.Channels
                     inPackets.Add((client.packetFactory.BuildPacket(client.Get()), client));
                 }                    
             }
+            catch (SocketException)
+            {
+                RemoveClient(client);
+            }
             catch (ObjectDisposedException) { }
         }
 
         private protected override void ReceiveUDPCallback(IAsyncResult ar)
         {
+            ClientModel client = (ClientModel)ar.AsyncState;
             try
             {
-                ClientModel client = (ClientModel)ar.AsyncState;
                 UDPSocket.EndReceiveFrom(ar, ref client.endpoint);
                 lock (inPackets)
                     inPackets.Add((client.packetFactory.BuildPacket(client.Get()), client));
                 client.receiving = false;
+            }
+            catch (SocketException)
+            {
+                RemoveClient(client);
             }
             catch (ObjectDisposedException) { }
         }
@@ -321,9 +328,7 @@ namespace Common.Channels
             client.Dispose();
         }
         
-        #region IDisposable implementation
-
-        private void Dispose(bool disposing)
+        private protected override void Dispose(bool disposing)
         {
             if (!disposedValue)
             {
@@ -339,14 +344,6 @@ namespace Common.Channels
                 disposedValue = true;
             }
         }
-
-        public void Dispose()
-        {
-            Dispose(true);
-            GC.SuppressFinalize(this);
-        }
-
-        #endregion
         
         #endregion
     }

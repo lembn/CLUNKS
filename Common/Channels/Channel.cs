@@ -56,9 +56,23 @@ namespace Common.Channels
         public virtual void OnDispatch(Packet packet)
         {
             if (Dispatch != null)
-            {
                 Dispatch(this, new PacketEventArgs() { Packet = packet });
-            }
+        }
+        public virtual void OnDispatch((Packet, ClientModel) data)
+        {
+            if (Dispatch != null)
+                Dispatch(this, new PacketEventArgs() 
+                { 
+                    Packet = data.Item1,
+                    Client = data.Item2
+                });
+        }
+
+        private protected abstract void Dispose(bool disposing);
+        public virtual void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
         }
 
         #endregion

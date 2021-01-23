@@ -18,7 +18,6 @@ namespace Common.Channels
     {
         #region Private Memebers
 
-        private uint userID = NULL_ID;
         private PacketFactory packetFactory; //The object to use for handling packets
         private EncryptionConfig.Strength strength; //Strength of encryption being used on the ClientChannel
         private AutoResetEvent receiving; //An event used to check if the channel is currently listening on the socket
@@ -39,6 +38,8 @@ namespace Common.Channels
         private BlockingCollection<Packet> inPackets; //A queue to hold incomging packets
 
         #endregion
+        
+        public uint id = NULL_ID;
 
         #region Methods
 
@@ -58,8 +59,9 @@ namespace Common.Channels
             this.packetLossThresh = packetLossThresh;
             outPackets = new BlockingCollection<Packet>();
             inPackets = new BlockingCollection<Packet>();
-            receiving = new AutoResetEvent(false);
+            receiving = new AutoResetEvent(true);
             packetFactory = new PacketFactory();
+            hbLock = new object();
             serverIP = ip;
             socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             server = (EndPoint)new IPEndPoint(serverIP, TCP_PORT);
@@ -89,7 +91,7 @@ namespace Common.Channels
             threads.Add(ThreadHelper.GetECThread(ctoken, () => 
             {
                 lock (outPackets)
-                    outPackets.Add(new Packet(DataID.Heartbeat, userID));
+                    outPackets.Add(new Packet(DataID.Heartbeat, id));
                 Thread.Sleep(5000);
                 lock (hbLock)
                 {
@@ -103,9 +105,7 @@ namespace Common.Channels
                         missedHBs += 1;
                         if (missedHBs == 2)
                         {
-                            socket.DisconnectAsync(null);
-                            Dispose();
-                            Console.WriteLine("Connection to server has died");
+                            Disconnect();
                         }
                     }
                 }
@@ -127,7 +127,7 @@ namespace Common.Channels
                 receiving.WaitOne();
                 try
                 {
-                    lock (server)
+                    lock (socket)
                     {
                         if (socket.ProtocolType == ProtocolType.Tcp)
                             socket.BeginReceive(dataStream.New(), 0, HEADER_SIZE, SocketFlags.None, new AsyncCallback((IAsyncResult ar) => {
@@ -274,24 +274,24 @@ namespace Common.Channels
                     switch (inPacket.dataID)
                     {
                         case DataID.Ack:
-                            outPacket = new Packet(DataID.Info, userID);
+                            outPacket = new Packet(DataID.Info, id);
                             outPacket.Add(ObjectConverter.GetJObject(packetFactory.encCfg.pub));
                             break;
                         case DataID.Hello:
                             string serverParamString = inPacket.body.GetValue(Packet.BODYFIRST).ToString();
                             packetFactory.encCfg.recipient = JsonConvert.DeserializeObject<RSAParameters>(serverParamString);
                             packetFactory.encCfg.useCrpyto = true;
-                            outPacket = new Packet(DataID.Ack, userID);
+                            outPacket = new Packet(DataID.Ack, id);
                             break;
                         case DataID.Info:
-                            userID = Convert.ToUInt32(inPacket.body.GetValue(Packet.BODYFIRST).ToString());
+                            id = Convert.ToUInt32(inPacket.body.GetValue(Packet.BODYFIRST).ToString());
                             packetFactory.encCfg.captureSalts = false;
                             using (RSACryptoServiceProvider rsa = new RSACryptoServiceProvider())
                             {
                                 rsa.ImportParameters(packetFactory.encCfg.priv);
                                 signature = rsa.SignData(packetFactory.outgoingSalts.ToArray(), SHA512.Create());
                             }
-                            outPacket = new Packet(DataID.Signature, userID);
+                            outPacket = new Packet(DataID.Signature, id);
                             outPacket.Add(Convert.ToBase64String(signature));
                             break;
                         case DataID.Signature:
@@ -303,7 +303,7 @@ namespace Common.Channels
                             }
                             signature = Convert.FromBase64String(sigStr);
 
-                            outPacket = new Packet(DataID.Status, userID);
+                            outPacket = new Packet(DataID.Status, id);
                             using (RSACryptoServiceProvider rsa = new RSACryptoServiceProvider())
                             {
                                 rsa.ImportParameters(packetFactory.encCfg.recipient);
@@ -339,7 +339,7 @@ namespace Common.Channels
             packetFactory.encCfg.useCrpyto = false;
             packetFactory.encCfg.captureSalts = true;
 
-            outPacket = new Packet(DataID.Hello, userID);
+            outPacket = new Packet(DataID.Hello, id);
             outPacket.Add((int)strength);
             SendPacket(outPacket);
 
@@ -416,6 +416,10 @@ namespace Common.Channels
                     inPackets.Add(packetFactory.BuildPacket(dataStream.Get()));
                 }                
             }
+            catch (SocketException)
+            {
+                Disconnect();
+            }
             catch (ObjectDisposedException) { }
         }
 
@@ -432,12 +436,21 @@ namespace Common.Channels
                     inPackets.Add(packetFactory.BuildPacket(dataStream.Get()));
                 receiving.Set();
             }
+            catch (SocketException)
+            {
+                Disconnect();
+            }
             catch (ObjectDisposedException) { }            
         }
 
-        #region IDisposable implementation
+        private void Disconnect()
+        {
+            socket.DisconnectAsync(null);
+            Dispose();
+            Console.WriteLine("Connection to server has died");
+        }
 
-        private void Dispose(bool disposing)
+        private protected override void Dispose(bool disposing)
         {
             if (!disposedValue)
             {
@@ -450,14 +463,6 @@ namespace Common.Channels
                 disposedValue = true;
             }
         }
-
-        public void Dispose()
-        {
-            Dispose(true);
-            GC.SuppressFinalize(this);
-        }
-
-        #endregion
 
         #endregion
     }
