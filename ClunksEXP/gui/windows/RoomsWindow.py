@@ -1,0 +1,2 @@
+class RoomsWindow:
+    pass
