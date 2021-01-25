@@ -240,15 +240,15 @@ The implementation of `IDiposable` also frees the IP address and port used by th
 ## Network Performance
 The GetJsonSerializer method from Common.Helpers.ObjectConverter creates a serializer that serializes objects into minified JSON strings. This decreases the size of Packets and decreases the bandwidth used by the program along with it.
 
-# CLUNKS::EXP
-**CLUNKS::EXP** is the tool used to create the `.exp` files used by **CLUNKS** to load server configurations. It was created so that users would'nt have to configure the server from within the command line and so that configurations can be stored or shared between users if needed. **CLUNKS::EXP** takes a csv file containing the user info. After the csv has been loaded the user can begin to create the server structure.
+# ClunksEXP
+**ClunksEXP** is the tool used to create the `.exp` files used by **CLUNKS** to load server configurations. It was created so that users would'nt have to configure the server from within the command line and so that configurations can be stored or shared between users if needed. **ClunksEXP** takes a csv file containing the user info. After the csv has been loaded the user can begin to create the server structure.
 
 ## Loading a CSV
 The csv should be in the format:
 ```
 | Username | Password | Sectors |
 ```
-Where `sectors` is a list of labels (names, numbers, etc...) used for grouping users. The usage of sectors allows the CSV to be simpler, so that the heavy lifing can be done by **CLUNKS::EXP**.
+Where `sectors` is a list of labels (names, numbers, etc...) used for grouping users. The usage of sectors allows the CSV to be simpler, so that the heavy lifing can be done by **ClunksEXP**.
 
 ## Creating the server structure
-The user can create subservers and rooms from within **CLUNKS::EXP**, when creating these structures the user can select which sector(s) will be added into the structure. The user can also create different elevation levels in **CLUNKS::EXP**, which will also be applied to different sectors.
+The user can create subservers and rooms from within **ClunksEXP**, when creating these structures the user can select which sector(s) will be added into the structure. The user can also create different elevation levels in **ClunksEXP**, which will also be applied to different sectors.
