@@ -76,32 +76,21 @@ class Queue(list):
     def __init__(self):
         self.lock = threading.Lock()
         self.empty = threading.Event()
-        self.added = threading.Event()
-        self.ready = threading.Event()
-        self.item = None
         super().__init__()
 
     def Add(self, item):
         self.lock.acquire()
         self.append(item)
         self.empty.clear()
-        self.added.set()
         self.lock.release()
 
     def Get(self):
         self.lock.acquire()
-        self.item = self.pop(0)
+        item = self.pop(0)
         self.lock.release()
         if len(self) == 0:
             self.empty.set()
-            self.added.clear()
-        self.ready.set()
-
-    def WaitToGet(self, timeout, *exitFlags):
-        self.workThread = STWThread(mainFunction=self.Get, waitFlags=[self.added], exitFlags=[*exitFlags])
-        if self.ready.wait(timeout=timeout):
-            self.ready.clear()
-            return self.item
+        return item
 
     def Remove(self, item):
         self.lock.acquire()
@@ -109,7 +98,6 @@ class Queue(list):
         self.lock.release()
         if len(self) == 0:
             self.empty.set()
-            self.added.clear()
 
     def Empty(self):
         return self.empty._flag
