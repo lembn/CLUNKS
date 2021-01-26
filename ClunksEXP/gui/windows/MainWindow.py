@@ -4,7 +4,7 @@ from tkinter import ttk
 from PIL import ImageTk, Image
 import threading
 
-from ThreadingHelper import STWThread
+from ThreadingHelper import STWThread, QUIT
 import IOManager as iom
 from gui.CustomWidgets import TextArea
 from gui.windows.ElevationsEditor import ElevationsEditor
@@ -14,15 +14,17 @@ class MainWindow():
         self.master = master
         self.width = width
         self.height = height
-        self.master.SetupWindow(title='ClunksEXP', icon='gui/img/icon.ico', width=self.width, height=self.height, center=True, resizable=False)
+        self.master.SetupWindow(title='ClunksEXP', icon='gui/img/icon.ico', width=self.width, height=self.height, center=True, resizable=False, onClosing=self.Closing)
+        self.master.protocol("WM_DELETE_WINDOW", self.Closing)
         self.Setup()
 
-    def ResetElevationsEditor(self):self.elevationEditor = None
+    def ResetElevationsEditor(self):
+        self.elevationEditor = None
 
     def OpenElevationsEditor(self):
         if not self.elevationEditor:
             self.elevationEditor = ElevationsEditor(self.master, 950, 400)
-            self.watchWindowThread = STWThread(mainFunction=self.ResetElevationsEditor, waitFlags=[self.elevationEditor.close], name="WatchWindowThread")
+            self.watchWindowThread = STWThread(mainFunction=self.ResetElevationsEditor, waitFlags=[self.elevationEditor.closed], name="WatchWindowThread")
             self.watchWindowThread.start()
         else:
             self.elevationEditor.window.lift()
@@ -57,3 +59,7 @@ class MainWindow():
     def Setup(self):
         self.elevationEditor = None
         self.Populate()
+
+    def Closing(self):
+        QUIT.set()
+        self.master.destroy()

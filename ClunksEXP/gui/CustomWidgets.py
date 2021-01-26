@@ -27,8 +27,6 @@ class RootWindow(tk.ThemedTk):
         if 'resizable' in kwargs.keys():
             if not kwargs['resizable']:
                 kwargs['window'].resizable(False, False)
-        if 'onClosing' in kwargs.keys():
-            self.protocol('WM_DELETE_WINDOW', kwargs['onClosing'])
 
     def AddWindow(self, **kwargs):
         window = tkinter.Toplevel(self)
@@ -40,9 +38,6 @@ class RootWindow(tk.ThemedTk):
         self.container.destroy()
         self.container = ttk.Frame(self)
         self.container.pack(expand=True, fill=tkinter.BOTH)
-
-    def Destroy(self):
-        self.destroy()
 
 class AutoScrollbar(ttk.Scrollbar):
     def set(self, low, high):
