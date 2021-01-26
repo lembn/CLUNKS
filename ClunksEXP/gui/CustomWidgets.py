@@ -68,6 +68,7 @@ class TextArea(tkinter.Text):
         self.configure(yscrollcommand=self.textVsb.set, xscrollcommand=self.textHsb.set)
         self.configure(background='grey')
         self.configure(foreground='white')
+        self.first = True
 
     def SelectAll(self, event):
         event.widget.tag_add('sel','1.0','end')
@@ -80,14 +81,13 @@ class TextArea(tkinter.Text):
         self.container.grid_columnconfigure(0, weight=1)
         self.container.pack(side='top', padx=padx, pady=pady)
 
-    def Clear(self):
-        self.config(state=tkinter.NORMAL)
-        self.delete(1.0, tkinter.END)
-        self.config(state=tkinter.DISABLED)
-
     def Append(self, text):
         self.config(state=tkinter.NORMAL)
-        self.insert(tkinter.END, text)
+        if not self.first:
+            self.insert(tkinter.END, f'\n{text}')
+        else:
+            self.insert(tkinter.END, f'{text}')
+            self.first = False
         self.config(state=tkinter.DISABLED)
 
 class PlaceholderEntry(ttk.Entry):

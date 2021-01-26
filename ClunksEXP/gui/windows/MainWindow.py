@@ -24,10 +24,10 @@ class MainWindow():
     def ApplySectors(self):
         pass
 
-    def ResetUserEditor(self):self.userEditor = None
-    def ResetServerEditor(self):self.serverEditor = None
-    def ResetRoomsEditor(self):self.roomsEditor = None
-    def ResetElevationEditor(self):self.elevationEditor = None
+    def ResetUserEditor(self):self.userEditor = None; self.log.Append('Saved [users]')
+    def ResetServerEditor(self):self.subserverEditor = None; self.log.Append('Saved [subservers]')
+    def ResetRoomsEditor(self):self.roomsEditor = None; self.log.Append('Saved [rooms]')
+    def ResetElevationEditor(self):self.elevationEditor = None; self.log.Append('Saved [elevations]')
 
     def OpenUserEditor(self):
         if not self.userEditor:
@@ -37,17 +37,17 @@ class MainWindow():
         else:
             self.userEditor.window.lift()
 
-    def OpenServerEditor(self):
-        if not self.serverEditor:
-            self.serverEditor = SubServersEditor(self.master, 950, 340)
-            self.watchServersThread = STWThread(mainFunction=self.ResetServerEditor, waitFlags=[self.serverEditor.closed], name="WatchServersThread")
+    def OpenSubServerEditor(self):
+        if not self.subserverEditor:
+            self.subserverEditor = SubServersEditor(self.master, 950, 340)
+            self.watchServersThread = STWThread(mainFunction=self.ResetServerEditor, waitFlags=[self.subserverEditor.closed], name="WatchSubServersThread")
             self.watchServersThread.start()
         else:
-            self.serverEditor.window.lift()
+            self.subserverEditor.window.lift()
 
     def OpenRoomsEditor(self):
         if not self.roomsEditor:
-            self.roomsEditor = RoomsEditor(self.master, 500, 500)
+            self.roomsEditor = RoomsEditor(self.master, 950, 340)
             self.watchRoomsThread = STWThread(mainFunction=self.ResetRoomsEditor, waitFlags=[self.roomsEditor.closed], name="WatchRoomsThread")
             self.watchRoomsThread.start()
         else:
@@ -72,7 +72,7 @@ class MainWindow():
         self.topBtns = ttk.Frame(self.contentFrame)
         self.loadBtn = ttk.Button(self.topBtns, text='Load EXP', cursor='hand2', command=iom.Load, takefocus=False)
         self.usersBtn = ttk.Button(self.topBtns, text='Edit Users', cursor='hand2', command=self.OpenUserEditor, takefocus=False)
-        self.serversBtn = ttk.Button(self.topBtns, text='Edit Sub-Servers', cursor='hand2', command=self.OpenServerEditor, takefocus=False)
+        self.serversBtn = ttk.Button(self.topBtns, text='Edit Sub-Servers', cursor='hand2', command=self.OpenSubServerEditor, takefocus=False)
         self.roomsBtn = ttk.Button(self.topBtns, text='Edit Rooms', cursor='hand2', command=self.OpenRoomsEditor, takefocus=False)
         self.elevationsBtn = ttk.Button(self.topBtns, text='Edit Elevations', cursor='hand2', command=self.OpenElevationsEditor, takefocus=False)
         self.logFrame = ttk.LabelFrame(self.contentFrame, text='Log')
@@ -93,7 +93,7 @@ class MainWindow():
     def Setup(self):
         self.elevationEditor = None
         self.userEditor = None
-        self.serverEditor = None
+        self.subserverEditor = None
         self.roomsEditor = None
         self.Populate()
 

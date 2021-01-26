@@ -11,8 +11,8 @@ class UsersEditor(cw.Editor):
     def __init__(self, master, width, height):
         self.width = width
         self.height = height
-        self.window = master.AddWindow(title='ClunksEXP - Users', icon='gui/img/icon.ico', width=self.width, height=self.height, center=True, resizable=False)#, onClosing=self.Closing)
-        self.window.protocol('WM_DELETE_WINDOW', self.Closing)
+        self.window = master.AddWindow(title='ClunksEXP - Users', icon='gui/img/icon.ico', width=self.width, height=self.height, center=True, resizable=False)
+        self.window.protocol('WM_DELETE_WINDOW', super().Closing)
         self.style = ttk.Style(self.window)
         self.style.configure('Placeholder.TEntry', foreground='#d5d5d5')
         super().__init__(0, self.window, self.OPTIONS)
