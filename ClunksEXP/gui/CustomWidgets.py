@@ -1,6 +1,10 @@
 import tkinter
-from ttkthemes import themed_tk as tk
 from tkinter import ttk
+from tkinter import messagebox
+from ttkthemes import themed_tk as tk
+import threading
+
+from Globals import data
 
 class RootWindow(tk.ThemedTk):
     def __init__(self, *args, **kwargs):
@@ -112,10 +116,63 @@ class PlaceholderEntry(ttk.Entry):
         self.insert(0, self.placeholder)
 
 class LabeledCheckbutton(ttk.Frame):
-    def __init__(self, master, text, *args, **kwargs):
-        super().__init__(master, *args, **kwargs)
+    def __init__(self, master, text):
+        super().__init__(master)
         self.variable = tkinter.IntVar()
         self.checkbutton = ttk.Checkbutton(self, variable=self.variable, takefocus=False)
         self.label = ttk.Label(self, text=text)
         self.checkbutton.pack()
         self.label.pack(side=tkinter.BOTTOM)
+
+class ScrollableTreeView(ttk.Treeview):
+    def __init__(self, master, options, *args, **kwargs):
+        self.container = ttk.Frame(master)
+        self.scroll = AutoScrollbar(self.container, orient='vertical')
+        super().__init__(self.container, *args, yscrollcommand=self.scroll.set, **kwargs)
+        self.scroll.configure(command=self.yview)
+        self.configure(columns=options)
+        self.column('#0', width=0, stretch=tkinter.NO)
+        self.heading('#0', text='')
+
+    def pack(self, **kwargs):
+        self.grid(row=0, column=0, sticky=tkinter.NSEW)
+        self.scroll.grid(row=0, column=1, sticky=tkinter.NS)
+        self.container.grid_rowconfigure(0, weight=1)
+        self.container.grid_columnconfigure(0, weight=1)
+        self.container.pack(**kwargs)
+
+class Editor:
+    def __init__(self, dataIndex, treeView, window, **kwargs):
+        self.dataIndex = dataIndex
+        self.treeView = treeView
+        self.window = window
+        self.entries = kwargs.pop('entries', [])
+        self.closed = threading.Event()
+        self.items = 0
+
+    def New(self):
+        values = []
+        for entry in self.entries:
+            if not entry.get().strip():
+                messagebox.showwarning('Missing Data', f'Please fill in the {entry.placeholder.lower()} feild')
+                return
+            if entry.get().strip() == entry.placeholder:
+                messagebox.showwarning('Invalid Data', f'Please choose a different {entry.placeholder.lower()}')
+                return
+            values.append(entry.get().strip())
+            entry.Reset()
+        self.window.focus()
+        self.treeView.insert('', tkinter.END, self.items, text='', values=tuple(values))
+
+    def Remove(self):
+        self.items -= len(self.treeView.selection())
+        for item in self.treeView.selection():
+            self.treeView.delete(item)
+
+    def Closing(self):
+        try:
+            data[self.dataIndex] = self.treeView.get_children()
+        except:
+            pass
+        self.closed.set()
+        self.window.destroy()

@@ -4,9 +4,12 @@ from tkinter import ttk
 from PIL import ImageTk, Image
 import threading
 
-from ThreadingHelper import STWThread, QUIT
 import IOManager as iom
+from ThreadingHelper import STWThread, QUIT
 from gui.CustomWidgets import TextArea
+from gui.windows.UsersEditor import UsersEditor
+from gui.windows.SubServersEditor import SubServersEditor
+from gui.windows.RoomsEditor import RoomsEditor
 from gui.windows.ElevationsEditor import ElevationsEditor
 
 class MainWindow():
@@ -15,17 +18,46 @@ class MainWindow():
         self.width = width
         self.height = height
         self.master.SetupWindow(title='ClunksEXP', icon='gui/img/icon.ico', width=self.width, height=self.height, center=True, resizable=False, onClosing=self.Closing)
-        self.master.protocol("WM_DELETE_WINDOW", self.Closing)
+        self.master.protocol('WM_DELETE_WINDOW', self.Closing)
         self.Setup()
 
-    def ResetElevationsEditor(self):
-        self.elevationEditor = None
+    def ApplySectors(self):
+        pass
+
+    def ResetUserEditor(self):self.userEditor = None
+    def ResetServerEditor(self):self.serverEditor = None
+    def ResetRoomsEditor(self):self.roomsEditor = None
+    def ResetElevationEditor(self):self.elevationEditor = None
+
+    def OpenUserEditor(self):
+        if not self.userEditor:
+            self.userEditor = UsersEditor(self.master, 950, 340)
+            self.watchUsersThread = STWThread(mainFunction=self.ResetUserEditor, waitFlags=[self.userEditor.closed], name="WatchUsersThread")
+            self.watchUsersThread.start()
+        else:
+            self.userEditor.window.lift()
+
+    def OpenServerEditor(self):
+        if not self.serverEditor:
+            self.serverEditor = SubServersEditor(self.master, 950, 340)
+            self.watchServersThread = STWThread(mainFunction=self.ResetServerEditor, waitFlags=[self.serverEditor.closed], name="WatchServersThread")
+            self.watchServersThread.start()
+        else:
+            self.serverEditor.window.lift()
+
+    def OpenRoomsEditor(self):
+        if not self.roomsEditor:
+            self.roomsEditor = RoomsEditor(self.master, 500, 500)
+            self.watchRoomsThread = STWThread(mainFunction=self.ResetRoomsEditor, waitFlags=[self.roomsEditor.closed], name="WatchRoomsThread")
+            self.watchRoomsThread.start()
+        else:
+            self.roomsEditor.window.lift()
 
     def OpenElevationsEditor(self):
         if not self.elevationEditor:
             self.elevationEditor = ElevationsEditor(self.master, 950, 400)
-            self.watchWindowThread = STWThread(mainFunction=self.ResetElevationsEditor, waitFlags=[self.elevationEditor.closed], name="WatchWindowThread")
-            self.watchWindowThread.start()
+            self.watchElevationsThread = STWThread(mainFunction=self.ResetElevationEditor, waitFlags=[self.elevationEditor.closed], name="WatchElevationsThread")
+            self.watchElevationsThread.start()
         else:
             self.elevationEditor.window.lift()
 
@@ -39,12 +71,13 @@ class MainWindow():
         self.titleLbl.pack(padx=(10, 0), pady=15)
         self.topBtns = ttk.Frame(self.contentFrame)
         self.loadBtn = ttk.Button(self.topBtns, text='Load EXP', cursor='hand2', command=iom.Load, takefocus=False)
-        self.usersBtn = ttk.Button(self.topBtns, text='Load Users', cursor='hand2', command=iom.Load, takefocus=False)
-        self.serversBtn = ttk.Button(self.topBtns, text='Load Servers', cursor='hand2', command=iom.Load, takefocus=False)
-        self.roomsBtn = ttk.Button(self.topBtns, text='Load Rooms', cursor='hand2', command=iom.Load, takefocus=False)
+        self.usersBtn = ttk.Button(self.topBtns, text='Edit Users', cursor='hand2', command=self.OpenUserEditor, takefocus=False)
+        self.serversBtn = ttk.Button(self.topBtns, text='Edit Sub-Servers', cursor='hand2', command=self.OpenServerEditor, takefocus=False)
+        self.roomsBtn = ttk.Button(self.topBtns, text='Edit Rooms', cursor='hand2', command=self.OpenRoomsEditor, takefocus=False)
         self.elevationsBtn = ttk.Button(self.topBtns, text='Edit Elevations', cursor='hand2', command=self.OpenElevationsEditor, takefocus=False)
         self.logFrame = ttk.LabelFrame(self.contentFrame, text='Log')
         self.log = TextArea(self.logFrame, 20, 10)
+        self.sectorsBtn = ttk.Button(self.contentFrame, text='Apply Sectors', cursor='hand2', command=self.ApplySectors, takefocus=False)
         self.exportBtn = ttk.Button(self.contentFrame, text='Export', cursor='hand2', command=iom.Export, takefocus=False)
         self.loadBtn.pack(padx=(0, 10), side=tkinter.LEFT)
         self.usersBtn.pack(padx=(0, 10), side=tkinter.LEFT)
@@ -53,11 +86,15 @@ class MainWindow():
         self.elevationsBtn.pack(padx=(0, 10), side=tkinter.LEFT)
         self.topBtns.pack()
         self.log.pack()
-        self.logFrame.pack(pady=20)
-        self.exportBtn.pack(pady=20)
+        self.logFrame.pack(pady=(20, 6))
+        self.sectorsBtn.pack(pady=10)
+        self.exportBtn.pack()
 
     def Setup(self):
         self.elevationEditor = None
+        self.userEditor = None
+        self.serverEditor = None
+        self.roomsEditor = None
         self.Populate()
 
     def Closing(self):
