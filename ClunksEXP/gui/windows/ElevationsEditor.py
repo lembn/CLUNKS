@@ -96,7 +96,9 @@ class ElevationsEditor:
         self.removeBtn.pack(pady=(10, 0))
 
     def Closing(self):
-        # if not QUIT.is_set():
-        #     elevations = self.treeView.get_children()
+        try:
+            elevations = self.treeView.get_children()
+        except:
+            pass
         self.closed.set()
         self.window.destroy()
