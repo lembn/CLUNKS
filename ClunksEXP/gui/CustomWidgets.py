@@ -142,10 +142,10 @@ class ScrollableTreeView(ttk.Treeview):
         self.container.pack(**kwargs)
 
 class Editor:
-    def __init__(self, dataIndex, treeView, window, **kwargs):
+    def __init__(self, dataIndex, window, options, **kwargs):
         self.dataIndex = dataIndex
-        self.treeView = treeView
         self.window = window
+        self.options = options
         self.entries = kwargs.pop('entries', [])
         self.closed = threading.Event()
         self.items = 0
@@ -168,6 +168,40 @@ class Editor:
         self.items -= len(self.treeView.selection())
         for item in self.treeView.selection():
             self.treeView.delete(item)
+
+    def Populate(self):
+        self.contentFrame = ttk.Frame(self.window)
+        self.contentFrame.pack(fill=tkinter.BOTH, expand=True)
+        #Treeview
+        self.treeView = ScrollableTreeView(self.contentFrame, self.options)
+        for option in self.options:
+            self.treeView.column(option, anchor=tkinter.CENTER, width=70, minwidth=60)
+            self.treeView.heading(option, text=option, anchor=tkinter.CENTER)
+        self.treeView.pack(fill=tkinter.BOTH)
+        #New Entity
+        self.creatorContainer = ttk.Frame(self.contentFrame)
+        self.creatorFrame = ttk.LabelFrame(self.creatorContainer, text='Create...')
+        self.creatorComponentContainer = ttk.Frame(self.creatorFrame)
+        self.newTop = ttk.Label(self.creatorComponentContainer)
+        self.entries = []
+        for option in self.options:
+            self.entries.append(PlaceholderEntry(self.newTop, option))
+        for entry in self.entries:
+            padding = (10, 0)
+            if entry == self.entries[len(self.entries) - 1]:
+                padding = (10, 10)
+            entry.pack(padx=padding, side=tkinter.LEFT)
+        self.newBottom = ttk.Frame(self.creatorComponentContainer)
+        self.newBtn = ttk.Button(self.newBottom, text='Add New', cursor='hand2', command=self.New, takefocus=False)
+        self.newBtn.pack(side=tkinter.LEFT)
+        self.newTop.pack(pady=(10, 0), side=tkinter.TOP)
+        self.newBottom.pack(pady=10, side=tkinter.BOTTOM)
+        self.creatorContainer.pack()
+        self.creatorFrame.pack()
+        self.creatorComponentContainer.pack()
+        #Remove
+        self.removeBtn = ttk.Button(self.newBottom, text='Remove', cursor='hand2', command=self.Remove, takefocus=False)
+        self.removeBtn.pack()
 
     def Closing(self):
         try:

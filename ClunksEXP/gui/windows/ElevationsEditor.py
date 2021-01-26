@@ -5,7 +5,6 @@ from tkinter import ttk
 import threading
 
 import gui.CustomWidgets as cw
-from ThreadingHelper import QUIT
 
 class ElevationsEditor(cw.Editor):
     OPTIONS = {'Name': 32, 'Call Subservers': 75, 'Call Rooms': 55, 'Call Groups': 55, 'Message Subserver': 95, 'Message Rooms': 80, 
@@ -18,7 +17,6 @@ class ElevationsEditor(cw.Editor):
         self.window.protocol('WM_DELETE_WINDOW', self.Closing)
         self.style = ttk.Style(self.window)
         self.style.configure('Placeholder.TEntry', foreground='#d5d5d5')
-        self.closed = threading.Event()
         self.Populate()
         super().__init__(3, self.treeView, self.window)
 
