@@ -22,15 +22,6 @@ class IOManager:
         self._storage[index].seek(0)
         self._storage[index].write(pickle.dumps(values))
 
-    def LoadSectors(self):
-        users = self.LoadTemp(USERS)
-        sectors = []
-        for user in users:
-            for sector in user[2].split(','):
-                if sector.strip() not in sectors:
-                    sectors.append(sector.strip())
-        return sectors
-
     def LoadTemp(self, index):
         try:
             self._storage[index].seek(0)

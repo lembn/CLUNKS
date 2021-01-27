@@ -9,7 +9,7 @@ from IOManager import ELEVATIONS
 
 class ElevationsEditor(cw.Editor):
     OPTIONS = {'Name': 32, 'Call Subservers': 75, 'Call Rooms': 55, 'Call Groups': 55, 'Message Subserver': 95, 'Message Rooms': 80, 
-               'Message Groups': 80, 'Create Subservers': 90, 'Create Rooms': 70, 'Create Groups': 70, 'Load Exp': 40}
+               'Message Groups': 80, 'Create Subservers': 90, 'Create Rooms': 70, 'Create Groups': 70, 'Load Exp': 40, 'Sectors': 35}
 
     def __init__(self, master, width, height):
         self.width = width
@@ -26,11 +26,11 @@ class ElevationsEditor(cw.Editor):
             return 'break'
 
     def New(self):
-        if not self.nameEntry.get().strip():
-            messagebox.showwarning('Missing Data', 'Please fill in the name feild')
+        if not self.nameEntry.get().strip() or not self.sectorsEntry.get().strip():
+            messagebox.showwarning('Missing Data', 'Please fill in all feilds')
             return
-        if self.nameEntry.get().strip() == 'Name':
-            messagebox.showwarning('Invalid Data', 'Please choose a different name')
+        if self.nameEntry.get().strip() == 'Name' or self.sectorsEntry.get().strip() == 'Sectors':
+            messagebox.showwarning('Missing or Invalid Data', "Please fill in all feilds. You cannot leave 'Name' or 'Sector' empty.")
             return
         values = [self.nameEntry.get().strip()]
         for btn in self.checkBtns:
@@ -61,8 +61,9 @@ class ElevationsEditor(cw.Editor):
         self.creatorComponentContainer = ttk.Frame(self.creatorFrame)
         self.newTop = ttk.Label(self.creatorComponentContainer)
         self.checkBtns = []
-        for option in self.OPTIONS:
-            self.checkBtns.append(cw.LabeledCheckbutton(self.newTop, option))
+        optKeys = list(self.OPTIONS.keys())
+        for x in range(len(optKeys) - 2):
+            self.checkBtns.append(cw.LabeledCheckbutton(self.newTop, optKeys[x]))
         for btn in self.checkBtns:
             padding = (10, 0)
             if btn == self.checkBtns[len(self.checkBtns ) - 1]:
@@ -70,8 +71,10 @@ class ElevationsEditor(cw.Editor):
             btn.pack(padx=padding, side=tkinter.LEFT)
         self.newBottom = ttk.Frame(self.creatorComponentContainer)
         self.nameEntry = cw.PlaceholderEntry(self.newBottom, 'Name')
+        self.sectorsEntry = cw.PlaceholderEntry(self.newBottom, 'Sectors')
         self.newBtn = ttk.Button(self.newBottom, text='Add New', cursor='hand2', command=self.New, takefocus=False)
-        self.nameEntry.pack(padx=(0, 10), side=tkinter.LEFT)
+        self.nameEntry.pack(side=tkinter.LEFT)
+        self.sectorsEntry.pack(padx=10, side=tkinter.LEFT)
         self.newBtn.pack()
         self.newTop.pack(pady=(10, 0), side=tkinter.TOP)
         self.newBottom.pack(pady=10, side=tkinter.BOTTOM)

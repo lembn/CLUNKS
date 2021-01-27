@@ -25,10 +25,6 @@ class MainWindow():
         self.firstRooms = True
         self.firstElevations = True
 
-    def ApplySectors(self):
-        sectors = self.iom.LoadSectors()
-        print(sectors)
-
     def ResetUserEditor(self):
         self.iom.Save(self.userEditor.index, self.userEditor.results)
         self.userEditor = None
@@ -109,7 +105,6 @@ class MainWindow():
         self.elevationsBtn = ttk.Button(self.topBtns, text='Edit Elevations', cursor='hand2', command=self.OpenElevationsEditor, takefocus=False)
         self.logFrame = ttk.LabelFrame(self.contentFrame, text='Log')
         self.log = TextArea(self.logFrame, 20, 10)
-        self.sectorsBtn = ttk.Button(self.contentFrame, text='Apply Sectors', cursor='hand2', command=self.ApplySectors, takefocus=False)
         self.exportBtn = ttk.Button(self.contentFrame, text='Export', cursor='hand2', command=self.iom.Export, takefocus=False)
         self.loadBtn.pack(padx=(0, 10), side=tkinter.LEFT)
         self.usersBtn.pack(padx=(0, 10), side=tkinter.LEFT)
@@ -119,8 +114,7 @@ class MainWindow():
         self.topBtns.pack()
         self.log.pack()
         self.logFrame.pack(pady=(20, 6))
-        self.sectorsBtn.pack(pady=10)
-        self.exportBtn.pack()
+        self.exportBtn.pack(pady=10)
 
     def Setup(self):
         self.elevationEditor = None

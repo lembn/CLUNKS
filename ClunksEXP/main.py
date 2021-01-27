@@ -3,5 +3,5 @@ from gui.windows.MainWindow import MainWindow
 
 if __name__ == "__main__":
     root = RootWindow(theme='equilux')
-    mainWindow = MainWindow(root, 600, 400)
+    mainWindow = MainWindow(root, 600, 350)
     root.mainloop()

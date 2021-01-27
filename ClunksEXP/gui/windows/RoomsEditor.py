@@ -7,7 +7,7 @@ import gui.CustomWidgets as cw
 from IOManager import ROOMS
 
 class RoomsEditor(cw.Editor):
-    OPTIONS = ('Room Name', 'Password', 'Parent')
+    OPTIONS = ('Room Name', 'Password', 'Parent', 'Sectors')
 
     def __init__(self, master, width, height):
         self.width = width

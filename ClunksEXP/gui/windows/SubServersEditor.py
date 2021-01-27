@@ -7,7 +7,7 @@ import gui.CustomWidgets as cw
 from IOManager import SUBSERVERS
 
 class SubServersEditor(cw.Editor):
-    OPTIONS = ('Sub-Server Name',)
+    OPTIONS = ('Sub-Server Name', 'Sectors')
 
     def __init__(self, master, width, height):
         self.width = width
