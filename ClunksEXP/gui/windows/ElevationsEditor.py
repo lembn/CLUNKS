@@ -37,6 +37,10 @@ class ElevationsEditor(cw.Editor):
             btn.variable.set(0)
         self.nameEntry.Reset()
         self.window.focus()
+        for child in self.treeView.get_children():
+            if self.treeView.item(child)['values'][0] == values[0]:
+                messagebox.showwarning('Invalid Data', f"Entry with {self.options[0].lower()} '{values[0]}' already exists.")
+                return
         self.items += 1
         self.treeView.insert('', tkinter.END, self.items, text='', values=tuple(values))
 
