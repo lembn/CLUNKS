@@ -5,6 +5,7 @@ from tkinter import ttk
 import threading
 
 import gui.CustomWidgets as cw
+from IOManager import ELEVATIONS
 
 class ElevationsEditor(cw.Editor):
     OPTIONS = {'Name': 32, 'Call Subservers': 75, 'Call Rooms': 55, 'Call Groups': 55, 'Message Subserver': 95, 'Message Rooms': 80, 
@@ -18,7 +19,7 @@ class ElevationsEditor(cw.Editor):
         self.style = ttk.Style(self.window)
         self.style.configure('Placeholder.TEntry', foreground='#d5d5d5')
         self.Populate()
-        super().__init__(3, self.window, self.OPTIONS)
+        super().__init__(ELEVATIONS, self.window, self.OPTIONS)
 
     def OnTreeViewClick(self, event):
         if self.treeView.identify_region(event.x, event.y) == 'separator':

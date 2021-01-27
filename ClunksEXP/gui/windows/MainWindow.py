@@ -26,7 +26,8 @@ class MainWindow():
         self.firstElevations = True
 
     def ApplySectors(self):
-        pass
+        sectors = self.iom.LoadSectors()
+        print(sectors)
 
     def ResetUserEditor(self):
         self.iom.Save(self.userEditor.index, self.userEditor.results)
