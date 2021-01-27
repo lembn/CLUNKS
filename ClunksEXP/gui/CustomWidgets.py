@@ -4,8 +4,6 @@ from tkinter import messagebox
 from ttkthemes import themed_tk as tk
 import threading
 
-from Globals import data
-
 class RootWindow(tk.ThemedTk):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -142,13 +140,14 @@ class ScrollableTreeView(ttk.Treeview):
         self.container.pack(**kwargs)
 
 class Editor:
-    def __init__(self, dataIndex, window, options, **kwargs):
-        self.dataIndex = dataIndex
+    def __init__(self, index, window, options, **kwargs):
+        self.index = index
         self.window = window
         self.options = options
         self.entries = kwargs.pop('entries', [])
         self.closed = threading.Event()
         self.items = 0
+        self.results = []
 
     def New(self):
         values = []
@@ -162,6 +161,7 @@ class Editor:
             values.append(entry.get().strip())
             entry.Reset()
         self.window.focus()
+        self.items += 1
         self.treeView.insert('', tkinter.END, self.items, text='', values=tuple(values))
 
     def Remove(self):
@@ -203,9 +203,15 @@ class Editor:
         self.removeBtn = ttk.Button(self.newBottom, text='Remove', cursor='hand2', command=self.Remove, takefocus=False)
         self.removeBtn.pack()
 
+    def Load(self, data):
+        for values in data:
+            self.treeView.insert('', tkinter.END, self.items, text='', values=tuple(values))
+            self.items += 1
+
     def Closing(self):
         try:
-            data[self.dataIndex] = self.treeView.get_children()
+            for child in self.treeView.get_children():
+                self.results.append(self.treeView.item(child)['values'])
         except:
             pass
         self.closed.set()
