@@ -1,6 +1,7 @@
 import tkinter
-from ttkthemes import themed_tk as tk
 from tkinter import ttk
+from tkinter import filedialog
+from ttkthemes import themed_tk as tk
 from PIL import ImageTk, Image
 import threading
 
@@ -26,30 +27,30 @@ class MainWindow():
         self.firstElevations = True
 
     def ResetUserEditor(self):
-        self.iom.Save(self.userEditor.index, self.userEditor.results)
+        self.iom.Save(self.iom.storage['user'], self.userEditor.results)
         self.userEditor = None
-        self.log.Append('Saved [users]')
+        self.log.Append(f'Saved [users]')
 
     def ResetServerEditor(self):
-        self.iom.Save(self.subserverEditor.index, self.subserverEditor.results)
+        self.iom.Save(self.iom.storage['subserver'], self.subserverEditor.results)
         self.subserverEditor = None
-        self.log.Append('Saved [subservers]')
+        self.log.Append(f'Saved [subservers]')
 
     def ResetRoomsEditor(self):
-        self.iom.Save(self.roomsEditor.index, self.roomsEditor.results)
+        self.iom.Save(self.iom.storage['room'], self.roomsEditor.results)
         self.roomsEditor = None
-        self.log.Append('Saved [rooms]')
+        self.log.Append(f'Saved [rooms]')
 
     def ResetElevationEditor(self):
-        self.iom.Save(self.elevationEditor.index, self.elevationEditor.results)
+        self.iom.Save(self.iom.storage['elevation'], self.elevationEditor.results)
         self.elevationEditor = None
-        self.log.Append('Saved [elevations]')
+        self.log.Append(f'Saved [elevations]')
 
     def OpenUserEditor(self):
         if not self.userEditor:
             self.userEditor = UsersEditor(self.master, 950, 340)
             if not self.firstUsers:
-                self.userEditor.Load(self.iom.LoadTemp(self.userEditor.index))
+                self.userEditor.Load(self.iom.LoadTemp(self.iom.storage['user']))
             self.firstUsers = False
             self.watchUsersThread = STWThread(mainFunction=self.ResetUserEditor, waitFlags=[self.userEditor.closed], name="WatchUsersThread")
             self.watchUsersThread.start()
@@ -60,7 +61,7 @@ class MainWindow():
         if not self.subserverEditor:
             self.subserverEditor = SubServersEditor(self.master, 950, 340)
             if not self.firstSubservers:
-                self.subserverEditor.Load(self.iom.LoadTemp(self.subserverEditor.index))
+                self.subserverEditor.Load(self.iom.LoadTemp(self.iom.storage['subserver']))
             self.firstSubservers= False
             self.watchServersThread = STWThread(mainFunction=self.ResetServerEditor, waitFlags=[self.subserverEditor.closed], name="WatchSubServersThread")
             self.watchServersThread.start()
@@ -71,7 +72,7 @@ class MainWindow():
         if not self.roomsEditor:
             self.roomsEditor = RoomsEditor(self.master, 950, 340)
             if not self.firstRooms:
-                self.roomsEditor.Load(self.iom.LoadTemp(self.roomsEditor.index))
+                self.roomsEditor.Load(self.iom.LoadTemp(self.iom.storage['room']))
             self.firstRooms = False
             self.watchRoomsThread = STWThread(mainFunction=self.ResetRoomsEditor, waitFlags=[self.roomsEditor.closed], name="WatchRoomsThread")
             self.watchRoomsThread.start()
@@ -82,12 +83,20 @@ class MainWindow():
         if not self.elevationEditor:
             self.elevationEditor = ElevationsEditor(self.master, 950, 400)
             if not self.firstElevations:
-                self.elevationEditor.Load(self.iom.LoadTemp(self.elevationEditor.index))
+                self.elevationEditor.Load(self.iom.LoadTemp(self.iom.storage['elevation']))
             self.firstElevations = False
             self.watchElevationsThread = STWThread(mainFunction=self.ResetElevationEditor, waitFlags=[self.elevationEditor.closed], name="WatchElevationsThread")
             self.watchElevationsThread.start()
         else:
             self.elevationEditor.window.lift()
+
+    def Export(self):
+        try:
+            with filedialog.asksaveasfile(defaultextension='.exp', filetypes=[('EXP File', '.exp')]) as exp:
+                self.iom.Export(self.log.Append, exp)
+                self.log.Append(f'Exported to: {exp.name}')
+        except AttributeError:
+            pass
 
     def Populate(self):
         self.contentFrame = ttk.Frame(self.master.container)
@@ -104,8 +113,8 @@ class MainWindow():
         self.roomsBtn = ttk.Button(self.topBtns, text='Edit Rooms', cursor='hand2', command=self.OpenRoomsEditor, takefocus=False)
         self.elevationsBtn = ttk.Button(self.topBtns, text='Edit Elevations', cursor='hand2', command=self.OpenElevationsEditor, takefocus=False)
         self.logFrame = ttk.LabelFrame(self.contentFrame, text='Log')
-        self.log = TextArea(self.logFrame, 20, 10)
-        self.exportBtn = ttk.Button(self.contentFrame, text='Export', cursor='hand2', command=self.iom.Export, takefocus=False)
+        self.log = TextArea(self.logFrame, 70, 10)
+        self.exportBtn = ttk.Button(self.contentFrame, text='Export', cursor='hand2', command=self.Export, takefocus=False)
         self.loadBtn.pack(padx=(0, 10), side=tkinter.LEFT)
         self.usersBtn.pack(padx=(0, 10), side=tkinter.LEFT)
         self.serversBtn.pack(padx=(0, 10), side=tkinter.LEFT)

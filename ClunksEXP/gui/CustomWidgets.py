@@ -2,6 +2,7 @@ import tkinter
 from tkinter import ttk
 from tkinter import messagebox
 from ttkthemes import themed_tk as tk
+from datetime import datetime
 import threading
 
 class RootWindow(tk.ThemedTk):
@@ -82,11 +83,14 @@ class TextArea(tkinter.Text):
     def Append(self, text):
         self.config(state=tkinter.NORMAL)
         if not self.first:
-            self.insert(tkinter.END, f'\n{text}')
+            self.insert(tkinter.END, f'\n[{self.Date()}] {text}')
         else:
-            self.insert(tkinter.END, f'{text}')
+            self.insert(tkinter.END, f'[{self.Date()}] {text}')
             self.first = False
         self.config(state=tkinter.DISABLED)
+
+    def Date(self):
+        return datetime.now().strftime("%H:%M:%S")
 
 class PlaceholderEntry(ttk.Entry):
     def __init__(self, master, placeholder, *args, **kwargs):
@@ -140,8 +144,7 @@ class ScrollableTreeView(ttk.Treeview):
         self.container.pack(**kwargs)
 
 class Editor:
-    def __init__(self, index, window, options, **kwargs):
-        self.index = index
+    def __init__(self, window, options, **kwargs):
         self.window = window
         self.options = options
         self.entries = kwargs.pop('entries', [])
@@ -151,13 +154,10 @@ class Editor:
 
     def New(self):
         values = []
-        for entry in self.entries:
-            if not entry.get().strip():
-                messagebox.showwarning('Missing Data', f'Please fill in the {entry.placeholder.lower()} feild')
-                return
+        for entry in self.entries: 
             if entry.get().strip() == entry.placeholder:
-                messagebox.showwarning('Invalid Data', f'Please choose a different {entry.placeholder.lower()}')
-                return
+                values.append('')
+                continue
             values.append(entry.get().strip())
         for entry in self.entries:
             entry.Reset()

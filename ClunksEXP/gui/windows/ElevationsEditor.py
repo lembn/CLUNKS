@@ -5,7 +5,6 @@ from tkinter import ttk
 import threading
 
 import gui.CustomWidgets as cw
-from IOManager import ELEVATIONS
 
 class ElevationsEditor(cw.Editor):
     OPTIONS = {'Name': 32, 'Call Subservers': 75, 'Call Rooms': 55, 'Call Groups': 55, 'Message Subserver': 95, 'Message Rooms': 80, 
@@ -19,7 +18,7 @@ class ElevationsEditor(cw.Editor):
         self.style = ttk.Style(self.window)
         self.style.configure('Placeholder.TEntry', foreground='#d5d5d5')
         self.Populate()
-        super().__init__(ELEVATIONS, self.window, self.OPTIONS)
+        super().__init__(self.window, self.OPTIONS)
 
     def OnTreeViewClick(self, event):
         if self.treeView.identify_region(event.x, event.y) == 'separator':
@@ -30,12 +29,13 @@ class ElevationsEditor(cw.Editor):
             messagebox.showwarning('Missing Data', 'Please fill in all feilds')
             return
         if self.nameEntry.get().strip() == 'Name' or self.sectorsEntry.get().strip() == 'Sectors':
-            messagebox.showwarning('Missing or Invalid Data', "Please fill in all feilds. You cannot leave 'Name' or 'Sector' empty.")
+            messagebox.showwarning('Missing or Invalid Data', "Please fill in all feilds. You cannot leave 'Name' or 'Sectors' empty.")
             return
         values = [self.nameEntry.get().strip()]
         for btn in self.checkBtns:
             values.append(str(bool(btn.variable.get())))
             btn.variable.set(0)
+        values.append(self.sectorsEntry.get().strip())
         self.nameEntry.Reset()
         self.window.focus()
         for child in self.treeView.get_children():
@@ -62,7 +62,7 @@ class ElevationsEditor(cw.Editor):
         self.newTop = ttk.Label(self.creatorComponentContainer)
         self.checkBtns = []
         optKeys = list(self.OPTIONS.keys())
-        for x in range(len(optKeys) - 2):
+        for x in range(1, len(optKeys) - 1):
             self.checkBtns.append(cw.LabeledCheckbutton(self.newTop, optKeys[x]))
         for btn in self.checkBtns:
             padding = (10, 0)
