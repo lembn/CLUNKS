@@ -21,10 +21,6 @@ class MainWindow():
         self.master.SetupWindow(title='ClunksEXP', icon='gui/img/icon.ico', width=self.width, height=self.height, center=True, resizable=False, onClosing=self.Closing)
         self.master.protocol('WM_DELETE_WINDOW', self.Closing)
         self.Setup()
-        self.firstUsers = True
-        self.firstSubservers = True
-        self.firstRooms = True
-        self.firstElevations = True
 
     def ResetUserEditor(self):
         self.iom.Save(self.iom.storage['user'], self.userEditor.results)
@@ -49,9 +45,7 @@ class MainWindow():
     def OpenUserEditor(self):
         if not self.userEditor:
             self.userEditor = UsersEditor(self.master, 950, 340)
-            if not self.firstUsers:
-                self.userEditor.Load(self.iom.LoadTemp(self.iom.storage['user']))
-            self.firstUsers = False
+            self.userEditor.Load(self.iom.LoadTemp(self.iom.storage['user']))
             self.watchUsersThread = STWThread(mainFunction=self.ResetUserEditor, waitFlags=[self.userEditor.closed], name="WatchUsersThread")
             self.watchUsersThread.start()
         else:
@@ -60,9 +54,7 @@ class MainWindow():
     def OpenSubServerEditor(self):
         if not self.subserverEditor:
             self.subserverEditor = SubServersEditor(self.master, 950, 340)
-            if not self.firstSubservers:
-                self.subserverEditor.Load(self.iom.LoadTemp(self.iom.storage['subserver']))
-            self.firstSubservers= False
+            self.subserverEditor.Load(self.iom.LoadTemp(self.iom.storage['subserver']))
             self.watchServersThread = STWThread(mainFunction=self.ResetServerEditor, waitFlags=[self.subserverEditor.closed], name="WatchSubServersThread")
             self.watchServersThread.start()
         else:
@@ -71,9 +63,7 @@ class MainWindow():
     def OpenRoomsEditor(self):
         if not self.roomsEditor:
             self.roomsEditor = RoomsEditor(self.master, 950, 340)
-            if not self.firstRooms:
-                self.roomsEditor.Load(self.iom.LoadTemp(self.iom.storage['room']))
-            self.firstRooms = False
+            self.roomsEditor.Load(self.iom.LoadTemp(self.iom.storage['room']))
             self.watchRoomsThread = STWThread(mainFunction=self.ResetRoomsEditor, waitFlags=[self.roomsEditor.closed], name="WatchRoomsThread")
             self.watchRoomsThread.start()
         else:
@@ -82,9 +72,7 @@ class MainWindow():
     def OpenElevationsEditor(self):
         if not self.elevationEditor:
             self.elevationEditor = ElevationsEditor(self.master, 950, 400)
-            if not self.firstElevations:
-                self.elevationEditor.Load(self.iom.LoadTemp(self.iom.storage['elevation']))
-            self.firstElevations = False
+            self.elevationEditor.Load(self.iom.LoadTemp(self.iom.storage['elevation']))
             self.watchElevationsThread = STWThread(mainFunction=self.ResetElevationEditor, waitFlags=[self.elevationEditor.closed], name="WatchElevationsThread")
             self.watchElevationsThread.start()
         else:
@@ -94,9 +82,16 @@ class MainWindow():
         try:
             with filedialog.asksaveasfile(defaultextension='.exp', filetypes=[('EXP File', '.exp')]) as exp:
                 self.iom.Export(self.log.Append, exp)
-                self.log.Append(f'Exported to: {exp.name}')
         except AttributeError:
             pass
+
+    def Load(self):
+        try:
+            with filedialog.askopenfile(defaultextension='.exp', filetypes=[('EXP File', '.exp')]) as exp:
+                self.iom.LoadExp(self.log.Append, exp)
+        except AttributeError:
+            pass
+
 
     def Populate(self):
         self.contentFrame = ttk.Frame(self.master.container)
@@ -107,7 +102,7 @@ class MainWindow():
         self.titleLbl = ttk.Label(self.contentFrame, image=self.titleImg)
         self.titleLbl.pack(padx=(10, 0), pady=15)
         self.topBtns = ttk.Frame(self.contentFrame)
-        self.loadBtn = ttk.Button(self.topBtns, text='Load EXP', cursor='hand2', command=self.iom.LoadExp, takefocus=False)
+        self.loadBtn = ttk.Button(self.topBtns, text='Load EXP', cursor='hand2', command=self.Load, takefocus=False)
         self.usersBtn = ttk.Button(self.topBtns, text='Edit Users', cursor='hand2', command=self.OpenUserEditor, takefocus=False)
         self.serversBtn = ttk.Button(self.topBtns, text='Edit Sub-Servers', cursor='hand2', command=self.OpenSubServerEditor, takefocus=False)
         self.roomsBtn = ttk.Button(self.topBtns, text='Edit Rooms', cursor='hand2', command=self.OpenRoomsEditor, takefocus=False)

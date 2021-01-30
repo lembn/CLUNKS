@@ -6,6 +6,8 @@ import xml.etree.ElementTree as ET
 
 from ThreadingHelper import QUIT
 
+NUM_PRIV = 10
+
 class IOManager:
     def __init__(self):
         self.storage = {'user': tempfile.TemporaryFile(), 'subserver': tempfile.TemporaryFile(), 'room': tempfile.TemporaryFile(), 'elevation': tempfile.TemporaryFile()}
@@ -33,12 +35,86 @@ class IOManager:
             messagebox.showerror('Oh no!', 'Data has been corrupted, please restart the program.')
             QUIT.set()
 
-    def LoadExp(self):
-        pass
+    def LoadExp(self, logFunc, expFile):
+        def LoadUsers(users):
+            for user in users:
+                username = user.get('username', None)
+                if not username:
+                    logFunc(f'LOAD FAILED: User has no name attribute.')
+                    return
+                userPwd = user.get('password', None)
+                if not userPwd:
+                    logFunc(f'LOAD FAILED: User has no password attribute.')
+                    return
+                userSectors = user.get('sectors')
+                userList = [[username, userPwd, userSectors]]
+                self.storage['user'].write(pickle.dumps(userList))
+                return
+
+        def LoadRooms(rooms, parent):
+            for room in rooms:
+                roomName = room.get('name', None)
+                if not roomName:
+                    logFunc(f'LOAD FAILED: Room has no name attribute.')
+                    return
+                roomPwd = room.get('password', None)
+                if not roomName:
+                    logFunc(f'LOAD FAILED: Room has no password attribute.')
+                    return
+                roomSectors = room.get('sectors')
+                roomList = [[roomName, roomPwd, parent, roomSectors]]
+                self.storage['room'].write(pickle.dumps(roomList))
+                LoadUsers(room.findall('user')) #Rooms can have multiple sectors, which sector do we pass to 'sector'
+                LoadRooms(room.findall('room'), roomName)
+                return
+
+        self.Cleanup()
+        self.storage = {'user': tempfile.TemporaryFile(), 'subserver': tempfile.TemporaryFile(), 'room': tempfile.TemporaryFile(), 'elevation': tempfile.TemporaryFile()}
+        data = expFile.read()
+        if not data:
+            logFunc(f"LOAD FAILED: '{expFile.name}' is empty.")
+            return
+        root = ET.fromstring(data)
+        subservers = root.findall('subservers')[0]
+        if not subservers:
+            logFunc('LOAD FAILED: The selected EXP has no subservers.')
+            return
+        for subserver in subservers:
+            subserverName = subserver.get('name', None)
+            if not subserverName:
+                logFunc(f'LOAD FAILED: Subserver {subservers.index(subserver)} has no name attribute.')
+                return
+            subserverSectors = subserver.get('sectors')
+            subserverList = [[subserverName, subserverSectors]]
+            self.storage['subserver'].write(pickle.dumps(subserverList))
+            LoadRooms(subserver.findall('room'), subserverName)
+            LoadUsers(subserver.findall('user'))
+
+        #Load elevations
+        elevations = root.findall('elevations')[0]
+        for elevation in elevations:
+            elevationName = elevation.get('name', None)
+            if not elevationName:
+                logFunc(f'LOAD FAILED: Elevation {elevations.index(elevation)} has no name attribute.')
+                return
+            privilege = elevation.get('privilege', None)
+            if privilege == None:
+                logFunc(f'LOAD FAILED: Elevation {elevations.index(elevation)} has no privilege attribute.')
+                return
+            privileges = ['True' if i == '1' else 'False' for i in bin(int(privilege))[2:]]
+            while len(privileges) < NUM_PRIV:
+                privileges = ['False'] + privileges
+            elevationSectors = elevation.get('sectors', None)
+            elevationList = [[elevationName] + privileges + [elevationSectors]]
+            self.storage['elevation'].write(pickle.dumps(elevationList))
+
+        logFunc(f"Sucessfully loaded '{expFile.name}'")
+
 
     def Export(self, logFunc, expFile):
         roomNames = []
         subserverNames = []
+        elevationNames = []
         for subserver in self.ReadAll(self.storage['subserver']):
             if subserver[0] not in subserverNames:
                 subserverNames.append(subserver[0])
@@ -50,6 +126,12 @@ class IOManager:
                 roomNames.append(room[0])
             else:
                 logFunc('EXPORT FAILED: Room/subserver names must be unique.')
+                return
+        for elevation in self.ReadAll(self.storage['elevation']):
+            if elevation[0] not in elevationNames:
+                elevationNames.append(elevation[0])
+            else:
+                logFunc('EXPORT FAILED: Elevation names must be unique.')
                 return
 
         subserverElements = []
@@ -105,27 +187,28 @@ class IOManager:
         if entities:
             elevationRoot = ET.SubElement(root, 'elevations')
         for x in range(len(entities)):
-            privilege = sum([(2**i)*int(j==str(True)) for i, j in enumerate(reversed(entities[x][1:len(entities[x]) - 1]))])
-            elevationElements.append(ET.SubElement(elevationRoot, 'elevation', {'name': entities[x][0], 'privilege': str(privilege), 'elevationID': str(x)}))
+            privilege = sum([2**i if j == 'True' else 0 for i, j in enumerate(reversed(entities[x][1:len(entities[x]) - 1]))])
+            elevationElements.append(ET.SubElement(elevationRoot, 'elevation', {'name': entities[x][0], 'privilege': str(privilege), 'sectors': entities[x][len(entities[x]) - 1]}))
             for sector in entities[x][len(entities[x]) - 1].split(','):
                 sectorToElevation[sector] = x
 
         entities = self.ReadAll(self.storage['user'])
         for user in entities:
             parents = {}
-            elevationID = None
+            elevationName = None
             for sector in user[2].split(','):
                 if sector in sectorToSubserver.keys():
                     parents[sector] = subserverElements[sectorToSubserver[sector]]
                 if sector in sectorToRoom.keys():
                     parents[sector] = roomElements[sectorToRoom[sector]]
                 if sector in sectorToElevation.keys():
-                    if not elevationID:
-                        elevationID = sectorToElevation[sector]
+                    if not elevationName:
+                        userElevation = elevationElements[sectorToElevation[sector]]
+                        elevationName = userElevation.get('name')
                     else:
                         logFunc(f"EXPORT FAILED: Elevation conflict on user '{user[0]}'.")
                         return
-            if elevationID == None:
+            if elevationName == None:
                 logFunc(f"EXPORT FAILED: No elevation apllied to user '{user[0]}'.")
                 return
             for sector, parent in parents.items():
@@ -135,6 +218,7 @@ class IOManager:
                 else:
                     parentSectors.append(parentSectors)
                 parent.set('sectors', parentSectors)
-                ET.SubElement(parent, 'user', {'username': user[0], 'password': user[1], 'elevationID': str(elevationID)})
+                ET.SubElement(parent, 'user', {'username': user[0], 'password': user[1], 'sectors': user[2], 'elevation': elevationName})
 
         expFile.write(ET.tostring(root).decode())
+        logFunc(f'Exported to: {expFile.name}')
