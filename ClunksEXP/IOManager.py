@@ -156,29 +156,39 @@ class IOManager:
         roomElements = []
         sectorToRoom = {}
         nameToRoom = {}
+        processedRooms = []
         entities = self.ReadAll(self.storage['room'])
+        #Rooms with subserver parents
         for x in range(len(entities)):
             if entities[x][2] in subserverNames:
                 room = entities[x]
-                entities.remove(room)
+                processedRooms.append(x)
                 roomElements.append(ET.SubElement(subserverElements[nameToSubserver[room[2]]], 'room', {'name': room[0], 'password': room[1]}))
                 nameToRoom[room[0]] = x
                 for sector in room[3].split(','):
-                    sectorToRoom[sector] = x
+                    try:
+                        sectorToRoom[sector].append(x)
+                    except KeyError:
+                        sectorToRoom[sector] = [x]
             elif entities[x][2] not in roomNames:
                 logFunc(f"EXPORT FAILED: Parent of room '{entities[x][0]}' does not exist.")
                 return
 
+        #Rooms with room parents
         for x in range(len(entities)):
-            parent = None
-            parentName = entities[x][2]
-            if parentName in nameToSubserver.keys():
-                parent = subserverElements[nameToSubserver[parentName]]
-            elif parentName in nameToRoom.keys():
-                parent = roomElements[nameToRoom[parentName]]
-            roomElements.append(ET.SubElement(parent, 'room', {'name': entities[x][0], 'password': entities[x][1]}))
-            for sector in entities[x][3].split(','):
-                sectorToRoom[sector] = x
+            if x not in processedRooms:
+                parent = None
+                parentName = entities[x][2]
+                if parentName in nameToSubserver.keys():
+                    parent = subserverElements[nameToSubserver[parentName]]
+                elif parentName in nameToRoom.keys():
+                    parent = roomElements[nameToRoom[parentName]]
+                roomElements.append(ET.SubElement(parent, 'room', {'name': entities[x][0], 'password': entities[x][1]}))
+                for sector in entities[x][3].split(','):
+                    try:
+                        sectorToRoom[sector].append(x)
+                    except KeyError:
+                        sectorToRoom[sector] = [x]
 
         elevationElements = []
         sectorToElevation = {}
@@ -199,9 +209,19 @@ class IOManager:
             elevationName = None
             for sector in user[2].split(','):
                 if sector in sectorToSubserver.keys():
-                    parents[sector] = subserverElements[sectorToSubserver[sector]]
+                    parentIndexes = sectorToSubserver[sector]
+                    try:
+                        for index in parentIndexes:
+                            parents[sector].append(subserverElements[index])
+                    except KeyError:
+                        parents = {sector: [subserverElements[index] for index in parentIndexes]}
                 if sector in sectorToRoom.keys():
-                    parents[sector] = roomElements[sectorToRoom[sector]]
+                    parentIndexes = sectorToRoom[sector]
+                    try:
+                        for index in parentIndexes:
+                            parents[sector].append(roomElements[index])
+                    except KeyError:
+                        parents = {sector: [roomElements[index] for index in parentIndexes]}
                 if sector in sectorToElevation.keys():
                     if not elevationName:
                         userElevation = elevationElements[sectorToElevation[sector]]
@@ -212,14 +232,15 @@ class IOManager:
             if elevationName == None:
                 logFunc(f"EXPORT FAILED: No elevation apllied to user '{user[0]}'.")
                 return
-            for sector, parent in parents.items():
-                parentSectors = parent.get('sectors')
-                if not parentSectors:
-                    parentSectors = sector
-                else:
-                    parentSectors += f',{sector}'
-                parent.set('sectors', parentSectors)
-                ET.SubElement(parent, 'user', {'username': user[0], 'password': user[1], 'sectors': user[2], 'elevation': elevationName})
+            for sector, parentList in parents.items():
+                for parent in parentList:
+                    parentSectors = parent.get('sectors')
+                    if not parentSectors:
+                        parentSectors = sector
+                    else:
+                        parentSectors += f',{sector}'
+                    parent.set('sectors', parentSectors)
+                    ET.SubElement(parent, 'user', {'username': user[0], 'password': user[1], 'sectors': user[2], 'elevation': elevationName})
 
         expFile.write(ET.tostring(root).decode())
         logFunc(f'Exported to: {expFile.name}')
