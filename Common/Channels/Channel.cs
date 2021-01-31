@@ -13,6 +13,7 @@ namespace Common.Channels
         #region Private Members
 
         private protected const int HEADER_SIZE = 4; //bodyLength is a 32 bit integer  
+        private protected int bufferSize; //The default buffer size of the channel
         private protected CancellationToken ctoken; //A token used for cancelling threads when the channel is closed
         private protected List<Thread> threads; //A list to keep track of running threads        
         private protected const string SUCCESS = "success"; //A constant value used for identifying a sucessfull operation
@@ -40,11 +41,12 @@ namespace Common.Channels
         /// <param name="bufferSize">The size to allocate to the buffer of the channel (in bytes)</param>
         /// <param name="address">The IP address of the server</param>
         /// <param name="port">The port that the server is hosting on</param>
-        private protected Channel()
+        private protected Channel(int bufferSize)
         {
             threads = new List<Thread>();
             cts = new CancellationTokenSource();
             ctoken = cts.Token;
+            this.bufferSize = bufferSize;
         }
 
         public abstract void Start();

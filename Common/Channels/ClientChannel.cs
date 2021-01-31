@@ -27,7 +27,6 @@ namespace Common.Channels
         private int missedHBs = 0; //A counter of how many hearbeats have been missed
         private Socket socket; //The socket to listen on (and send over)
         private EndPoint server; //Represents the endpoint of the server
-        private int bufferSize; //The default buffer size of the channel
         private IPAddress serverIP; //Server IP
         private int connectAttempts; //The maximum amount of handshakes to attempt before aborting
         private ManualResetEvent connected; //An event to represent if a connection has been made to the server when using TCP
@@ -53,11 +52,10 @@ namespace Common.Channels
         /// <param name="connectAttempts">The maximum amount of handshakes to attempt before aborting</param>
         /// <param name="strength">The level of encryption used by the channel</param>
         /// <param name="packetLossThresh">The threshold of packet loss</param>
-        public ClientChannel(int bufferSize, IPAddress ip, EncryptionConfig.Strength strength, int connectAttempts = 3, double packetLossThresh = 0.05) : base()
+        public ClientChannel(int bufferSize, IPAddress ip, EncryptionConfig.Strength strength, int connectAttempts = 3, double packetLossThresh = 0.05) : base(bufferSize)
         {
             this.connectAttempts = connectAttempts;
             this.strength = strength;
-            this.bufferSize = bufferSize;
             this.packetLossThresh = packetLossThresh;
             outPackets = new BlockingCollection<Packet>();
             inPackets = new BlockingCollection<Packet>();
@@ -78,7 +76,6 @@ namespace Common.Channels
                 catch (Exception)
                 {
                     Console.WriteLine($"There is no CLUNK server at {ip}:{TCP_PORT}");
-                    throw new SocketException();
                 }
                 connected.Set();
             }), null);

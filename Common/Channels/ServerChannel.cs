@@ -31,7 +31,7 @@ namespace Common.Channels
         /// Server constructor
         /// </summary>
         /// <param name="address">The IP address to bind to</param>
-        public ServerChannel(IPAddress address) : base()
+        public ServerChannel(int bufferSize, IPAddress address) : base(bufferSize)
         {
             clientList = new List<ClientModel>();
             inPackets = new BlockingCollection<(Packet, ClientModel)>();

@@ -11,7 +11,7 @@ namespace Server
 
         static void Main(string[] args)
         {
-            server = new ServerChannel(1024, IPAddress.Loopback);
+            server = new ServerChannel(1024, IPAddress.Parse("192.168.0.21"));
             server.Dispatch += Printer;
             server.Start();
             Console.ReadLine();

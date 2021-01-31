@@ -30,7 +30,8 @@ namespace Common.Channels
         public byte[] New()
         {
             byte[] buffer = new byte[bufferSize];
-            bufferList.Add(buffer);
+            lock (bufferList)
+                bufferList.Add(buffer);
             return buffer;
         }
 
@@ -41,11 +42,12 @@ namespace Common.Channels
         public byte[] Get()
         {
             List<byte> output = new List<byte>();
-            foreach (byte[] buffer in bufferList)
+            lock (bufferList)
             {
-                output.AddRange(buffer);
+                foreach (byte[] buffer in bufferList)
+                    output.AddRange(buffer);
+                bufferList.Clear();
             }
-            bufferList.Clear();
             return output.ToArray();
         }
 
