@@ -7,7 +7,7 @@ import threading
 import gui.CustomWidgets as cw
 
 class ElevationsEditor(cw.Editor):
-    OPTIONS = {'Name': 32, 'Call Subservers': 75, 'Call Rooms': 55, 'Call Groups': 55, 'Message Subserver': 95, 'Message Rooms': 80, 
+    OPTIONS = {'Name': 35, 'Call Subservers': 75, 'Call Rooms': 55, 'Call Groups': 55, 'Message Subserver': 95, 'Message Rooms': 80, 
                'Message Groups': 80, 'Create Rooms': 70, 'Create Groups': 70, 'Sectors': 35}
 
     def __init__(self, master, width, height):

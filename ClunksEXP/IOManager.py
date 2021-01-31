@@ -64,7 +64,7 @@ class IOManager:
                 roomSectors = room.get('sectors')
                 roomList = [[roomName, roomPwd, parent, roomSectors]]
                 self.storage['room'].write(pickle.dumps(roomList))
-                LoadUsers(room.findall('user')) #Rooms can have multiple sectors, which sector do we pass to 'sector'
+                LoadUsers(room.findall('user'))
                 LoadRooms(room.findall('room'), roomName)
                 return
 
@@ -188,7 +188,8 @@ class IOManager:
             elevationRoot = ET.SubElement(root, 'elevations')
         for x in range(len(entities)):
             privilege = sum([2**i if j == 'True' else 0 for i, j in enumerate(reversed(entities[x][1:len(entities[x]) - 1]))])
-            elevationElements.append(ET.SubElement(elevationRoot, 'elevation', {'name': entities[x][0], 'privilege': str(privilege), 'sectors': entities[x][len(entities[x]) - 1]}))
+            attrs = {'name': entities[x][0], 'privilege': str(privilege), 'sectors': entities[x][len(entities[x]) - 1]}
+            elevationElements.append(ET.SubElement(elevationRoot, 'elevation', attrs))
             for sector in entities[x][len(entities[x]) - 1].split(','):
                 sectorToElevation[sector] = x
 
@@ -214,9 +215,9 @@ class IOManager:
             for sector, parent in parents.items():
                 parentSectors = parent.get('sectors')
                 if not parentSectors:
-                    parentSectors = [sector]
+                    parentSectors = sector
                 else:
-                    parentSectors.append(parentSectors)
+                    parentSectors += f',{sector}'
                 parent.set('sectors', parentSectors)
                 ET.SubElement(parent, 'user', {'username': user[0], 'password': user[1], 'sectors': user[2], 'elevation': elevationName})
 
