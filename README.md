@@ -135,6 +135,12 @@ C# Customise Command Prompt: https://www.dotnetperls.com/console-color
 
 C# Parse Command Line: https://www.nuget.org/packages/Mono.Options/, https://github.com/xamarin/XamarinComponents/tree/master/XPlat/Mono.Options
 
+C# CTRL+C: https://docs.microsoft.com/en-us/dotnet/api/system.console.cancelkeypress?redirectedfrom=MSDN&view=net-5.0
+
+C# SQLite: 
+- https://docs.microsoft.com/en-us/dotnet/standard/data/sqlite/?tabs=netcore-cli
+- https://docs.microsoft.com/en-us/dotnet/standard/data/sqlite/connection-strings
+
 # Keep in mind
 If buffer is too small to perform handshake, handshake is treated as failed <br>
 ATM, when encryption level <= EncryptionConfig.Strength.Light, the size of the key is too small for certificates. This is because the size of the key is too small to compensate for the salt which is generated with EncryptionConfig.Strength.Strong settings (as per the Handshake protocol) <br>
