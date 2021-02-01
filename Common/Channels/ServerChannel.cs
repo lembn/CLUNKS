@@ -31,15 +31,15 @@ namespace Common.Channels
         /// Server constructor
         /// </summary>
         /// <param name="address">The IP address to bind to</param>
-        public ServerChannel(int bufferSize, IPAddress address) : base(bufferSize)
+        public ServerChannel(int bufferSize, IPAddress address, int tcp, int udp) : base(bufferSize)
         {
             clientList = new List<ClientModel>();
             inPackets = new BlockingCollection<(Packet, ClientModel)>();
             outPackets = new BlockingCollection<(Packet, ClientModel)>();
             TCPSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             UDPSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-            var tcpEP = new IPEndPoint(address, TCP_PORT);
-            var udpEP = new IPEndPoint(address, UDP_PORT);
+            var tcpEP = new IPEndPoint(address, tcp);
+            var udpEP = new IPEndPoint(address, udp);
             TCPSocket.Bind(tcpEP);
             UDPSocket.Bind(udpEP);
             TCPSocket.Listen(128);
@@ -217,8 +217,9 @@ namespace Common.Channels
                         useCrypto = true;
                         break;
                     case DataID.Ack:
+                        client.id = ++currentUserID;
                         outPacket = new Packet(DataID.Info, client.id);
-                        outPacket.Add(++currentUserID);
+                        outPacket.Add(client.id);
                         captureSalts = false;
                         break;
                     case DataID.Signature:
@@ -230,7 +231,7 @@ namespace Common.Channels
                             rsa.ImportParameters(client.packetFactory.encCfg.recipient);
                             if (!rsa.VerifyData(client.packetFactory.incomingSalts.ToArray(), SHA512.Create(), clientSignature))
                             {
-                                signatureStr = FAILURE;
+                                signatureStr = Communication.FAILURE;
                                 complete.Set();
                                 failed = true;
                             }                                
@@ -245,7 +246,7 @@ namespace Common.Channels
                         outPacket.Add(signatureStr);
                         break;
                     case DataID.Status:
-                        if (inPacket.body.GetValue(Packet.BODYFIRST).ToString() == FAILURE)
+                        if (inPacket.body.GetValue(Packet.BODYFIRST).ToString() == Communication.FAILURE)
                             failed = true;
                         complete.Set();
                         break;

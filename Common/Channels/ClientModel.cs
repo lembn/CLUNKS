@@ -25,6 +25,7 @@ namespace Common.Channels
         public bool receivedHB;
         public int missedHBs;
         public object hbLock;
+        public bool isAdmin = false;
 
         public Socket Handler
         {
