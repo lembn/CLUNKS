@@ -11,6 +11,7 @@ using System.Collections.Generic;
 
 namespace Server
 {
+    //TODO: [Server.Program] write summaries
     class Program
     {
         static ServerChannel server;
@@ -33,7 +34,7 @@ namespace Server
                 Console.Write("CLUNKS>>> ");
                 args = Console.ReadLine().Split();
                 List<string> similar = new List<string> { "changeuser", "ipaddress", "tcpport", "udpport", "datapath" };
-                if (args.Length == 2)
+                if (args.Length <= 2)
                 {
                     if (similar.Contains(args[0].ToLower()))
                         IfLoggedIn(() => { ModifyConfig(args[0], args[1]); });
@@ -127,10 +128,11 @@ namespace Server
                 new XElement("appSettings", 
                     new XElement("add", new XAttribute("key", "username"), new XAttribute("value", "admin")),
                     new XElement("add", new XAttribute("key", "password"), new XAttribute("value", BCrypt.Net.BCrypt.HashPassword("Clunks77"))),
-                    new XElement("add", new XAttribute("key", "ipaddress"), new XAttribute("key", "127.0.0.1")),
+                    new XElement("add", new XAttribute("key", "ipaddress"), new XAttribute("value", "127.0.0.1")),
                     new XElement("add", new XAttribute("key", "tcpPort"), new XAttribute("value", "40000")),
                     new XElement("add", new XAttribute("key", "udpPort"), new XAttribute("value", "30000")),
-                    new XElement("add", new XAttribute("key", "dataPath"), new XAttribute("key", dataPath))));
+                    new XElement("add", new XAttribute("key", "dataPath"), new XAttribute("value", dataPath)),
+                    new XElement("add", new XAttribute("key", "newExp"), new XAttribute("value", "false"))));
 
             configuration.Save(location);
         }
@@ -157,6 +159,7 @@ namespace Server
             Console.ResetColor();
         }
 
+        //TODO: [Server.Program] populate
         private static void ShowHelp()
         {
             Console.WriteLine("'login'\nLogin to the program with the admin credentials.");
