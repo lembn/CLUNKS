@@ -7,7 +7,6 @@ using System.Configuration;
 using System.IO;
 using System.Reflection;
 using System.Xml.Linq;
-using System.Collections.Generic;
 
 namespace Server
 {
@@ -15,107 +14,99 @@ namespace Server
     class Program
     {
         static ServerChannel server;
-        static bool loggedIn = false;
 
         static void Main(string[] args)
         {
             string cfgLoc = String.Concat(Assembly.GetEntryAssembly().Location, ".config");
             if (!File.Exists(cfgLoc))
-            {
-                Console.WriteLine("CLUNKS>>> Configuration file could not be found!");
-                bool initialise = ConsoleTools.AskYesNo("CLUNKS>>> Would you like to initialse the config file.");
-                if (!initialise)
-                    return;
                 InitialiseConfig(cfgLoc);
-            }
 
-            while (true)
-            {
-                Console.Write("CLUNKS>>> ");
-                args = Console.ReadLine().Split();
-                List<string> similar = new List<string> { "changeuser", "ipaddress", "tcpport", "udpport", "datapath" };
-                if (args.Length <= 2)
-                {
-                    if (similar.Contains(args[0].ToLower()))
-                        IfLoggedIn(() => { ModifyConfig(args[0], args[1]); });
-                    else
-                    {
-                        switch (args[0].ToLower())
-                        {
-                            case "login":
-                                Login();
-                                break;
-                            case "changepwd":
-                                IfLoggedIn(() => { ModifyConfig("password", BCrypt.Net.BCrypt.HashPassword(args[1])); });
-                                break;
-                            case "start":
-                                IfLoggedIn(() => { StartServer(Convert.ToInt32(args[1])); });
-                                break;
-                            case "stop":
-                                IfLoggedIn(StopServer);
-                                break;
-                            case "help":
-                                ShowHelp();
-                                break;
-                            default:
-                                Console.WriteLine("CLUNKS>>> Try 'help' for more information.");
-                                break;
-                        }
-                    }
-                }                
-            }
+            Start();
         }
 
-        private static void Login()
+        private static void Start()
         {
-            Console.Write("CLUNKS>>> Enter Admin username: ");
-            if (Console.ReadLine() == ConfigurationManager.AppSettings.Get("username"))
-            {
-                Console.Write("CLUNKS>>> Enter Admin password: ");
-                loggedIn = BCrypt.Net.BCrypt.Verify(ConsoleTools.HideInput(), ConfigurationManager.AppSettings.Get("password"));
-                if (!loggedIn)
-                    ShowError("Incorrect password.");
-                else
-                {
-                    Console.ForegroundColor = ConsoleColor.Green;
-                    Console.WriteLine("CLUNKS>>> Welocome!");
-                    Console.ResetColor();
-                }
-            }
-            else
-                ShowError("Incorrect username.");
-        }
-
-        private static void StartServer(int bufferSize)
-        {
-            if (loggedIn)
-            {
-                server = new ServerChannel(bufferSize, IPAddress.Parse(ConfigurationManager.AppSettings.Get("ipaddress")));
-                server.Dispatch += DispatchHandler;
-                server.Start();
-                //TODO: [Server.Program] when the server starts it should always run even if the program is closed
-            }
-            else
-                ShowError("You must be logged in to start the server.");
-        }
-
-        private static void StopServer()
-        {
-            if (loggedIn)
-                server.Dispose();
-            else
-                ShowError("You must be logged in to start the server.");
+            int bufferSize = Convert.ToInt32(ConfigurationManager.AppSettings.Get("buffferSize"));
+            IPAddress ip = IPAddress.Parse(ConfigurationManager.AppSettings.Get("ipaddress"));
+            int tcp = Convert.ToInt32(ConfigurationManager.AppSettings.Get("tcpPort"));
+            int udp = Convert.ToInt32(ConfigurationManager.AppSettings.Get("udpPort"));
+            server = new ServerChannel(bufferSize, ip, tcp, udp);
+            server.Dispatch += DispatchHandler;
+            //TODO: [Server.Program] Check to see if a new exp needs to be loaded by checking App.config.newExp
+            server.Start();
         }
 
         private static void DispatchHandler(object sender, PacketEventArgs e)
         {
-            Console.WriteLine($"Received: {e.Packet.dataID} [{e.Packet.body}] from {e.Client.endpoint}\n");
-            Console.WriteLine("Forwarding to all clients...");
-            foreach (ClientModel client in server.clientList)
+            Packet outPacket = null;
+            switch (e.Packet.dataID)
             {
-                Console.WriteLine($"Sending to {client.endpoint}...");
-                server.Add(e.Packet, client);
-            }
+                case DataID.Login:
+                    string username = e.Packet.body.GetValue(String.Format(Packet.DATA, 0)).ToString();
+                    string password = e.Packet.body.GetValue(String.Format(Packet.DATA, 1)).ToString();
+                    if (username == ConfigurationManager.AppSettings.Get("username"))
+                        e.Client.isAdmin = BCrypt.Net.BCrypt.Verify(password, ConfigurationManager.AppSettings.Get("password"));
+                    else
+                        e.Client.isAdmin = false;
+                    outPacket = new Packet(DataID.Status, e.Client.id);
+                    outPacket.Add(e.Client.isAdmin ? Communication.SUCCESS : Communication.FAILURE);
+                    server.Add(outPacket, e.Client);
+                    break;
+                case DataID.Command:
+                    string command = e.Packet.body.GetValue(Packet.BODYFIRST).ToString();
+                    if (e.Packet.body.Count > 1)
+                    {
+                        outPacket = new Packet(DataID.Status, e.Client.id);
+                        outPacket.Add(e.Client.isAdmin ? Communication.SUCCESS : Communication.FAILURE);
+                        if (e.Client.isAdmin)
+                        {
+                            if (Communication.ADMIN_CONFIG.Contains(command))
+                            {
+                                string key = e.Packet.body.GetValue(String.Format(Packet.DATA, 0)).ToString();
+                                string value = e.Packet.body.GetValue(String.Format(Packet.DATA, 1)).ToString();
+                                ModifyConfig(key, value);
+                            }
+                            else if (command == Communication.PASSWORD)
+                            {
+                                string key = e.Packet.body.GetValue(String.Format(Packet.DATA, 0)).ToString();
+                                string value = e.Packet.body.GetValue(String.Format(Packet.DATA, 1)).ToString();
+                                ModifyConfig(key, BCrypt.Net.BCrypt.HashPassword(value));
+                            }
+                        }
+                    }
+                    else
+                    {
+                        if (Communication.ADMIN_COMMANDS.Contains(command) && !e.Client.isAdmin)
+                        {
+                            outPacket = new Packet(DataID.Status, e.Client.id);
+                            outPacket.Add(Communication.FAILURE);
+                        }
+                        else if (Communication.INFO_COMMANDS.Contains(command))
+                        {
+                            outPacket = new Packet(DataID.Info, e.Client.id);
+                            outPacket.Add(ConfigurationManager.AppSettings.Get(command));
+                        }
+                        else
+                            switch (command)
+                            {
+                                //TODO [Server.Program] handle other commands here
+                                case Communication.RESTART:
+                                    server.Dispose();
+                                    server.Start();
+                                    break;
+                                case Communication.STOP:
+                                    server.Dispose();
+                                    outPacket = new Packet(DataID.Status, e.Client.id);
+                                    outPacket.Add(Communication.SUCCESS);
+                                    break;
+                            }
+                    }
+                    server.Add(outPacket, e.Client);
+                    break;
+                case DataID.AV:
+                    //TODO [Server.Program] use DB to figure out which users need to be sent the AV packet
+                    break;
+            }                
         }
         
         private static void InitialiseConfig(string location)
@@ -126,6 +117,7 @@ namespace Server
 
             XElement configuration = new XElement("configuration",
                 new XElement("appSettings", 
+                    new XElement("add", new XAttribute("key", "bufferSize"), new XAttribute("value", "1024")),
                     new XElement("add", new XAttribute("key", "username"), new XAttribute("value", "admin")),
                     new XElement("add", new XAttribute("key", "password"), new XAttribute("value", BCrypt.Net.BCrypt.HashPassword("Clunks77"))),
                     new XElement("add", new XAttribute("key", "ipaddress"), new XAttribute("value", "127.0.0.1")),
@@ -143,27 +135,5 @@ namespace Server
             config.AppSettings.Settings[key].Value = replacement;
             config.Save(ConfigurationSaveMode.Modified);
         }
-
-        private static void IfLoggedIn(Action task)
-        {
-            if (!loggedIn)
-                ShowError("You must be logged in to change the administrator's password.");
-            else
-                task();
-        }
-
-        private static void ShowError(string message)
-        {
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine($"CLUNKS>>> {message}");
-            Console.ResetColor();
-        }
-
-        //TODO: [Server.Program] populate
-        private static void ShowHelp()
-        {
-            Console.WriteLine("'login'\nLogin to the program with the admin credentials.");
-        }
-
     }
 }

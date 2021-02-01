@@ -28,6 +28,8 @@ namespace Common.Channels
         private Socket socket; //The socket to listen on (and send over)
         private EndPoint server; //Represents the endpoint of the server
         private IPAddress serverIP; //Server IP
+        private readonly int TCP_PORT; //Port used by the server for TCP communication
+        private readonly int UDP_PORT; //Port used by the server for UDP communication
         private int connectAttempts; //The maximum amount of handshakes to attempt before aborting
         private ManualResetEvent connected; //An event to represent if a connection has been made to the server when using TCP
         private int largePackets = 0; //Number of datagrams that were too large for the buffer size
@@ -52,7 +54,7 @@ namespace Common.Channels
         /// <param name="connectAttempts">The maximum amount of handshakes to attempt before aborting</param>
         /// <param name="strength">The level of encryption used by the channel</param>
         /// <param name="packetLossThresh">The threshold of packet loss</param>
-        public ClientChannel(int bufferSize, IPAddress ip, EncryptionConfig.Strength strength, int connectAttempts = 3, double packetLossThresh = 0.05) : base(bufferSize)
+        public ClientChannel(int bufferSize, IPAddress ip, int tcp, int udp, EncryptionConfig.Strength strength, int connectAttempts = 3, double packetLossThresh = 0.05) : base(bufferSize)
         {
             this.connectAttempts = connectAttempts;
             this.strength = strength;
@@ -63,8 +65,10 @@ namespace Common.Channels
             packetFactory = new PacketFactory();
             hbLock = new object();
             serverIP = ip;
-            socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            TCP_PORT = tcp;
+            UDP_PORT = udp;
             server = (EndPoint)new IPEndPoint(serverIP, TCP_PORT);
+            socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             connected = new ManualResetEvent(false);
             dataStream = new DataStream(bufferSize);
             socket.BeginConnect(server, new AsyncCallback((IAsyncResult ar) => 
@@ -295,7 +299,7 @@ namespace Common.Channels
                             break;
                         case DataID.Signature:
                             string sigStr = inPacket.body.GetValue(Packet.BODYFIRST).ToString();
-                            if (sigStr == FAILURE)
+                            if (sigStr == Communication.FAILURE)
                             {
                                 complete.Set();
                                 failed = true;
@@ -307,11 +311,11 @@ namespace Common.Channels
                             {
                                 rsa.ImportParameters(packetFactory.encCfg.recipient);
                                 if (rsa.VerifyData(packetFactory.incomingSalts.ToArray(), SHA512.Create(), signature))
-                                    outPacket.Add(SUCCESS);
+                                    outPacket.Add(Communication.SUCCESS);
                                 else
                                 {
                                     failed = true;
-                                    outPacket.Add(FAILURE);
+                                    outPacket.Add(Communication.FAILURE);
                                 }
                             }
                             complete.Set();

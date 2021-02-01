@@ -10,7 +10,7 @@ namespace Client
     {
         static void Main(string[] args)
         {
-            var channel = new ClientChannel(1024, IPAddress.Parse("192.168.0.21"), EncryptionConfig.Strength.Strong);
+            var channel = new ClientChannel(1024, IPAddress.Parse("192.168.0.21"), 40000, 30000, EncryptionConfig.Strength.Strong);
             channel.Dispatch += Printer;
             channel.Start();
             channel.Add(new Packet(DataID.AV, channel.id));
