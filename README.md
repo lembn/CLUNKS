@@ -9,7 +9,7 @@
 ## Servers
 When the user first installs the product, they will need to create a *CLUNK server* to be able to do anything. The CLUNK server is the server-side program which manages all sub-servers and serves clients.
 
-To create a CLUNK server, the user must be an admin/superuser on their system. They will run a setup program on their intended server machine that will allow the admin to conigure IPs, create sub-servers, manage user elevation levels, etc. After the the server has been configured it only needs to be started.
+To create a CLUNK server, the user must be an admin/superuser on their system. Using ClunksExp, they can create exp files to configure the server. The server program itself is a windowless Windows Application. It only needs to be started on the server machine, from there it can be interacted with though the client scripts.
 
 A CLUNK server hosts *sub-servers*. Sub-servers are designed to create physical separation withing the server, each sub-server be represented as a seperate entity in the database. Because of this design, a user registered to a sub-server, will not exist in any other sub-server unless they are created in the other sub-servers also. This allows the admin of the CLUNK server to create separation within the server. For example, a school may use CLUNKS for meetings, but create seperate subservers for each year group.
 
