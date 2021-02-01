@@ -129,12 +129,6 @@ C# Send Email: https://www.google.com/search?rlz=1C1CHBF_en-GBGB777GB777&sxsrf=A
 
 C# Access Webcam: https://www.google.com/search?q=c%23+access+webcam&rlz=1C1CHBF_en-GBGB777GB777&oq=c%23+acc&aqs=chrome.0.69i59j69i57j69i58j69i60l2.1166j0j7&sourceid=chrome&ie=UTF-8
 
-C# Socket Programming: https://www.youtube.com/channel/UCUg_M6wvaS-DhHpFpW7aC6w
-
-C# Customise Command Prompt: https://www.dotnetperls.com/console-color
-
-C# Parse Command Line: https://www.nuget.org/packages/Mono.Options/, https://github.com/xamarin/XamarinComponents/tree/master/XPlat/Mono.Options
-
 C# CTRL+C: https://docs.microsoft.com/en-us/dotnet/api/system.console.cancelkeypress?redirectedfrom=MSDN&view=net-5.0
 
 C# SQLite: 
