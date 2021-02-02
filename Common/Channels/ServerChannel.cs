@@ -50,9 +50,6 @@ namespace Common.Channels
         /// </summary>
         public override void Start()
         {
-            Console.WriteLine("ServerChannel started");
-            Console.WriteLine("Listening");
-
             threads.Add(ThreadHelper.GetECThread(ctoken, () => {               
                 TCPSocket.BeginAccept(new AsyncCallback((IAsyncResult ar) => {
                     ClientModel client = new ClientModel(bufferSize);
