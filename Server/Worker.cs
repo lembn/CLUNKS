@@ -10,27 +10,34 @@ using System.Net;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Xml.Linq;
 
 namespace Server
 {
-    //TODO: [Server.Worker] Add logging
-    //TODO: [Server.Worker] Write summaries
-    public class Worker : BackgroundService
+    //TODO: Add logging
+    //TODO: Write summaries
+    internal class Worker : BackgroundService
     {
         private readonly ILogger<Worker> logger;
         private static ServerChannel server;
 
-        public Worker(ILogger<Worker> logger) => this.logger = logger;
+        internal Worker(ILogger<Worker> logger) => this.logger = logger;
 
         public override Task StartAsync(CancellationToken stoppingToken)
         {
             string cfgLoc = String.Concat(Assembly.GetEntryAssembly().Location, ".config");
             string dataLoc = String.Concat(Directory.GetCurrentDirectory(), @"\data");
+            string accessLoc = String.Concat(Directory.GetCurrentDirectory(), @"\access");
             if (!File.Exists(cfgLoc))
-                InitialiseConfig(cfgLoc);
+                ConfigHandler.InitialiseConfig(cfgLoc);
             if (!Directory.Exists(dataLoc))
+            {
                 Directory.CreateDirectory(dataLoc);
+                ConfigHandler.ModifyConfig("dataPath", dataLoc);
+            }
+            if (!Directory.Exists(accessLoc))
+                Directory.CreateDirectory(accessLoc);
+            if (ConfigurationManager.AppSettings.Get("newExp") == "true")
+                DBHandler.LoadExp(Directory.GetFiles(accessLoc, "*.exp")[0], dataLoc);
             Start();
             return Task.CompletedTask;
         }
@@ -51,7 +58,7 @@ namespace Server
             int udp = Convert.ToInt32(ConfigurationManager.AppSettings.Get("udpPort"));
             server = new ServerChannel(bufferSize, ip, tcp, udp);
             server.Dispatch += DispatchHandler;
-            //TODO: [Server.Worker.Start] Check to see if a new exp needs to be loaded by checking App.config.newExp
+            //TODO: Check to see if a new exp needs to be loaded by checking App.config.newExp
             server.Start();
         }
 
@@ -83,13 +90,13 @@ namespace Server
                             {
                                 string key = e.Packet.body.GetValue(String.Format(Packet.DATA, 0)).ToString();
                                 string value = e.Packet.body.GetValue(String.Format(Packet.DATA, 1)).ToString();
-                                ModifyConfig(key, value);
+                                ConfigHandler.ModifyConfig(key, value);
                             }
                             else if (command == Communication.PASSWORD)
                             {
                                 string key = e.Packet.body.GetValue(String.Format(Packet.DATA, 0)).ToString();
                                 string value = e.Packet.body.GetValue(String.Format(Packet.DATA, 1)).ToString();
-                                ModifyConfig(key, BCrypt.Net.BCrypt.HashPassword(value));
+                                ConfigHandler.ModifyConfig(key, BCrypt.Net.BCrypt.HashPassword(value));
                             }
                         }
                     }
@@ -108,7 +115,7 @@ namespace Server
                         else
                             switch (command)
                             {
-                                //TODO [Server.Worker.DispatchHandler] handle other commands here
+                                //TODO handle other commands here
                                 case Communication.RESTART:
                                     server.Dispose();
                                     server.Start();
@@ -123,32 +130,9 @@ namespace Server
                     server.Add(outPacket, e.Client);
                     break;
                 case DataID.AV:
-                    //TODO [Server.Worker.DispatchHandler] use DB to figure out which users need to be sent the AV packet
+                    //TODO: use DB to figure out which users need to be sent the AV packet
                     break;
             }
-        }
-
-        private static void InitialiseConfig(string location)
-        {
-            XElement configuration = new XElement("configuration",
-                new XElement("appSettings",
-                    new XElement("add", new XAttribute("key", "bufferSize"), new XAttribute("value", "1024")),
-                    new XElement("add", new XAttribute("key", "username"), new XAttribute("value", "admin")),
-                    new XElement("add", new XAttribute("key", "password"), new XAttribute("value", BCrypt.Net.BCrypt.HashPassword("Clunks77"))),
-                    new XElement("add", new XAttribute("key", "ipaddress"), new XAttribute("value", "127.0.0.1")),
-                    new XElement("add", new XAttribute("key", "tcpPort"), new XAttribute("value", "40000")),
-                    new XElement("add", new XAttribute("key", "udpPort"), new XAttribute("value", "30000")),
-                    new XElement("add", new XAttribute("key", "dataPath"), new XAttribute("value", String.Concat(Directory.GetCurrentDirectory(), @"\data"))),
-                    new XElement("add", new XAttribute("key", "newExp"), new XAttribute("value", "false"))));
-
-            configuration.Save(location);
-        }
-
-        private static void ModifyConfig(string key, string replacement)
-        {
-            Configuration config = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
-            config.AppSettings.Settings[key].Value = replacement;
-            config.Save(ConfigurationSaveMode.Minimal);
         }
     }
 }
