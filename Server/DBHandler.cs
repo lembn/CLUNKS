@@ -11,7 +11,6 @@ namespace Server
     internal static class DBHandler
     {
         internal static string connectionString;
-
         internal static void LoadExp(string expPath, string dbPath)
         {
             if (!File.Exists($@"{dbPath}\data.db"))
