@@ -1,5 +1,6 @@
 import os
 import pickle
+import bcrypt
 import tempfile
 from tkinter import messagebox
 import xml.etree.ElementTree as ET
@@ -240,7 +241,8 @@ class IOManager:
                     else:
                         parentSectors += f',{sector}'
                     parent.set('sectors', parentSectors)
-                    ET.SubElement(parent, 'user', {'username': user[0], 'password': user[1], 'sectors': user[2], 'elevation': elevationName})
+                    hashpwd = bcrypt.hashpw(user[1].encode('utf-16'), bcrypt.gensalt()).decode()
+                    ET.SubElement(parent, 'user', {'username': user[0], 'password': hashpwd , 'sectors': user[2], 'elevation': elevationName})
 
         expFile.write(ET.tostring(root).decode())
         logFunc(f'Exported to: {expFile.name}')
