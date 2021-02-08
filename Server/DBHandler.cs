@@ -11,18 +11,18 @@ namespace Server
     internal static class DBHandler
     {
         internal static string connectionString;
-        internal static void LoadExp(string expPath, string dbPath)
+        internal static void LoadExp(string dataPath)
         {
-            if (!File.Exists($@"{dbPath}\data.db"))
-                CreateDB(dbPath);
+            if (!File.Exists($@"{dataPath}\data.db"))
+                CreateDB($@"{dataPath}\data.db");
 
             //TODO: Change connection strings
             using (SqliteConnection connection = new SqliteConnection(connectionString))
             using (SqliteCommand command = new SqliteCommand())
             {
                 connection.Open();
-                command.Connection = connection;
-                XDocument exp = XDocument.Load(expPath);
+                command.Connection = connection;                
+                XDocument exp = XDocument.Load(Directory.GetFiles(dataPath, "*.exp")[0]);
                 foreach (XElement elevation in exp.Descendants("elevation"))
                 {
                     IEnumerable<bool> privileges = from num in Convert.ToString(Convert.ToInt32(elevation.Attribute("privilege")), 2).PadLeft(8, '0').ToCharArray() select num == '1';
@@ -75,7 +75,7 @@ namespace Server
                 {table} notifications (sender INTEGER REFERENCES users(id), receiver INTEGER REFERENCES users(id), time INTEGER, msg TEXT, type TEXT, {PK} (sender, receiver, time));
             ";
 
-            File.Create($@"{path}\data.db");
+            File.Create(path);
             using (SqliteConnection connection = new SqliteConnection(connectionString))
             using (SqliteCommand command = new SqliteCommand(create, connection))
             {

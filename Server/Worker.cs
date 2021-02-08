@@ -35,8 +35,6 @@ namespace Server
             }
             if (!Directory.Exists(accessLoc))
                 Directory.CreateDirectory(accessLoc);
-            if (ConfigurationManager.AppSettings.Get("newExp") == "true")
-                DBHandler.LoadExp(Directory.GetFiles(accessLoc, "*.exp")[0], dataLoc);
             Start();
             return Task.CompletedTask;
         }
@@ -57,7 +55,8 @@ namespace Server
             int udp = Convert.ToInt32(ConfigurationManager.AppSettings.Get("udpPort"));
             server = new ServerChannel(bufferSize, ip, tcp, udp);
             server.Dispatch += DispatchHandler;
-            //TODO: Check to see if a new exp needs to be loaded by checking App.config.newExp
+            if (ConfigurationManager.AppSettings.Get("newExp") == "true")
+                DBHandler.LoadExp(ConfigurationManager.AppSettings.Get("dataPath"));
             server.Start();
         }
 
