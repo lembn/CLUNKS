@@ -241,7 +241,7 @@ class IOManager:
                     else:
                         parentSectors += f',{sector}'
                     parent.set('sectors', parentSectors)
-                    hashpwd = bcrypt.hashpw(user[1].encode('utf-16'), bcrypt.gensalt()).decode()
+                    hashpwd = bcrypt.hashpw(user[1].encode('utf-8'), bcrypt.gensalt())
                     ET.SubElement(parent, 'user', {'username': user[0], 'password': hashpwd , 'sectors': user[2], 'elevation': elevationName})
 
         expFile.write(ET.tostring(root).decode())
