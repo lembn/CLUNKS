@@ -11,6 +11,7 @@ namespace Server
     internal static class DBHandler
     {
         internal static string connectionString;
+
         internal static void LoadExp(string dataPath)
         {
             if (!File.Exists($@"{dataPath}\data.db"))
@@ -55,27 +56,27 @@ namespace Server
             string table = "CREATE TABLE IF NOT EXISTS";
             string name = "name TEXT UNIQUE NOT NULL";
             string iBool = "INTEGER NOT NULL";
-            string PK = "PRIMARY KEY";
+            string IPK = $"id INTEGER PRIMARY KEY";
             string create =
             $@"
-                {table} elevations ({name}, canCallSubserver {iBool}, canCallRoom {iBool}, canCallUser {iBool},
+                {table} elevations ({IPK}, {name}, canCallSubserver {iBool}, canCallRoom {iBool}, canCallUser {iBool},
                                     canCallGroup {iBool}, canMsgSubserver {iBool}, canMsgRoom {iBool}, canMsgUser {iBool},
                                     canMsgGroup {iBool}, canCreateRoom {iBool}, canCreateGroup {iBool});
-                {table} subservers ({name});
-                {table} rooms ({name}, password TEXT NOT NULL);
-                {table} subserver_rooms (subserverID INTEGER REFERENCES subservers(id), roomID INTEGER REFERENCES rooms(id), {PK} (subserverID, roomID));
-                {table} room_rooms (parentRoom INTEGER REFERENCES rooms(id), childRoom INTEGER REFERENCES rooms(id), {PK} (parentRoom, childRoom));
-                {table} users (user{name}, password TEXT NOT NULL, elevation INTEGER REFERENCES elevations(id));
-                {table} users_subservers (userID INTEGER REFERENCES users(id), subserverID INTEGER REFERENCES subservers(id), {PK} (userID, subserverID));
-                {table} users_rooms (userID INTEGER REFERENCES users(id), roomID INTEGER REFERENCES rooms(id), {PK} (userID, roomID));
-                {table} groups ({name}, password TEXT NOT NULL, owner INTEGER references users(id));
-                {table} room_groups (roomID INTEGER REFERENCES rooms(id), groupID INTEGER REFERENCES groups(id), {PK} (roomID, groupID));
-                {table} group_groups (parentGroup INTEGER REFERENCES groups(id), childGroup INTEGER REFERENCES groups(id), {PK} (parentGroup, childGroup));
-                {table} users_groups (userID INTEGER REFERENCES users(id), groupID INTEGER REFERENCES groups(id), {PK} (userID, groupID));
-                {table} notifications (sender INTEGER REFERENCES users(id), receiver INTEGER REFERENCES users(id), time INTEGER, msg TEXT, type TEXT, {PK} (sender, receiver, time));
+                {table} subservers ({IPK}, {name});
+                {table} rooms ({IPK}, {name}, password TEXT NOT NULL);
+                {table} subserver_rooms ({IPK}, subserverID INTEGER REFERENCES subservers(id), roomID INTEGER REFERENCES rooms(id), UNIQUE (subserverID, roomID));
+                {table} room_rooms ({IPK}, parentRoom INTEGER REFERENCES rooms(id), childRoom INTEGER REFERENCES rooms(id), UNIQUE (parentRoom, childRoom));
+                {table} users ({IPK}, user{name}, password TEXT NOT NULL, elevation INTEGER REFERENCES elevations(id));
+                {table} users_subservers ({IPK}, userID INTEGER REFERENCES users(id), subserverID INTEGER REFERENCES subservers(id), present {iBool}, UNIQUE (userID, subserverID));
+                {table} users_rooms ({IPK}, userID INTEGER REFERENCES users(id), roomID INTEGER REFERENCES rooms(id), present {iBool}, UNIQUE (userID, roomID));
+                {table} groups ({IPK}, {name}, password TEXT NOT NULL, owner INTEGER references users(id));
+                {table} room_groups ({IPK}, roomID INTEGER REFERENCES rooms(id), groupID INTEGER REFERENCES groups(id), UNIQUE (roomID, groupID));
+                {table} group_groups ({IPK}, parentGroup INTEGER REFERENCES groups(id), childGroup INTEGER REFERENCES groups(id), UNIQUE (parentGroup, childGroup));
+                {table} users_groups ({IPK}, userID INTEGER REFERENCES users(id), groupID INTEGER REFERENCES groups(id), present {iBool}, UNIQUE (userID, groupID));
+                {table} notifications ({IPK}, sender INTEGER REFERENCES users(id), receiver INTEGER REFERENCES users(id), time INTEGER, msg TEXT, type TEXT, UNIQUE (sender, receiver, time));
             ";
 
-            File.Create(path);
+            File.WriteAllBytes(path, new byte[0]);
             using (SqliteConnection connection = new SqliteConnection(connectionString))
             using (SqliteCommand command = new SqliteCommand(create, connection))
             {
@@ -112,6 +113,52 @@ namespace Server
 
             foreach (XElement child in room.Elements("room"))
                 ProcessRoom(command, child);
+        }
+
+        internal static bool CheckUser(string parentName, string username)
+        {
+            string stmt =
+            $@"
+                SELECT COUNT(*) FROM {{0}}s, users, users_{{0}}s
+                WHERE users.username='{username}'
+                AND {{0}}s.name='{parentName}'
+                AND {{0}}s.id=users_{{0}}s.{{0}}ID
+                AND users.id=users_{{0}}s.userID;
+            ";
+            using (SqliteConnection connection = new SqliteConnection("Data Source =data.db;"))
+            using (SqliteCommand command = new SqliteCommand("SELECT name FROM sqlite_schema WHERE type='table';", connection))
+            {
+                connection.Open();
+                SqliteDataReader tableReader = command.ExecuteReader();
+                List<string> tables = new List<string>();
+                while (tableReader.Read())
+                    tables.Add(tableReader.GetString(0));
+                tableReader.Close();
+                foreach (string table in tables)
+                {
+                    command.CommandText = $"PRAGMA table_info({table});";
+                    List<string> feilds = new List<string>();
+                    tableReader = command.ExecuteReader();
+                    while (tableReader.Read())
+                        feilds.Add(tableReader.GetString(1));
+                    tableReader.Close();
+                    if (!feilds.Contains("name"))
+                        continue;
+                    command.CommandText = $"SELECT COUNT(*) FROM {table} WHERE name='{parentName}';";
+                    if (Convert.ToInt64(command.ExecuteScalar()) > 0)
+                    {
+                        command.CommandText = String.Format(stmt, table.Substring(0, table.Length - 1));
+                        return Convert.ToInt64(command.ExecuteScalar()) > 0;
+                    }
+                }
+            }
+            return false;
+        }
+
+        //TODO: Write Login
+        internal static bool Login(string username, string password)
+        {
+            throw new NotImplementedException();
         }
     }
 }

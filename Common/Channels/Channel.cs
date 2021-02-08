@@ -10,6 +10,8 @@ namespace Common.Channels
     /// </summary>
     public abstract class Channel
     {
+        //TODO: Implement stability in children
+
         #region Private Members
 
         private protected const int HEADER_SIZE = 4; //bodyLength is a 32 bit integer  
@@ -24,6 +26,9 @@ namespace Common.Channels
 
         public delegate void DispatchEventHandler(object sender, PacketEventArgs e); //A delegate to represent the event handler used for handling the Dispatch event
         public event DispatchEventHandler Dispatch; //An event to represent a packet that should be processed by the owner of a channel
+        public delegate void ChannelFailEventHanlder(object sender, ChannelFailEventArgs e); //A delegate to represent the event handler used for hadling the ChannelFail event
+        public event ChannelFailEventHanlder ChannelFail; //An event to represent when something has gone wrong in the channel
+        public bool stable; //A boolean to represent the usability state of the channel
         public CancellationTokenSource cts; //An object used to obtain Cancellation Tokens (when cancelling threaded operations)
         public const int NULL_ID = 1; //User ID for users who haven't been assigned ID yet
         
@@ -50,7 +55,7 @@ namespace Common.Channels
         private protected abstract void ReceiveTCPCallback(IAsyncResult ar, int bytesToRead);
 
         /// <summary>
-        /// A method for releasing packets to the owner of the channel
+        /// A method for releasing packets to the owner of a ClientChannel
         /// </summary>
         /// <param name="packet">The packet to dispatch</param>
         public virtual void OnDispatch(Packet packet)
@@ -58,6 +63,10 @@ namespace Common.Channels
             if (Dispatch != null)
                 Dispatch(this, new PacketEventArgs() { Packet = packet });
         }
+        /// <summary>
+        /// A method for releasing data info to the owner of a ServerChannel
+        /// </summary>
+        /// <param name="data">The data to dispatch</param>
         public virtual void OnDispatch((Packet, ClientModel) data)
         {
             if (Dispatch != null)
@@ -66,6 +75,17 @@ namespace Common.Channels
                     Packet = data.Item1,
                     Client = data.Item2
                 });
+        }
+
+        /// <summary>
+        /// A method for alerting Channel owners of problems occuring within the channel
+        /// </summary>
+        /// <param name="message">A fail message</param>
+        public virtual void OnChannelFail(string message)
+        {
+            stable = false;
+            if (ChannelFail != null)
+                ChannelFail(this, new ChannelFailEventArgs() { Message = message });
         }
 
         private protected abstract void Dispose(bool disposing);

@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Linq;
 using System.Net;
+using System.Threading;
 using Common.Channels;
 using Common.Helpers;
 using Common.Packets;
@@ -8,19 +10,79 @@ namespace Client
 {
     class Program
     {
+        private static ClientChannel channel;
+        public static AutoResetEvent waiter;
+
         static void Main(string[] args)
         {
-            var channel = new ClientChannel(1024, IPAddress.Parse("192.168.0.21"), 40000, 30000, EncryptionConfig.Strength.Strong);
-            channel.Dispatch += Printer;
+            channel = new ClientChannel(1024, IPAddress.Parse(args[0]), Convert.ToInt32(args[1]), Convert.ToInt32(args[2]), EncryptionConfig.Strength.Strong);
+            if (!channel.stable)
+            {
+                Console.WriteLine("Quitting...");
+                Thread.Sleep(2000);
+                return;
+            }
+            channel.ChannelFail += FailHandler;
             channel.Start();
-            channel.Add(new Packet(DataID.AV, channel.id));
-            Console.ReadLine();
+            Packet outPacket;            
+            while (true)
+            {
+                Console.Write("CLUNKS>>> ");
+                string[] input = Console.ReadLine().Split();
+                switch (input[0])
+                {
+                    case "help":
+                        ShowHelp();
+                        break;
+                    case "connect":
+                        outPacket = new Packet(DataID.Command, channel.id);
+                        outPacket.Add(input[0], Communication.START, input[1], input[2]);
+                        channel.Add(outPacket);
+                        Console.WriteLine($"Requesting CONNECT to {input[1]}...");
+                        channel.Dispatch += ConnectReponseHanlder;
+                        waiter.WaitOne();
+                        break;
+                    default:
+                        Console.WriteLine("Try 'help' for more info.");
+                        break;
+                }                
+            }
             channel.cts.Cancel();
         }
 
-        public static void Printer(object sender, PacketEventArgs e)
+        private static void ConnectReponseHanlder(object sender, PacketEventArgs e)
         {
-            Console.WriteLine($"Received: {e.Packet.dataID} {e.Packet.body}\n");
+            void End()
+            {
+                channel.Dispatch -= ConnectReponseHanlder;
+                waiter.Set();
+            }
+
+            //TODO: if req is accepted make user present in link table
+            string[] values = e.Packet.body.Values<string>().ToArray();
+            if (Communication.STATUSES.Contains(values[0]))
+            {
+                Console.WriteLine($"CONNECT completed with status '{values[0]}'");
+                End();
+            }
+            else
+            {
+                Packet outPacket = new Packet(DataID.Command, channel.id);
+                outPacket.Add(Communication.CONNECT, values[0], ConsoleTools.HideInput("Enter password"));
+                channel.Add(outPacket);
+            }            
+        }
+
+        private static void ShowHelp()
+        {
+            throw new NotImplementedException();
+        }
+
+        public static void FailHandler(object sender, ChannelFailEventArgs e)
+        {
+            Console.WriteLine(e.Message);
+            //TODO: If fixable, fix error and set channel.stable to true, otherwise quit
+            channel.stable = true;
         }
     }
 }

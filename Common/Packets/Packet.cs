@@ -30,7 +30,6 @@ namespace Common.Packets
         public int dataCounter = 0;
 
         public const string DATA = "data-{0}";
-        public static readonly string BODYFIRST = String.Format(DATA, 0);
 
         #endregion
 
@@ -53,15 +52,13 @@ namespace Common.Packets
         /// </summary>
         /// <param name="packet">The packet being populated</param>
         /// <param name="data">The data to add</param>
-        public void Add<T>(params T[] data)
+        public void Add(params object[] data)
         {
             if (body == null)
                 body = new JObject();
 
-            foreach (T item in data)
-            {
+            foreach (var item in data)
                 body.Add(String.Format(DATA, dataCounter++), JToken.FromObject(item));
-            }
 
         }
 

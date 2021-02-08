@@ -4,6 +4,7 @@ using Newtonsoft.Json;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography;
@@ -195,14 +196,14 @@ namespace Common.Channels
                 switch (inPacket.dataID)
                 {
                     case DataID.Hello:
-                        string strengthString = inPacket.body.GetValue(Packet.BODYFIRST).ToString();
+                        string strengthString = inPacket.body.Values<string>().ToArray()[0];
                         client.packetFactory.InitEncCfg((EncryptionConfig.Strength)Convert.ToInt32(strengthString));
                         client.packetFactory.encCfg.useCrpyto = false;
                         client.packetFactory.encCfg.captureSalts = true;
                         outPacket = new Packet(DataID.Ack, client.id);
                         break;
                     case DataID.Info:
-                        string clientKey = inPacket.body.GetValue(Packet.BODYFIRST).ToString();
+                        string clientKey = inPacket.body.Values<string>().ToArray()[0];
                         using (RSACryptoServiceProvider rsa = new RSACryptoServiceProvider(client.packetFactory.encCfg.RSA_KEY_BITS))
                         {
                             client.packetFactory.encCfg.recipient = JsonConvert.DeserializeObject<RSAParameters>(clientKey);
@@ -220,7 +221,7 @@ namespace Common.Channels
                         captureSalts = false;
                         break;
                     case DataID.Signature:
-                        string clientSignatureStr = inPacket.body.GetValue(Packet.BODYFIRST).ToString();
+                        string clientSignatureStr = inPacket.body.Values<string>().ToArray()[0];
                         byte[] clientSignature = Convert.FromBase64String(clientSignatureStr);
                         string signatureStr;
                         using (RSACryptoServiceProvider rsa = new RSACryptoServiceProvider())
@@ -243,7 +244,7 @@ namespace Common.Channels
                         outPacket.Add(signatureStr);
                         break;
                     case DataID.Status:
-                        if (inPacket.body.GetValue(Packet.BODYFIRST).ToString() == Communication.FAILURE)
+                        if (inPacket.body.Values<string>().ToArray()[0] == Communication.FAILURE)
                             failed = true;
                         complete.Set();
                         break;

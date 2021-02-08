@@ -4,6 +4,7 @@ using Newtonsoft.Json;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography;
@@ -80,6 +81,7 @@ namespace Common.Channels
                 catch (Exception)
                 {
                     Console.WriteLine($"There is no CLUNK server at {ip}:{TCP_PORT}");
+                    stable = false;
                 }
                 connected.Set();
             }), null);
@@ -188,7 +190,7 @@ namespace Common.Channels
                 }
                 if (attempts == connectAttempts)
                 {
-                    Console.WriteLine($"Failed to connect {attempts} times, aborting");
+                    OnChannelFail($"Failed to connect {attempts} times, aborting");
                     break;
                 }
             }            
@@ -281,13 +283,13 @@ namespace Common.Channels
                             outPacket.Add(ObjectConverter.GetJObject(packetFactory.encCfg.pub));
                             break;
                         case DataID.Hello:
-                            string serverParamString = inPacket.body.GetValue(Packet.BODYFIRST).ToString();
+                            string serverParamString = inPacket.body.Values<string>().ToArray()[0];
                             packetFactory.encCfg.recipient = JsonConvert.DeserializeObject<RSAParameters>(serverParamString);
                             packetFactory.encCfg.useCrpyto = true;
                             outPacket = new Packet(DataID.Ack, id);
                             break;
                         case DataID.Info:
-                            id = Convert.ToUInt32(inPacket.body.GetValue(Packet.BODYFIRST).ToString());
+                            id = Convert.ToUInt32(inPacket.body.Values<string>().ToArray()[0]);
                             packetFactory.encCfg.captureSalts = false;
                             using (RSACryptoServiceProvider rsa = new RSACryptoServiceProvider())
                             {
@@ -298,7 +300,7 @@ namespace Common.Channels
                             outPacket.Add(Convert.ToBase64String(signature));
                             break;
                         case DataID.Signature:
-                            string sigStr = inPacket.body.GetValue(Packet.BODYFIRST).ToString();
+                            string sigStr = inPacket.body.Values<string>().ToArray()[0];
                             if (sigStr == Communication.FAILURE)
                             {
                                 complete.Set();
@@ -383,7 +385,8 @@ namespace Common.Channels
             if (socket.ProtocolType == ProtocolType.Tcp)
             {
                 ManualResetEvent sent = new ManualResetEvent(false);
-                socket.BeginSend(BitConverter.GetBytes(data.Length), 0, HEADER_SIZE, 0, new AsyncCallback((IAsyncResult ar) => {
+                socket.BeginSend(BitConverter.GetBytes(data.Length), 0, HEADER_SIZE, 0, new AsyncCallback((IAsyncResult ar) =>
+                {
                     socket.EndSend(ar);
                     sent.Set();
                 }), null);
