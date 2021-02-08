@@ -13,14 +13,13 @@ using System.Threading.Tasks;
 
 namespace Server
 {
-    //TODO: Add logging
     //TODO: Write summaries
     internal class Worker : BackgroundService
     {
-        private readonly ILogger<Worker> logger;
+        private static ILogger<Worker> logger;
         private static ServerChannel server;
 
-        internal Worker(ILogger<Worker> logger) => this.logger = logger;
+        internal Worker(ILogger<Worker> _logger) => logger = _logger;
 
         public override Task StartAsync(CancellationToken stoppingToken)
         {
@@ -77,6 +76,7 @@ namespace Server
                     outPacket = new Packet(DataID.Status, e.Client.id);
                     outPacket.Add(e.Client.isAdmin ? Communication.SUCCESS : Communication.FAILURE);
                     server.Add(outPacket, e.Client);
+                    logger.LogInformation($"'{e.Client.endpoint}' logged in as admin.");
                     break;
                 case DataID.Command:
                     string command = e.Packet.body.GetValue(Packet.BODYFIRST).ToString();
@@ -90,6 +90,7 @@ namespace Server
                             {
                                 string key = e.Packet.body.GetValue(String.Format(Packet.DATA, 0)).ToString();
                                 string value = e.Packet.body.GetValue(String.Format(Packet.DATA, 1)).ToString();
+                                logger.LogInformation($"Admin@{e.Client.endpoint} changed '{key}' from '{ConfigurationManager.AppSettings.Get(key)}' to '{value}' in config.");
                                 ConfigHandler.ModifyConfig(key, value);
                             }
                             else if (command == Communication.PASSWORD)
@@ -97,6 +98,7 @@ namespace Server
                                 string key = e.Packet.body.GetValue(String.Format(Packet.DATA, 0)).ToString();
                                 string value = e.Packet.body.GetValue(String.Format(Packet.DATA, 1)).ToString();
                                 ConfigHandler.ModifyConfig(key, BCrypt.Net.BCrypt.HashPassword(value));
+                                logger.LogInformation($"Admin@{e.Client.endpoint} changed password.");
                             }
                         }
                     }
@@ -117,13 +119,19 @@ namespace Server
                             {
                                 //TODO handle other commands here
                                 case Communication.RESTART:
+                                    logger.LogInformation($@"{(e.Client.isAdmin ? "Admin" : "User")}@{e.Client.endpoint} requested server RESTART.");
+                                    logger.LogInformation("Restarting server.");
                                     server.Dispose();
-                                    server.Start();
+                                    Start();
+                                    logger.LogInformation("Server RESTART successful.");
                                     break;
                                 case Communication.STOP:
+                                    logger.LogInformation($@"{(e.Client.isAdmin ? "Admin" : "User")}@{e.Client.endpoint} requested server STOP.");
+                                    logger.LogInformation("Stopping server.");
                                     server.Dispose();
                                     outPacket = new Packet(DataID.Status, e.Client.id);
                                     outPacket.Add(Communication.SUCCESS);
+                                    logger.LogInformation("Server STOP successful.");
                                     break;
                             }
                     }
