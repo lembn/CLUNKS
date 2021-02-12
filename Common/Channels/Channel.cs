@@ -18,7 +18,7 @@ namespace Common.Channels
         private protected int bufferSize; //The default buffer size of the channel
         private protected CancellationToken ctoken; //A token used for cancelling threads when the channel is closed
         private protected List<Thread> threads; //A list to keep track of running threads        
-        private protected bool disposedValue; //A boolean to represent if the channel has been closed or not
+        private protected bool disposed; //A boolean to represent if the channel has been closed or not
 
         #endregion
 
@@ -49,6 +49,8 @@ namespace Common.Channels
             ctoken = cts.Token;
             this.bufferSize = bufferSize;
         }
+
+        ~Channel() => Dispose(false);
 
         public abstract void Start();
         private protected abstract void ReceiveUDPCallback(IAsyncResult ar);

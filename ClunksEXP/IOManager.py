@@ -7,7 +7,7 @@ import xml.etree.ElementTree as ET
 
 from ThreadingHelper import QUIT
 
-NUM_PRIV = 8
+NUM_PRIV = 10
 
 class IOManager:
     def __init__(self):

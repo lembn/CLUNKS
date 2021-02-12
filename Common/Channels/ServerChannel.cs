@@ -367,7 +367,7 @@ namespace Common.Channels
         /// <param name="disposing">A boolean to represent the closing state of the ServerChannel</param>
         private protected override void Dispose(bool disposing)
         {
-            if (!disposedValue)
+            if (!disposed)
             {
                 if (disposing)
                 {
@@ -378,7 +378,7 @@ namespace Common.Channels
                     }
                 }
 
-                disposedValue = true;
+                disposed = true;
             }
         }
         

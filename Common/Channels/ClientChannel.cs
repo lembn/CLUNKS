@@ -465,7 +465,7 @@ namespace Common.Channels
         /// <param name="disposing">A boolean to represent the state of disposing</param>
         private protected override void Dispose(bool disposing)
         {
-            if (!disposedValue)
+            if (!disposed)
             {
                 if (disposing)
                 {
@@ -473,7 +473,7 @@ namespace Common.Channels
                     socket.Dispose();
                 }
 
-                disposedValue = true;
+                disposed = true;
             }
         }
 

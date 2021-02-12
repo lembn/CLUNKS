@@ -34,6 +34,7 @@ namespace Server
                 Directory.CreateDirectory(dataLoc);
                 ConfigHandler.ModifyConfig("dataPath", dataLoc);
             }
+            DBHandler.DBHandler.connectionString = String.Format(ConfigurationManager.ConnectionStrings["default"].ConnectionString, ConfigurationManager.AppSettings.Get("dataPath"));
             if (!Directory.Exists(accessLoc))
                 Directory.CreateDirectory(accessLoc);
             Start();
@@ -57,7 +58,7 @@ namespace Server
             server = new ServerChannel(bufferSize, ip, tcp, udp);
             server.Dispatch += DispatchHandler;
             if (ConfigurationManager.AppSettings.Get("newExp") == "true")
-                DBHandler.LoadExp(ConfigurationManager.AppSettings.Get("dataPath"));
+                DBHandler.DBHandler.LoadExp(ConfigurationManager.AppSettings.Get("dataPath"));
             server.Start();
         }
 
@@ -133,14 +134,14 @@ namespace Server
                                 case Communication.CONNECT:
                                     if (values[1] == Communication.START)
                                     {
-                                        state = DBHandler.CheckUser(values[2], values[3]);
+                                        state = DBHandler.DBHandler.CheckUser(values[2], values[3]);
                                         outPacket = new Packet(DataID.Status, e.Client.id);
                                         outPacket.Add(state ? Communication.SUCCESS : Communication.FAILURE);
                                     }
                                     else
                                     {
                                         outPacket = new Packet(DataID.Status, e.Client.id);
-                                        state = DBHandler.Login(values[1], values[2]);
+                                        state = DBHandler.DBHandler.Login(values[1], values[2]);
                                         if (state)
                                             logger.LogInformation($"User@{e.Client.endpoint} logged into {values[1]} with username='{values[2]}'");
                                         outPacket.Add(state ? Communication.SUCCESS : Communication.FAILURE);
