@@ -4,7 +4,7 @@
 
 **CLUNKS** is a system to provide simple LAN video conferencing for large businesses and establishments. Users only need to create a **CLUNK** server on their network, and they will be able to host and join video calls with anyone on that network.
 
-Most up to date branch is [feature/create-master]
+Most up to date branch is [feature/create-client]
 
 ---
 
