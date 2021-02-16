@@ -4,6 +4,8 @@
 
 **CLUNKS** is a system to provide simple LAN video conferencing for large businesses and establishments. Users only need to create a **CLUNK** server on their network, and they will be able to host and join video calls with anyone on that network.
 
+Most up to date branch is [feature/create-client]
+
 ---
 
 ## Servers
@@ -253,6 +255,7 @@ Likewise, in the same performance-oriented mindset, shared caching is used when 
 
 # ClunksEXP
 **ClunksEXP** is the tool used to create the `.exp` files used by **CLUNKS** to load server configurations. It was created so that users would'nt have to configure the server from within the command line and so that configurations can be stored or shared between users if needed. **ClunksEXP** can load an existing `.exp` file to be edited or the user can use the program to create a new configuration from scratch, then export it into a new `.exp` file.
+<<<<<<< HEAD
 
 ## EXP Files
 `.exp` files are XML files that summarise the information to be stored in the database. Unlike a database file, the data stored in `.exp` don't attempt to maximise efficiency. Because of this, each item stored in the file can be stored plainly as it is rather than along with metadata about it. This makes `.exp` files smaller than database files, making them good for sharing or permanently storing different states or configurations of the server.
@@ -271,3 +274,5 @@ C# CTRL+C: https://docs.microsoft.com/en-us/dotnet/api/system.console.cancelkeyp
 # Keep in mind
 If buffer is too small to perform handshake, handshake is treated as failed <br>
 ATM, when encryption level <= EncryptionConfig.Strength.Light, the size of the key is too small for certificates. This is because the size of the key is too small to compensate for the salt which is generated with EncryptionConfig.Strength.Strong settings (as per the Handshake protocol) <br>
+=======
+>>>>>>> e333b60612189d4f919cfbf0919365214b314c18
