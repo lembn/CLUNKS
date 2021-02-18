@@ -11,7 +11,8 @@ namespace Client
     class Program
     {
         private static ClientChannel channel;
-        public static AutoResetEvent waiter;
+        private static AutoResetEvent waiter;
+        private static int tableIndex = 0;
 
         static void Main(string[] args)
         {
@@ -24,12 +25,13 @@ namespace Client
             }
             channel.ChannelFail += FailHandler;
             channel.Start();
-            Packet outPacket;            
-            while (true)
+            Packet outPacket;
+            bool quit = false;
+            while (!quit)
             {
                 Console.Write("CLUNKS>>> ");
                 string[] input = Console.ReadLine().Split();
-                switch (input[0])
+                switch (input[0].ToLower())
                 {
                     case "help":
                         ShowHelp();
@@ -42,6 +44,9 @@ namespace Client
                         channel.Dispatch += ConnectReponseHanlder;
                         waiter.WaitOne();
                         break;
+                    case "quit":
+                        quit = true;
+                        break;
                     default:
                         Console.WriteLine("Try 'help' for more info.");
                         break;
@@ -52,18 +57,14 @@ namespace Client
 
         private static void ConnectReponseHanlder(object sender, PacketEventArgs e)
         {
-            void End()
-            {
-                channel.Dispatch -= ConnectReponseHanlder;
-                waiter.Set();
-            }
-
             //TODO: if req is accepted make user present in link table
             string[] values = e.Packet.body.Values<string>().ToArray();
             if (Communication.STATUSES.Contains(values[0]))
             {
                 Console.WriteLine($"CONNECT completed with status '{values[0]}'");
-                End();
+                tableIndex += values[0] == Communication.SUCCESS ? 1 : 0;
+                channel.Dispatch -= ConnectReponseHanlder;
+                waiter.Set();
             }
             else
             {

@@ -33,6 +33,14 @@ namespace Common.Helpers
 
         #endregion
 
+        #region TABLES
+
+        public const string SUBSERVERS = "subservers";
+        public const string ROOMS = "rooms";
+        public const string GROUPS = "groups";
+
+        #endregion
+
         #region Collections
 
         public static ImmutableArray<string> ADMIN_CONFIG = new ImmutableArray<string> { USER, IP, TCP, UDP, DATA };
@@ -40,6 +48,7 @@ namespace Common.Helpers
         public static ImmutableArray<string> INFO_COMMANDS = new ImmutableArray<string> { IP, TCP, UDP };
         public static ImmutableArray<string> USER_COMMANDS = new ImmutableArray<string> { CONNECT };
         public static ImmutableArray<string> STATUSES = new ImmutableArray<string> { SUCCESS, FAILURE };
+        public static ImmutableArray<string> TABLES = new ImmutableArray<string> { SUBSERVERS, ROOMS, GROUPS };
 
         #endregion
 

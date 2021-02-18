@@ -283,13 +283,13 @@ namespace Common.Channels
                             outPacket.Add(ObjectConverter.GetJObject(packetFactory.encCfg.pub));
                             break;
                         case DataID.Hello:
-                            string serverParamString = inPacket.body.Values<string>().ToArray()[0];
+                            string serverParamString = inPacket.body.Properties().First().Value.ToString();
                             packetFactory.encCfg.recipient = JsonConvert.DeserializeObject<RSAParameters>(serverParamString);
                             packetFactory.encCfg.useCrpyto = true;
                             outPacket = new Packet(DataID.Ack, id);
                             break;
                         case DataID.Info:
-                            id = Convert.ToUInt32(inPacket.body.Values<string>().ToArray()[0]);
+                            id = Convert.ToUInt32(inPacket.body.Properties().First().Value.ToString());
                             packetFactory.encCfg.captureSalts = false;
                             using (RSACryptoServiceProvider rsa = new RSACryptoServiceProvider())
                             {
@@ -300,7 +300,7 @@ namespace Common.Channels
                             outPacket.Add(Convert.ToBase64String(signature));
                             break;
                         case DataID.Signature:
-                            string sigStr = inPacket.body.Values<string>().ToArray()[0];
+                            string sigStr = inPacket.body.Properties().First().Value.ToString();
                             if (sigStr == Communication.FAILURE)
                             {
                                 complete.Set();

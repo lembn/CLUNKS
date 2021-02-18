@@ -20,13 +20,15 @@ namespace Server
         private static ILogger<Worker> logger;
         private static ServerChannel server;
 
-        internal Worker(ILogger<Worker> _logger) => logger = _logger;
+        public Worker(ILogger<Worker> _logger) => logger = _logger;
 
         public override Task StartAsync(CancellationToken stoppingToken)
         {
-            string cfgLoc = String.Concat(Assembly.GetEntryAssembly().Location, ".config");
-            string dataLoc = String.Concat(Directory.GetCurrentDirectory(), @"\data");
-            string accessLoc = String.Concat(Directory.GetCurrentDirectory(), @"\access");
+            UriBuilder uri = new UriBuilder(Assembly.GetEntryAssembly().Location);
+            string path = String.Concat(Path.GetDirectoryName(Uri.UnescapeDataString(uri.Path)), @"\");
+            string cfgLoc = String.Concat(path, "App.config");
+            string dataLoc = String.Concat(path, "data");
+            string accessLoc = String.Concat(path, "access");
             if (!File.Exists(cfgLoc))
                 ConfigHandler.InitialiseConfig(cfgLoc);
             if (!Directory.Exists(dataLoc))
@@ -51,11 +53,16 @@ namespace Server
 
         private static void Start()
         {
-            int bufferSize = Convert.ToInt32(ConfigurationManager.AppSettings.Get("buffferSize"));
+            int bufferSize = Convert.ToInt32(ConfigurationManager.AppSettings.Get("bufferSize"));
             IPAddress ip = IPAddress.Parse(ConfigurationManager.AppSettings.Get("ipaddress"));
             int tcp = Convert.ToInt32(ConfigurationManager.AppSettings.Get("tcpPort"));
             int udp = Convert.ToInt32(ConfigurationManager.AppSettings.Get("udpPort"));
             server = new ServerChannel(bufferSize, ip, tcp, udp);
+            if (!server.stable)
+            {
+                logger.LogCritical("Failed to start server. Invalid IP.");
+                return;
+            }
             server.Dispatch += DispatchHandler;
             if (ConfigurationManager.AppSettings.Get("newExp") == "true")
                 DBHandler.DBHandler.LoadExp(ConfigurationManager.AppSettings.Get("dataPath"));
