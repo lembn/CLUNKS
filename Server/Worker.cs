@@ -28,7 +28,6 @@ namespace Server
             string path = String.Concat(Path.GetDirectoryName(Uri.UnescapeDataString(uri.Path)), @"\");
             string cfgLoc = String.Concat(path, "App.config");
             string dataLoc = String.Concat(path, "data");
-            string accessLoc = String.Concat(path, "access");
             if (!File.Exists(cfgLoc))
                 ConfigHandler.InitialiseConfig(cfgLoc);
             if (!Directory.Exists(dataLoc))
@@ -37,8 +36,6 @@ namespace Server
                 ConfigHandler.ModifyConfig("dataPath", dataLoc);
             }
             DBHandler.DBHandler.connectionString = String.Format(ConfigurationManager.ConnectionStrings["default"].ConnectionString, ConfigurationManager.AppSettings.Get("dataPath"));
-            if (!Directory.Exists(accessLoc))
-                Directory.CreateDirectory(accessLoc);
             Start();
             return Task.CompletedTask;
         }
@@ -65,7 +62,17 @@ namespace Server
             }
             server.Dispatch += DispatchHandler;
             if (ConfigurationManager.AppSettings.Get("newExp") == "true")
-                DBHandler.DBHandler.LoadExp(ConfigurationManager.AppSettings.Get("dataPath"));
+            {
+                try
+                {
+                    DBHandler.DBHandler.LoadExp(ConfigurationManager.AppSettings.Get("dataPath"));
+                }
+                catch (IndexOutOfRangeException)
+                {
+                    logger.LogError("EXP load failed. No EXP file present at dataPath.");
+                }
+            }
+                
             server.Start();
         }
 
