@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -10,36 +11,6 @@ namespace Server.DBHandler
     internal static class DBHandler
     {
         public static string connectionString;
-
-        public static void CreateDB(string path)
-        {
-            string table = "CREATE TABLE IF NOT EXISTS";
-            string name = "name TEXT UNIQUE NOT NULL";
-            string iBool = "INTEGER NOT NULL";
-            string IPK = $"id INTEGER PRIMARY KEY";
-            string create =
-            $@"
-                {table} elevations ({IPK}, {name}, canCallSubserver {iBool}, canCallRoom {iBool}, canCallGroup {iBool},
-                                    canCallUser {iBool}, canMsgSubserver {iBool}, canMsgRoom {iBool}, canMsgGroup {iBool},
-                                    canMsgUser {iBool}, canCreateRoom {iBool}, canCreateGroup {iBool});
-                {table} subservers ({IPK}, {name});
-                {table} rooms ({IPK}, {name}, password TEXT NOT NULL);
-                {table} subserver_rooms ({IPK}, subserverID INTEGER REFERENCES subservers(id), roomID INTEGER REFERENCES rooms(id), UNIQUE (subserverID, roomID));
-                {table} room_rooms ({IPK}, parentRoom INTEGER REFERENCES rooms(id), childRoom INTEGER REFERENCES rooms(id), UNIQUE (parentRoom, childRoom));
-                {table} users ({IPK}, user{name}, password TEXT NOT NULL, elevation INTEGER REFERENCES elevations(id));
-                {table} users_subservers ({IPK}, userID INTEGER REFERENCES users(id), subserverID INTEGER REFERENCES subservers(id), present {iBool}, UNIQUE (userID, subserverID));
-                {table} users_rooms ({IPK}, userID INTEGER REFERENCES users(id), roomID INTEGER REFERENCES rooms(id), present {iBool}, UNIQUE (userID, roomID));
-                {table} groups ({IPK}, {name}, password TEXT NOT NULL, owner INTEGER references users(id));
-                {table} room_groups ({IPK}, roomID INTEGER REFERENCES rooms(id), groupID INTEGER REFERENCES groups(id), UNIQUE (roomID, groupID));
-                {table} group_groups ({IPK}, parentGroup INTEGER REFERENCES groups(id), childGroup INTEGER REFERENCES groups(id), UNIQUE (parentGroup, childGroup));
-                {table} users_groups ({IPK}, userID INTEGER REFERENCES users(id), groupID INTEGER REFERENCES groups(id), present {iBool}, UNIQUE (userID, groupID));
-                {table} notifications ({IPK}, sender INTEGER REFERENCES users(id), receiver INTEGER REFERENCES users(id), time INTEGER, msg TEXT, type TEXT, UNIQUE (sender, receiver, time));
-            ";
-
-            File.WriteAllBytes(path, new byte[0]);
-            using (Cursor cursor = new Cursor(connectionString))
-                cursor.Execute(create);
-        }
 
         public static bool CheckUser(string parentName, string username)
         {
@@ -75,14 +46,34 @@ namespace Server.DBHandler
             }
         }
 
-        public static void LoadExp(string dataPath)
+        public static void LoadExp()
         {
-            if (!File.Exists($@"{dataPath}\data.db"))
-                CreateDB($@"{dataPath}\data.db");
-
+            string table = "CREATE TABLE IF NOT EXISTS";
+            string name = "name TEXT UNIQUE NOT NULL";
+            string iBool = "INTEGER NOT NULL";
+            string IPK = $"id INTEGER PRIMARY KEY";            
+            File.WriteAllBytes(Regex.Match(connectionString, "(?<=(Data Source=)).*(?=;)").Value, new byte[0]);
             using (Cursor cursor = new Cursor(connectionString))
             {
-                XDocument exp = XDocument.Load(Directory.GetFiles(dataPath, "*.exp")[0]);
+                cursor.Execute(
+                $@"
+                    {table} elevations ({IPK}, {name}, canCallSubserver {iBool}, canCallRoom {iBool}, canCallGroup {iBool}, canCallUser {iBool}, canMsgSubserver {iBool},
+                                        canMsgRoom {iBool}, canMsgGroup {iBool}, canMsgUser {iBool}, canCreateRoom {iBool}, canCreateGroup {iBool});
+                    {table} subservers ({IPK}, {name});
+                    {table} rooms ({IPK}, {name}, password TEXT NOT NULL);
+                    {table} subserver_rooms ({IPK}, subserverID INTEGER REFERENCES subservers(id), roomID INTEGER REFERENCES rooms(id), UNIQUE (subserverID, roomID));
+                    {table} room_rooms ({IPK}, parentRoom INTEGER REFERENCES rooms(id), childRoom INTEGER REFERENCES rooms(id), UNIQUE (parentRoom, childRoom));
+                    {table} users ({IPK}, user{name}, password TEXT NOT NULL, elevation INTEGER REFERENCES elevations(id));
+                    {table} users_subservers ({IPK}, userID INTEGER REFERENCES users(id), subserverID INTEGER REFERENCES subservers(id), present {iBool}, UNIQUE (userID, subserverID));
+                    {table} users_rooms ({IPK}, userID INTEGER REFERENCES users(id), roomID INTEGER REFERENCES rooms(id), present {iBool}, UNIQUE (userID, roomID));
+                    {table} groups ({IPK}, {name}, password TEXT NOT NULL, owner INTEGER references users(id));
+                    {table} room_groups ({IPK}, roomID INTEGER REFERENCES rooms(id), groupID INTEGER REFERENCES groups(id), UNIQUE (roomID, groupID));
+                    {table} group_groups ({IPK}, parentGroup INTEGER REFERENCES groups(id), childGroup INTEGER REFERENCES groups(id), UNIQUE (parentGroup, childGroup));
+                    {table} users_groups ({IPK}, userID INTEGER REFERENCES users(id), groupID INTEGER REFERENCES groups(id), present {iBool}, UNIQUE (userID, groupID));
+                    {table} notifications ({IPK}, sender INTEGER REFERENCES users(id), receiver INTEGER REFERENCES users(id), time INTEGER, msg TEXT, type TEXT, UNIQUE (sender, receiver, time));
+                ");
+
+                XDocument exp = XDocument.Load(Directory.GetFiles(Regex.Match(connectionString, "(?<=(Data Source=)).*(?=(\\\\.*db;))").Value, "*.exp")[0]);
                 foreach (XElement elevation in exp.Descendants("elevation"))
                 {
                     int[] paramList = (from num in Convert.ToString(Convert.ToInt32(elevation.Attribute("privilege").Value), 2).PadLeft(10, '0') select (int)Char.GetNumericValue(num)).ToArray();
@@ -98,22 +89,31 @@ namespace Server.DBHandler
                     cursor.Execute("INSERT INTO subservers (name) VALUES ($name);", subserver.Attribute("name").ToString());
                     int subserverID = Convert.ToInt32(cursor.Execute("SELECT last_insert_rowid();"));
 
-                    foreach (XElement user in subserver.Elements("user"))
-                        AddUser(cursor, user, subserverID, false);
+                    List<int> processed = new List<int>();
+                    foreach (XElement user in subserver.Descendants("user"))
+                    {
+                        if (!processed.Contains(user.ToString().GetHashCode()))
+                        {
+                            int elevationID = Convert.ToInt32(cursor.Execute("SELECT id FROM elevations WHERE name=$name", user.Attribute("elevation").Value));
+                            cursor.Execute("INSERT INTO users (username, password, elevation) VALUES ($name, $password, $elevationID);", user.Attribute("username").Value, user.Attribute("password").Value, elevationID);
+                            int userID = Convert.ToInt32(cursor.Execute("SELECT last_insert_rowid();"));
+                            cursor.Execute($"INSERT INTO users_subservers (userID, subserverID, present) VALUES ($userID, $parentID, 0);", userID, subserverID);
+                            processed.Add(user.ToString().GetHashCode());
+                        }
+                    }
 
-                    foreach (XElement room in subserver.Elements("room"))
-                        ProcessRoom(cursor, room, subserverID, false);
+                    processed.Clear();
+                    var a = subserver.Descendants("room").ToArray();
+                    foreach (XElement room in subserver.Descendants("room"))
+                    {
+                        if (!processed.Contains(room.ToString().GetHashCode()))
+                        {
+                            ProcessRoom(cursor, room, subserverID, false);
+                            processed.Add(room.ToString().GetHashCode());
+                        }
+                    }
                 }
             }
-        }
-
-        private static void AddUser(Cursor cursor, XElement user, int parentID, bool parentIsRoom = true)
-        {
-            int elevationID = Convert.ToInt32(cursor.Execute("SELECT id FROM elevations WHERE name=$name", user.Attribute("elevation").Value));
-            cursor.Execute("INSERT INTO users (username, password, elevation) VALUES ($name, $password, $elevationID);", user.Attribute("username").Value, user.Attribute("password").Value, elevationID);
-            int userID = Convert.ToInt32(cursor.Execute("SELECT last_insert_rowid();"));
-            string parent = parentIsRoom ? "room" : "subserver";
-            cursor.Execute($"INSERT INTO users_{parent} (userID, {parent}ID) VALUES ($userID, $parentID);", userID, parentID);
         }
 
         private static void ProcessRoom(Cursor cursor, XElement room, int parentID, bool parentIsRoom = true)
@@ -122,11 +122,26 @@ namespace Server.DBHandler
             int roomID = Convert.ToInt32(cursor.Execute("SELECT last_insert_rowid();"));
             cursor.Execute($"INSERT INTO {(parentIsRoom ? "room" : "subserver")}_rooms ({(parentIsRoom ? "parentRoom, childRoom" : "subserverID, roomID")}) VALUES ($parent, $roomID);", parentID, roomID);
 
-            foreach (XElement user in room.Elements("user"))
-                AddUser(cursor, user, roomID);
+            List<int> processed = new List<int>();
+            foreach (XElement user in room.Descendants("user"))
+            {
+                if (!processed.Contains(user.ToString().GetHashCode()))
+                {
+                    int userID = Convert.ToInt32(cursor.Execute("SELECT id FROM users WHERE username=$name;", user.Attribute("username").Value));
+                    cursor.Execute($"INSERT INTO users_rooms (userID, roomID, present) VALUES ($userID, $parentID, 0);", userID, roomID);
+                    processed.Add(user.ToString().GetHashCode());
+                }
+            }
 
-            foreach (XElement child in room.Elements("room"))
-                ProcessRoom(cursor, child, roomID);
+            processed.Clear();
+            foreach (XElement child in room.Descendants("room"))
+            {
+                if (!processed.Contains(room.ToString().GetHashCode()))
+                {
+                    ProcessRoom(cursor, child, roomID);
+                    processed.Add(room.ToString().GetHashCode());
+                }
+            }
         }
     }
 }

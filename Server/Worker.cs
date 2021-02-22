@@ -65,7 +65,7 @@ namespace Server
             {
                 try
                 {
-                    DBHandler.DBHandler.LoadExp(ConfigurationManager.AppSettings.Get("dataPath"));
+                    DBHandler.DBHandler.LoadExp();
                 }
                 catch (IndexOutOfRangeException)
                 {
