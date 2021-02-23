@@ -70,28 +70,26 @@ namespace Common.Channels
 
             threads.Add(ThreadHelper.GetECThread(ctoken, () => 
             {
-                foreach (ClientModel client in clientList)
-                {
-                    lock (outPackets)
-                        outPackets.Add((new Packet(DataID.Heartbeat, client.id), client));
-                }
+                lock (clientList)
+                    foreach (ClientModel client in clientList)
+                        lock (outPackets)
+                            outPackets.Add((new Packet(DataID.Heartbeat, client.id), client));
                 Thread.Sleep(5000);
-                foreach (ClientModel client in clientList)
+                lock (clientList)
+                for (int i = clientList.Count - 1; i >= 0; i--)
                 {
-                    lock (client.hbLock)
+                    lock (clientList[i].hbLock)
                     {
-                        if (client.receivedHB)
+                        if (clientList[i].receivedHB)
                         {
-                            client.receivedHB = false;
-                            client.missedHBs = 0;
+                            clientList[i].receivedHB = false;
+                            clientList[i].missedHBs = 0;
                         }
                         else
                         {
-                            client.missedHBs += 1;
-                            if (client.missedHBs == 2)
-                            {
-                                RemoveClient(client);
-                            }
+                            clientList[i].missedHBs += 1;
+                                if (clientList[i].missedHBs == 2)
+                                    RemoveClient(i);
                         }
                     }
                 }
@@ -99,7 +97,6 @@ namespace Common.Channels
 
             threads.Add(ThreadHelper.GetECThread(ctoken, () => {
                 lock (clientList)
-                {
                     foreach (ClientModel client in clientList)
                     {
                         if (!client.receiving)
@@ -119,7 +116,6 @@ namespace Common.Channels
                             }
                         }
                     }
-                }
             })); //Receive (TCP/UDP)
 
             threads.Add(ThreadHelper.GetECThread(ctoken, () => { 
@@ -151,6 +147,7 @@ namespace Common.Channels
             foreach (var thread in threads)
                 thread.Start();
         }
+
 
         /// <summary>
         /// A method to add packets for the ServerChannel to send
@@ -309,11 +306,10 @@ namespace Common.Channels
                     inPackets.Add((client.packetFactory.BuildPacket(client.Get()), client));
                 }                    
             }
-            //TODO: test
-            //catch (SocketException)
-            //{
-            //    RemoveClient(client);
-            //}
+            catch (SocketException)
+            {
+                RemoveClient(client);
+            }
             catch (ObjectDisposedException) { }
         }
         /// <summary>
@@ -330,11 +326,10 @@ namespace Common.Channels
                     inPackets.Add((client.packetFactory.BuildPacket(client.Get()), client));
                 client.receiving = false;
             }
-            //TODO: test
-            //catch (SocketException)
-            //{
-            //    RemoveClient(client);
-            //}
+            catch (SocketException)
+            {
+                RemoveClient(client);
+            }
             catch (ObjectDisposedException) { }
         }
 
@@ -348,28 +343,55 @@ namespace Common.Channels
             byte[] data = client.packetFactory.GetDataStream(packet);
             if (client.protocol == ProtocolType.Tcp)
             {
-                ManualResetEvent sent = new ManualResetEvent(false);
-                client.Handler.BeginSend(BitConverter.GetBytes(data.Length), 0, HEADER_SIZE, 0, new AsyncCallback((IAsyncResult ar) => { 
-                    client.Handler.EndSend(ar);
-                    sent.Set();
-                }), null);
-                sent.WaitOne();
-                client.Handler.BeginSend(data, 0, data.Length, 0, new AsyncCallback((IAsyncResult ar) => { client.Handler.EndSend(ar); }), null);
+                try
+                {
+                    ManualResetEvent sent = new ManualResetEvent(false);
+                    client.Handler.BeginSend(BitConverter.GetBytes(data.Length), 0, HEADER_SIZE, 0, new AsyncCallback((IAsyncResult ar) =>
+                    {
+                        client.Handler.EndSend(ar);
+                        sent.Set();
+                    }), null);
+                    sent.WaitOne();
+                    client.Handler.BeginSend(data, 0, data.Length, 0, new AsyncCallback((IAsyncResult ar) => { client.Handler.EndSend(ar); }), null);
+                }
+                catch (SocketException)
+                {
+                    RemoveClient(client);
+                }
+
             }
             else
-                UDPSocket.BeginSendTo(data, 0, data.Length, SocketFlags.None, client.Handler.RemoteEndPoint, new AsyncCallback((IAsyncResult ar) => { UDPSocket.EndSendTo(ar); }), null);
+            {
+                try
+                {
+                    UDPSocket.BeginSendTo(data, 0, data.Length, SocketFlags.None, client.Handler.RemoteEndPoint, new AsyncCallback((IAsyncResult ar) => { UDPSocket.EndSendTo(ar); }), null);
+                }
+                catch (Exception)
+                {
+                    RemoveClient(client);
+                }
+            }
         }
 
         /// <summary>
-        /// A method to remove disconnected clients from the clientList
+        /// A method to remove and dispose of clients from the client list
         /// </summary>
         /// <param name="client">The client to remove</param>
         private void RemoveClient(ClientModel client)
         {
-            clientList.Remove(client);
             client.Dispose();
+            clientList.Remove(client);
         }
-        
+        /// <summary>
+        /// A method to remove and dispose of clients from the client list by index
+        /// </summary>
+        /// <param name="index">The index of the client in clientList</param>
+        private void RemoveClient(int index)
+        {
+            clientList[index].Dispose();
+            clientList.RemoveAt(index);
+        }
+       
         /// <summary>
         /// A method to free resources used by the ServerChannel on closure
         /// </summary>
@@ -381,10 +403,9 @@ namespace Common.Channels
                 if (disposing)
                 {
                     cts.Cancel();
-                    foreach (ClientModel client in clientList)
-                    {
-                        client.Handler.Dispose();
-                    }
+                    lock (clientList)
+                        foreach (ClientModel client in clientList)
+                            client.Handler.Dispose();
                 }
 
                 disposed = true;

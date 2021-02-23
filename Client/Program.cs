@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Linq;
 using System.Net;
 using System.Threading;
 using Common.Channels;
@@ -46,7 +45,6 @@ namespace Client
                         waiter.WaitOne();
                         break;
                     case "quit":
-                        //TODO: test
                         quit = true;
                         break;
                     default:
@@ -55,6 +53,7 @@ namespace Client
                 }                
             }
             channel.cts.Cancel();
+            channel.Dispose();
         }
 
         private static void ConnectReponseHanlder(object sender, PacketEventArgs e)

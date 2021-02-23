@@ -30,11 +30,11 @@ namespace Common.Channels
         private IPAddress serverIP; //Server IP
         private readonly int TCP_PORT; //Port used by the server for TCP communication
         private readonly int UDP_PORT; //Port used by the server for UDP communication
-        private int connectAttempts; //The maximum amount of handshakes to attempt before aborting
+        private int connectAttempts = 3; //The maximum amount of handshakes to attempt before aborting
         private ManualResetEvent connected; //An event to represent if a connection has been made to the server when using TCP
         private int largePackets = 0; //Number of datagrams that were too large for the buffer size
         private int packetCount; //Number of packets received in total
-        private double packetLossThresh; //Threshold to alert user about significant packet loss
+        private double packetLossThresh = 0.05; //Threshold to alert user about significant packet loss
         private DataStream dataStream; //Buffer for incoming data
         private BlockingCollection<Packet> outPackets; //A queue to hold outgoing packets
         private BlockingCollection<Packet> inPackets; //A queue to hold incomging packets
@@ -54,12 +54,10 @@ namespace Common.Channels
         /// <param name="connectAttempts">The maximum amount of handshakes to attempt before aborting</param>
         /// <param name="strength">The level of encryption used by the channel</param>
         /// <param name="packetLossThresh">The threshold of packet loss</param>
-        public ClientChannel(int bufferSize, IPAddress ip, int tcp, int udp, EncryptionConfig.Strength strength, int connectAttempts = 3, double packetLossThresh = 0.05) : base(bufferSize)
+        public ClientChannel(int bufferSize, IPAddress ip, int tcp, int udp, EncryptionConfig.Strength strength) : base(bufferSize)
         {
             Console.WriteLine("Opening communications...");
-            this.connectAttempts = connectAttempts;
             this.strength = strength;
-            this.packetLossThresh = packetLossThresh;
             outPackets = new BlockingCollection<Packet>();
             inPackets = new BlockingCollection<Packet>();
             receiving = new AutoResetEvent(true);
@@ -177,20 +175,28 @@ namespace Common.Channels
 
             int attempts = 0;
             while (true)
-            {
-                attempts++;
-                if (Handshake())
+            {                
+                try
                 {
-                    packetFactory.encCfg.captureSalts = false;
-                    foreach (var thread in threads)
-                        thread.Start();
-                    break;
+                    attempts++;
+                    if (Handshake())
+                    {
+                        packetFactory.encCfg.captureSalts = false;
+                        foreach (var thread in threads)
+                            thread.Start();
+                        break;
+                    }
+                    if (attempts == connectAttempts)
+                    {
+                        OnChannelFail($"Failed to connect {attempts} times, aborting");
+                        break;
+                    }
                 }
-                if (attempts == connectAttempts)
+                catch (SocketException)
                 {
-                    OnChannelFail($"Failed to connect {attempts} times, aborting");
-                    break;
+                    Disconnect();
                 }
+                
             }            
         }
 
@@ -246,22 +252,28 @@ namespace Common.Channels
 
             void HandshakeRecursive(IAsyncResult ar, int bytesToRead = 0)
             {
-                dataStream = (DataStream)ar.AsyncState;
-                int bytesRead = socket.EndReceive(ar);
-                if (receivingHeader)
+                try
                 {
-                    bytesToRead = BitConverter.ToInt32(dataStream.Get()) + HEADER_SIZE; //(+ HEADER_SIZE because when we pass the recursive CB we subtract bytesRead from bytesToRead)
-                    receivingHeader = false;
-                }
-                if (bytesToRead - bytesRead > 0)
-                    socket.BeginReceive(dataStream.New(), 0, dataStream.bufferSize, SocketFlags.None, new AsyncCallback((IAsyncResult ar) =>
+                    dataStream = (DataStream)ar.AsyncState;
+                    int bytesRead = socket.EndReceive(ar);
+                    if (receivingHeader)
                     {
-                        HandshakeRecursive(ar, bytesToRead - bytesRead);
-                    }), dataStream);
-                else
-                {
-                    ProcessPacket(packetFactory.BuildPacket(dataStream.Get()));
+                        bytesToRead = BitConverter.ToInt32(dataStream.Get()) + HEADER_SIZE; //(+ HEADER_SIZE because when we pass the recursive CB we subtract bytesRead from bytesToRead)
+                        receivingHeader = false;
+                    }
+                    if (bytesToRead - bytesRead > 0)
+                        socket.BeginReceive(dataStream.New(), 0, dataStream.bufferSize, SocketFlags.None, new AsyncCallback((IAsyncResult ar) =>
+                        {
+                            HandshakeRecursive(ar, bytesToRead - bytesRead);
+                        }), dataStream);
+                    else
+                        ProcessPacket(packetFactory.BuildPacket(dataStream.Get()));
                 }
+                catch (SocketException)
+                {
+                    Disconnect();
+                }
+                
             }
 
             void ProcessPacket(Packet inPacket)
@@ -357,10 +369,17 @@ namespace Common.Channels
                 packetFactory.encCfg.priv = rsa.ExportParameters(true);
             }
 
-            socket.BeginReceive(dataStream.New(), 0, HEADER_SIZE, SocketFlags.None, new AsyncCallback((IAsyncResult ar) => {
-                receivingHeader = true;
-                HandshakeRecursive(ar);
-            }), dataStream);
+            try
+            {
+                socket.BeginReceive(dataStream.New(), 0, HEADER_SIZE, SocketFlags.None, new AsyncCallback((IAsyncResult ar) => {
+                    receivingHeader = true;
+                    HandshakeRecursive(ar);
+                }), dataStream);
+            }
+            catch (ObjectDisposedException)
+            {
+                return false;
+            }            
 
             complete.WaitOne();
             if (!failed)
@@ -385,16 +404,34 @@ namespace Common.Channels
             if (socket.ProtocolType == ProtocolType.Tcp)
             {
                 ManualResetEvent sent = new ManualResetEvent(false);
-                socket.BeginSend(BitConverter.GetBytes(data.Length), 0, HEADER_SIZE, 0, new AsyncCallback((IAsyncResult ar) =>
+                try
                 {
-                    socket.EndSend(ar);
-                    sent.Set();
-                }), null);
-                sent.WaitOne();
-                socket.BeginSend(data, 0, data.Length, 0, new AsyncCallback((IAsyncResult ar) => { socket.EndSend(ar); }), null);
+                    socket.BeginSend(BitConverter.GetBytes(data.Length), 0, HEADER_SIZE, 0, new AsyncCallback((IAsyncResult ar) =>
+                    {
+                        socket.EndSend(ar);
+                        sent.Set();
+                    }), null);
+                    sent.WaitOne();
+                    socket.BeginSend(data, 0, data.Length, 0, new AsyncCallback((IAsyncResult ar) => { socket.EndSend(ar); }), null);
+                }
+                catch (SocketException)
+                {
+                    Disconnect();
+                }
+                catch (ObjectDisposedException) { }
             }
             else
-                socket.BeginSendTo(data, 0, data.Length, SocketFlags.None, server, new AsyncCallback((IAsyncResult ar) => { socket.EndSendTo(ar); }), null);
+            {
+                try
+                {
+                    socket.BeginSendTo(data, 0, data.Length, SocketFlags.None, server, new AsyncCallback((IAsyncResult ar) => { socket.EndSendTo(ar); }), null);
+                }
+                catch (SocketException)
+                {
+                    Disconnect();
+                }
+                catch (ObjectDisposedException) { }
+            }
         }
 
         /// <summary>
@@ -422,11 +459,10 @@ namespace Common.Channels
                     inPackets.Add(packetFactory.BuildPacket(dataStream.Get()));
                 }                
             }
-            //TODO: test
-            //catch (SocketException)
-            //{
-            //    Disconnect();
-            //}
+            catch (SocketException)
+            {
+                Disconnect();
+            }
             catch (ObjectDisposedException) { }
         }
 
@@ -443,11 +479,10 @@ namespace Common.Channels
                     inPackets.Add(packetFactory.BuildPacket(dataStream.Get()));
                 receiving.Set();
             }
-            //TODO: test
-            //catch (SocketException)
-            //{
-            //    Disconnect();
-            //}
+            catch (SocketException)
+            {
+                Disconnect();
+            }
             catch (ObjectDisposedException) { }            
         }
 
@@ -456,9 +491,9 @@ namespace Common.Channels
         /// </summary>
         private void Disconnect()
         {
-            socket.DisconnectAsync(null);
+            socket?.Disconnect(false);
             Dispose();
-            Console.WriteLine("Connection to server has died");
+            Console.WriteLine("\nConnection to server has died. Quitting...");
         }
 
         /// <summary>

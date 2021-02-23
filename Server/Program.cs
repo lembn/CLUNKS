@@ -7,7 +7,9 @@ using System.Reflection;
 
 namespace Server
 {
-    //TODO: write summaries 
+    /// <summary>
+    /// Program class to hold the Server worker service
+    /// </summary>
     public class Program
     {
         public static void Main(string[] args)

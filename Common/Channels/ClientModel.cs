@@ -12,7 +12,7 @@ namespace Common.Channels
     public class ClientModel : DataStream, IDisposable
     {
         private Socket handler;
-        private bool disposedValue;
+        public bool disposed;
         
         #region Public Members
 
@@ -53,7 +53,7 @@ namespace Common.Channels
 
         protected virtual void Dispose(bool disposing)
         {
-            if (!disposedValue)
+            if (!disposed)
             {
                 if (disposing)
                 {
@@ -61,13 +61,13 @@ namespace Common.Channels
                     packetFactory.Dispose();
                 }
 
-                disposedValue = true;
+                disposed = true;
             }
         }
 
         public void Dispose()
         {
-            Dispose(disposing: true);
+            Dispose(true);
             GC.SuppressFinalize(this);
         }
 
