@@ -84,7 +84,7 @@ namespace Server
             switch (e.Packet.dataID)
             {
                 case DataID.Login:
-                    values = e.Packet.body.Values<string>().ToArray();
+                    values = e.Packet.Get();
                     if (values[0] == ConfigurationManager.AppSettings.Get("username"))
                         e.Client.isAdmin = BCrypt.Net.BCrypt.Verify(values[1], ConfigurationManager.AppSettings.Get("password"));
                     else
@@ -95,8 +95,8 @@ namespace Server
                     logger.LogInformation($"'{e.Client.endpoint}' logged in as admin.");
                     break;
                 case DataID.Command:
-                    values = e.Packet.body.Values<string>().ToArray();
-                    if (values.Length > 1)
+                    values = e.Packet.Get();
+                    if (Communication.ADMIN_CONFIG.Contains(values[0]))
                     {
                         outPacket = new Packet(DataID.Status, e.Client.id);
                         outPacket.Add(e.Client.isAdmin ? Communication.SUCCESS : Communication.FAILURE);
@@ -114,54 +114,51 @@ namespace Server
                             }
                         }
                     }
-                    else
+                    else if (Communication.ADMIN_COMMANDS.Contains(values[0]))
                     {
-                        if (Communication.ADMIN_COMMANDS.Contains(values[0]) && !e.Client.isAdmin)
-                        {
-                            outPacket = new Packet(DataID.Status, e.Client.id);
+                        outPacket = new Packet(DataID.Status, e.Client.id);
+                        if (!e.Client.isAdmin)
                             outPacket.Add(Communication.FAILURE);
-                        }
-                        else if (Communication.INFO_COMMANDS.Contains(values[0]))
-                        {
-                            outPacket = new Packet(DataID.Info, e.Client.id);
-                            outPacket.Add(ConfigurationManager.AppSettings.Get(values[0]));
-                        }
                         else
-                            switch (values[0])
+                        {
+                            if (values[0] == Communication.RESTART)
                             {
-                                //TODO handle other commands here
-                                case Communication.RESTART:
-                                    logger.LogInformation($@"{(e.Client.isAdmin ? "Admin" : "User")}@{e.Client.endpoint} requested server RESTART.");
-                                    logger.LogInformation("Restarting server.");
-                                    server.Dispose();
-                                    Start();
-                                    logger.LogInformation("Server RESTART successful.");
-                                    break;
-                                case Communication.STOP:
-                                    logger.LogInformation($@"{(e.Client.isAdmin ? "Admin" : "User")}@{e.Client.endpoint} requested server STOP.");
-                                    logger.LogInformation("Stopping server.");
-                                    server.Dispose();
-                                    outPacket = new Packet(DataID.Status, e.Client.id);
-                                    outPacket.Add(Communication.SUCCESS);
-                                    logger.LogInformation("Server STOP successful.");
-                                    break;
-                                case Communication.CONNECT:
-                                    if (values[1] == Communication.START)
-                                    {
-                                        state = DBHandler.DBHandler.CheckUser(values[2], values[3]);
-                                        outPacket = new Packet(DataID.Status, e.Client.id);
-                                        outPacket.Add(state ? Communication.SUCCESS : Communication.FAILURE);
-                                    }
-                                    else
-                                    {
-                                        outPacket = new Packet(DataID.Status, e.Client.id);
-                                        state = DBHandler.DBHandler.Login(values[1], values[2]);
-                                        if (state)
-                                            logger.LogInformation($"User@{e.Client.endpoint} logged into {values[1]} with username='{values[2]}'");
-                                        outPacket.Add(state ? Communication.SUCCESS : Communication.FAILURE);
-                                    }
-                                    break;
+                                logger.LogInformation($@"{(e.Client.isAdmin ? "Admin" : "User")}@{e.Client.endpoint} requested server RESTART.");
+                                logger.LogInformation("Restarting server.");
+                                server.Dispose();
+                                Start();
+                                logger.LogInformation("Server RESTART successful.");
                             }
+                            if (values[0] == Communication.STOP)
+                            {
+                                logger.LogInformation($@"{(e.Client.isAdmin ? "Admin" : "User")}@{e.Client.endpoint} requested server STOP.");
+                                logger.LogInformation("Stopping server.");
+                                server.Dispose();
+                                logger.LogInformation("Server STOP successful.");
+                            }
+                        }                       
+                    }
+                    else if (Communication.USER_COMMANDS.Contains(values[0]))
+                    {
+                        outPacket = new Packet(DataID.Status, e.Client.id);
+                        switch (values[0])
+                        {
+                            //TODO handle other commands here
+                            case Communication.CONNECT:
+                                if (values[1] == Communication.START)
+                                    outPacket.Add(DBHandler.DBHandler.CheckUser(values[2], values[3]) ? $"{values[3]}{Communication.SEPARATOR}{values[2]}" : Communication.FAILURE);
+                                else
+                                {
+                                    state = DBHandler.DBHandler.Login(values[1], values[2]);
+                                    if (state)
+                                    {
+                                        DBHandler.DBHandler.SetPresent(values[3], values[1]);
+                                        logger.LogInformation($"User@{e.Client.endpoint} logged into '{values[3]}' with username='{values[1]}'");
+                                    }
+                                    outPacket.Add(state ? Communication.SUCCESS : Communication.FAILURE);
+                                }
+                                break;
+                        }                     
                     }
                     server.Add(outPacket, e.Client);
                     break;

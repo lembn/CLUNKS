@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using Newtonsoft.Json.Linq;
 
 namespace Common.Packets
@@ -61,6 +62,12 @@ namespace Common.Packets
                 body.Add(String.Format(DATA, dataCounter++), JToken.FromObject(item));
 
         }
+
+        /// <summary>
+        /// A method to get data from the body of a packet
+        /// </summary>
+        /// <returns>An array of strings holding the values of the properties of the packet body</returns>
+        public string[] Get() => (from property in body.Properties() select property.Value.ToString()).ToArray();
 
         #endregion
     }

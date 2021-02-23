@@ -4,7 +4,6 @@ using Newtonsoft.Json;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography;
@@ -57,6 +56,7 @@ namespace Common.Channels
         /// <param name="packetLossThresh">The threshold of packet loss</param>
         public ClientChannel(int bufferSize, IPAddress ip, int tcp, int udp, EncryptionConfig.Strength strength, int connectAttempts = 3, double packetLossThresh = 0.05) : base(bufferSize)
         {
+            Console.WriteLine("Opening communications...");
             this.connectAttempts = connectAttempts;
             this.strength = strength;
             this.packetLossThresh = packetLossThresh;
@@ -109,9 +109,7 @@ namespace Common.Channels
                     {
                         missedHBs += 1;
                         if (missedHBs == 2)
-                        {
                             Disconnect();
-                        }
                     }
                 }
 
@@ -283,13 +281,13 @@ namespace Common.Channels
                             outPacket.Add(ObjectConverter.GetJObject(packetFactory.encCfg.pub));
                             break;
                         case DataID.Hello:
-                            string serverParamString = inPacket.body.Properties().First().Value.ToString();
+                            string serverParamString = inPacket.Get()[0];
                             packetFactory.encCfg.recipient = JsonConvert.DeserializeObject<RSAParameters>(serverParamString);
                             packetFactory.encCfg.useCrpyto = true;
                             outPacket = new Packet(DataID.Ack, id);
                             break;
                         case DataID.Info:
-                            id = Convert.ToUInt32(inPacket.body.Properties().First().Value.ToString());
+                            id = Convert.ToUInt32(inPacket.Get()[0]);
                             packetFactory.encCfg.captureSalts = false;
                             using (RSACryptoServiceProvider rsa = new RSACryptoServiceProvider())
                             {
@@ -300,7 +298,7 @@ namespace Common.Channels
                             outPacket.Add(Convert.ToBase64String(signature));
                             break;
                         case DataID.Signature:
-                            string sigStr = inPacket.body.Properties().First().Value.ToString();
+                            string sigStr = inPacket.Get()[0];
                             if (sigStr == Communication.FAILURE)
                             {
                                 complete.Set();
@@ -339,6 +337,8 @@ namespace Common.Channels
                     failed = true;
                 }
             }
+
+            Console.WriteLine($"Handshaking with server @{server}");
 
             packetFactory.InitEncCfg(EncryptionConfig.Strength.Strong);
             packetFactory.encCfg.useCrpyto = false;
@@ -422,10 +422,11 @@ namespace Common.Channels
                     inPackets.Add(packetFactory.BuildPacket(dataStream.Get()));
                 }                
             }
-            catch (SocketException)
-            {
-                Disconnect();
-            }
+            //TODO: test
+            //catch (SocketException)
+            //{
+            //    Disconnect();
+            //}
             catch (ObjectDisposedException) { }
         }
 
@@ -442,10 +443,11 @@ namespace Common.Channels
                     inPackets.Add(packetFactory.BuildPacket(dataStream.Get()));
                 receiving.Set();
             }
-            catch (SocketException)
-            {
-                Disconnect();
-            }
+            //TODO: test
+            //catch (SocketException)
+            //{
+            //    Disconnect();
+            //}
             catch (ObjectDisposedException) { }            
         }
 

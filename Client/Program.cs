@@ -17,6 +17,7 @@ namespace Client
         static void Main(string[] args)
         {
             channel = new ClientChannel(1024, IPAddress.Parse(args[0]), Convert.ToInt32(args[1]), Convert.ToInt32(args[2]), EncryptionConfig.Strength.Strong);
+            waiter = new AutoResetEvent(false);
             if (!channel.stable)
             {
                 Console.WriteLine("Quitting...");
@@ -39,12 +40,13 @@ namespace Client
                     case "connect":
                         outPacket = new Packet(DataID.Command, channel.id);
                         outPacket.Add(input[0], Communication.START, input[1], input[2]);
-                        channel.Add(outPacket);
-                        Console.WriteLine($"Requesting CONNECT to {input[1]}...");
                         channel.Dispatch += ConnectReponseHanlder;
+                        channel.Add(outPacket);
+                        Console.WriteLine($"Requesting CONNECT to '{input[1]}'...");                        
                         waiter.WaitOne();
                         break;
                     case "quit":
+                        //TODO: test
                         quit = true;
                         break;
                     default:
@@ -57,8 +59,7 @@ namespace Client
 
         private static void ConnectReponseHanlder(object sender, PacketEventArgs e)
         {
-            //TODO: if req is accepted make user present in link table
-            string[] values = e.Packet.body.Values<string>().ToArray();
+            string[] values = e.Packet.Get();
             if (Communication.STATUSES.Contains(values[0]))
             {
                 Console.WriteLine($"CONNECT completed with status '{values[0]}'");
@@ -69,7 +70,7 @@ namespace Client
             else
             {
                 Packet outPacket = new Packet(DataID.Command, channel.id);
-                outPacket.Add(Communication.CONNECT, values[0], ConsoleTools.HideInput("Enter password"));
+                outPacket.Add(Communication.CONNECT, values[0].Split(Communication.SEPARATOR)[0], ConsoleTools.HideInput("Enter password"), values[0].Split(Communication.SEPARATOR)[1]);
                 channel.Add(outPacket);
             }            
         }

@@ -6,8 +6,9 @@ namespace Common.Helpers
     {
 
         public const string START = "start";
+        public const string SEPARATOR = "123h09yhd091y28g087d12";
 
-        #region Admin Commands
+        #region Admin
 
         public const string USER = "changeuser";
         public const string PASSWORD = "changeuser";
@@ -43,12 +44,11 @@ namespace Common.Helpers
 
         #region Collections
 
-        public static ImmutableArray<string> ADMIN_CONFIG = new ImmutableArray<string> { USER, IP, TCP, UDP, DATA };
-        public static ImmutableArray<string> ADMIN_COMMANDS = new ImmutableArray<string> { USER, PASSWORD, RESTART, STOP};
-        public static ImmutableArray<string> INFO_COMMANDS = new ImmutableArray<string> { IP, TCP, UDP };
-        public static ImmutableArray<string> USER_COMMANDS = new ImmutableArray<string> { CONNECT };
-        public static ImmutableArray<string> STATUSES = new ImmutableArray<string> { SUCCESS, FAILURE };
-        public static ImmutableArray<string> TABLES = new ImmutableArray<string> { SUBSERVERS, ROOMS, GROUPS };
+        public static ImmutableArray<string> ADMIN_CONFIG = ImmutableArray.Create(new string[] { USER, PASSWORD, IP, TCP, UDP, DATA });
+        public static ImmutableArray<string> ADMIN_COMMANDS = ImmutableArray.Create(new string[]  { RESTART, STOP});
+        public static ImmutableArray<string> USER_COMMANDS = ImmutableArray.Create(new string[]  { CONNECT });
+        public static ImmutableArray<string> STATUSES = ImmutableArray.Create(new string[]  { SUCCESS, FAILURE });
+        public static ImmutableArray<string> TABLES = ImmutableArray.Create(new string[]  { SUBSERVERS, ROOMS, GROUPS });
 
         #endregion
 

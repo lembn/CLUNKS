@@ -4,7 +4,6 @@ using Newtonsoft.Json;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography;
@@ -204,14 +203,14 @@ namespace Common.Channels
                 switch (inPacket.dataID)
                 {
                     case DataID.Hello:
-                        string strengthString = inPacket.body.Properties().First().Value.ToString();
+                        string strengthString = inPacket.Get()[0];
                         client.packetFactory.InitEncCfg((EncryptionConfig.Strength)Convert.ToInt32(strengthString));
                         client.packetFactory.encCfg.useCrpyto = false;
                         client.packetFactory.encCfg.captureSalts = true;
                         outPacket = new Packet(DataID.Ack, client.id);
                         break;
                     case DataID.Info:
-                        string clientKey = inPacket.body.Properties().First().Value.ToString();
+                        string clientKey = inPacket.Get()[0];
                         using (RSACryptoServiceProvider rsa = new RSACryptoServiceProvider(client.packetFactory.encCfg.RSA_KEY_BITS))
                         {
                             client.packetFactory.encCfg.recipient = JsonConvert.DeserializeObject<RSAParameters>(clientKey);
@@ -229,7 +228,7 @@ namespace Common.Channels
                         captureSalts = false;
                         break;
                     case DataID.Signature:
-                        string clientSignatureStr = inPacket.body.Properties().First().Value.ToString();
+                        string clientSignatureStr = inPacket.Get()[0];
                         byte[] clientSignature = Convert.FromBase64String(clientSignatureStr);
                         string signatureStr;
                         using (RSACryptoServiceProvider rsa = new RSACryptoServiceProvider())
@@ -252,7 +251,7 @@ namespace Common.Channels
                         outPacket.Add(signatureStr);
                         break;
                     case DataID.Status:
-                        if (inPacket.body.Properties().First().Value.ToString() == Communication.FAILURE)
+                        if (inPacket.Get()[0] == Communication.FAILURE)
                             failed = true;
                         complete.Set();
                         break;
@@ -310,10 +309,11 @@ namespace Common.Channels
                     inPackets.Add((client.packetFactory.BuildPacket(client.Get()), client));
                 }                    
             }
-            catch (SocketException)
-            {
-                RemoveClient(client);
-            }
+            //TODO: test
+            //catch (SocketException)
+            //{
+            //    RemoveClient(client);
+            //}
             catch (ObjectDisposedException) { }
         }
         /// <summary>
@@ -330,10 +330,11 @@ namespace Common.Channels
                     inPackets.Add((client.packetFactory.BuildPacket(client.Get()), client));
                 client.receiving = false;
             }
-            catch (SocketException)
-            {
-                RemoveClient(client);
-            }
+            //TODO: test
+            //catch (SocketException)
+            //{
+            //    RemoveClient(client);
+            //}
             catch (ObjectDisposedException) { }
         }
 
