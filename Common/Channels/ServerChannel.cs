@@ -89,7 +89,7 @@ namespace Common.Channels
                         {
                             clientList[i].missedHBs += 1;
                                 if (clientList[i].missedHBs == 2)
-                                    RemoveClient(i);
+                                    RemoveClient(clientList[i]);
                         }
                     }
                 }
@@ -148,7 +148,6 @@ namespace Common.Channels
                 thread.Start();
         }
 
-
         /// <summary>
         /// A method to add packets for the ServerChannel to send
         /// </summary>
@@ -175,18 +174,25 @@ namespace Common.Channels
             void HandshakeRecursive(IAsyncResult ar, int bytesToRead = 0)
             {
                 ClientModel client = (ClientModel)ar.AsyncState;
-                int bytesRead = client.Handler.EndReceive(ar);
-                if (client.receivingHeader)
+                try
                 {
-                    bytesToRead = BitConverter.ToInt32(client.Get()) + HEADER_SIZE; //(+ HEADER_SIZE because when we pass the recursive CB we subtract bytesRead from bytesToRead)
-                    client.receivingHeader = false;
+                    int bytesRead = client.Handler.EndReceive(ar);
+                    if (client.receivingHeader)
+                    {
+                        bytesToRead = BitConverter.ToInt32(client.Get()) + HEADER_SIZE; //(+ HEADER_SIZE because when we pass the recursive CB we subtract bytesRead from bytesToRead)
+                        client.receivingHeader = false;
+                    }
+                    if (bytesToRead - bytesRead > 0)
+                        client.Handler.BeginReceive(client.New(), 0, client.bufferSize, SocketFlags.None, new AsyncCallback((IAsyncResult ar) => {
+                            HandshakeRecursive(ar, bytesToRead - bytesRead);
+                        }), client);
+                    else
+                        ProcessPacket(client.packetFactory.BuildPacket(client.Get()));
                 }
-                if (bytesToRead - bytesRead > 0)
-                    client.Handler.BeginReceive(client.New(), 0, client.bufferSize, SocketFlags.None, new AsyncCallback((IAsyncResult ar) => {
-                        HandshakeRecursive(ar, bytesToRead - bytesRead); 
-                    }), client);
-                else
-                    ProcessPacket(client.packetFactory.BuildPacket(client.Get()));
+                catch (SocketException)
+                {
+                   RemoveClient(client);
+                }                
             }
 
             void ProcessPacket(Packet inPacket)
@@ -257,21 +263,29 @@ namespace Common.Channels
                 if (!complete.WaitOne(0))
                 {
                     SendPacket(outPacket, client);
-                    client.Handler.BeginReceive(client.New(), 0, HEADER_SIZE, SocketFlags.None, new AsyncCallback((IAsyncResult ar) => {
-                        client.receivingHeader = true;
-                        HandshakeRecursive(ar);
-                    }), client);
-                    if (useCrypto)
-                        client.packetFactory.encCfg.useCrpyto = true;
-                    if (!captureSalts)
-                        client.packetFactory.encCfg.captureSalts = false;
+                    try
+                    {
+                        client.Handler.BeginReceive(client.New(), 0, HEADER_SIZE, SocketFlags.None, new AsyncCallback((IAsyncResult ar) => {
+                            client.receivingHeader = true;
+                            HandshakeRecursive(ar);
+                        }), client);
+                        if (useCrypto)
+                            client.packetFactory.encCfg.useCrpyto = true;
+                        if (!captureSalts)
+                            client.packetFactory.encCfg.captureSalts = false;
+                    }
+                    catch (ObjectDisposedException) { }                    
                 }
             }
 
-            client.Handler.BeginReceive(client.New(), 0, HEADER_SIZE, SocketFlags.None, new AsyncCallback((IAsyncResult ar) => {
-                client.receivingHeader = true;
-                HandshakeRecursive(ar); 
-            }), client);
+            try
+            {
+                client.Handler.BeginReceive(client.New(), 0, HEADER_SIZE, SocketFlags.None, new AsyncCallback((IAsyncResult ar) => {
+                    client.receivingHeader = true;
+                    HandshakeRecursive(ar);
+                }), client);
+            }
+            catch (ObjectDisposedException) { }
 
             complete.WaitOne();
             if (failed)
@@ -379,17 +393,12 @@ namespace Common.Channels
         /// <param name="client">The client to remove</param>
         private void RemoveClient(ClientModel client)
         {
+            if (client.disposed)
+                return;
+            if (client.Handler.ProtocolType == ProtocolType.Tcp)
+                client.Handler?.Disconnect(false);
             client.Dispose();
             clientList.Remove(client);
-        }
-        /// <summary>
-        /// A method to remove and dispose of clients from the client list by index
-        /// </summary>
-        /// <param name="index">The index of the client in clientList</param>
-        private void RemoveClient(int index)
-        {
-            clientList[index].Dispose();
-            clientList.RemoveAt(index);
         }
        
         /// <summary>
