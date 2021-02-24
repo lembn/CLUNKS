@@ -10,8 +10,6 @@ namespace Common.Channels
     /// </summary>
     public abstract class Channel
     {
-        //TODO: Implement stability in children
-
         #region Private Members
 
         private protected const int HEADER_SIZE = 4; //bodyLength is a 32 bit integer  
@@ -28,7 +26,6 @@ namespace Common.Channels
         public event DispatchEventHandler Dispatch; //An event to represent a packet that should be processed by the owner of a channel
         public delegate void ChannelFailEventHanlder(object sender, ChannelFailEventArgs e); //A delegate to represent the event handler used for hadling the ChannelFail event
         public event ChannelFailEventHanlder ChannelFail; //An event to represent when something has gone wrong in the channel
-        public bool stable = true; //A boolean to represent the usability state of the channel
         public CancellationTokenSource cts; //An object used to obtain Cancellation Tokens (when cancelling threaded operations)
         public const int NULL_ID = 1; //User ID for users who haven't been assigned ID yet
         
@@ -85,7 +82,6 @@ namespace Common.Channels
         /// <param name="message">A fail message</param>
         public virtual void OnChannelFail(string message)
         {
-            stable = false;
             if (ChannelFail != null)
                 ChannelFail(this, new ChannelFailEventArgs() { Message = message });
         }

@@ -31,8 +31,9 @@ namespace Common.Channels
         /// Server constructor
         /// </summary>
         /// <param name="address">The IP address to bind to</param>
-        public ServerChannel(int bufferSize, IPAddress address, int tcp, int udp) : base(bufferSize)
+        public ServerChannel(int bufferSize, IPAddress address, int tcp, int udp, ref bool valid) : base(bufferSize)
         {
+            valid = true;
             clientList = new List<ClientModel>();
             inPackets = new BlockingCollection<(Packet, ClientModel)>();
             outPackets = new BlockingCollection<(Packet, ClientModel)>();
@@ -46,10 +47,9 @@ namespace Common.Channels
                 UDPSocket.Bind(udpEP);
                 TCPSocket.Listen(128);
             }
-            catch (SocketException e)
+            catch (SocketException)
             {
-                Console.WriteLine(e.Message);
-                stable = false;
+                valid = false;
             }
         }
 

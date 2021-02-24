@@ -20,7 +20,7 @@ namespace Common.Channels
 
         private PacketFactory packetFactory; //The object to use for handling packets
         private EncryptionConfig.Strength strength; //Strength of encryption being used on the ClientChannel
-        private AutoResetEvent receiving; //An event used to check if the channel is currently listening on the socket
+        private ManualResetEventSlim receiving; //An event used to check if the channel is currently listening on the socket
         private bool receivingHeader = true; //A boolean to represent if a TCP listen is currently reading the header or the actual packet
         private object hbLock; //A lock used for thread synchronisation when processing heartbeats
         private bool receivedHB = false; //A boolean used for checking if the channel has received a hearbeat or not
@@ -54,22 +54,23 @@ namespace Common.Channels
         /// <param name="connectAttempts">The maximum amount of handshakes to attempt before aborting</param>
         /// <param name="strength">The level of encryption used by the channel</param>
         /// <param name="packetLossThresh">The threshold of packet loss</param>
-        public ClientChannel(int bufferSize, IPAddress ip, int tcp, int udp, EncryptionConfig.Strength strength) : base(bufferSize)
+        public ClientChannel(int bufferSize, IPAddress ip, int tcp, int udp, EncryptionConfig.Strength strength, ref bool valid) : base(bufferSize)
         {
             Console.WriteLine("Opening communications...");
-            this.strength = strength;
             outPackets = new BlockingCollection<Packet>();
             inPackets = new BlockingCollection<Packet>();
-            receiving = new AutoResetEvent(true);
+            receiving = new ManualResetEventSlim(true);
+            connected = new ManualResetEvent(false);
+            this.strength = strength;
             packetFactory = new PacketFactory();
             hbLock = new object();
             serverIP = ip;
             TCP_PORT = tcp;
             UDP_PORT = udp;
+            dataStream = new DataStream(bufferSize);
             server = (EndPoint)new IPEndPoint(serverIP, TCP_PORT);
             socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-            connected = new ManualResetEvent(false);
-            dataStream = new DataStream(bufferSize);
+            bool state = true;
             socket.BeginConnect(server, new AsyncCallback((IAsyncResult ar) => 
             {
                 try
@@ -79,11 +80,12 @@ namespace Common.Channels
                 catch (Exception)
                 {
                     Console.WriteLine($"There is no CLUNK server at {ip}:{TCP_PORT}");
-                    stable = false;
+                    state = false;
                 }
                 connected.Set();
             }), null);
-            connected.WaitOne();            
+            connected.WaitOne();
+            valid = state;
         }        
 
         /// <summary>
@@ -95,7 +97,7 @@ namespace Common.Channels
             {
                 lock (outPackets)
                     outPackets.Add(new Packet(DataID.Heartbeat, id));
-                Thread.Sleep(5000);
+                ctoken.WaitHandle.WaitOne(5000);
                 lock (hbLock)
                 {
                     if (receivedHB)
@@ -107,7 +109,7 @@ namespace Common.Channels
                     {
                         missedHBs += 1;
                         if (missedHBs == 2)
-                            Disconnect();
+                            Close();
                     }
                 }
 
@@ -125,7 +127,15 @@ namespace Common.Channels
 
             threads.Add(ThreadHelper.GetECThread(ctoken, () => 
             {
-                receiving.WaitOne();
+                try
+                {
+                    receiving.Wait(ctoken);
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }                
+                receiving.Reset();
                 try
                 {
                     lock (socket)
@@ -153,7 +163,7 @@ namespace Common.Channels
                 {
                     Console.WriteLine("Your buffer size is causing significant packet loss. Please consider increasing it.");
                 }
-                Thread.Sleep(30000);
+                ctoken.WaitHandle.WaitOne(30000);
             })); //Watch packet loss
 
             threads.Add(ThreadHelper.GetECThread(ctoken, () => 
@@ -188,13 +198,14 @@ namespace Common.Channels
                     }
                     if (attempts == connectAttempts)
                     {
-                        OnChannelFail($"Failed to connect {attempts} times, aborting");
+                        Close($"Failed to connect {attempts} times, aborting");
                         break;
                     }
+                    Console.WriteLine("Re-attempting...");
                 }
                 catch (SocketException)
                 {
-                    Disconnect();
+                    Close();
                 }
                 
             }            
@@ -236,6 +247,20 @@ namespace Common.Channels
         /// </summary>
         /// <param name="packet">The packet to be sent</param>
         public void Add(Packet packet) => outPackets.Add(packet);
+        
+        /// <summary>
+        /// A method to disconnect from the server when it dies.
+        /// </summary>
+        public void Close(string message = "Connection to server has died.")
+        {
+            if (disposed)
+                return;
+            if (socket.ProtocolType == ProtocolType.Tcp)
+                socket?.Disconnect(false);
+            cts.Cancel();
+            Dispose();
+            OnChannelFail($"------------------\n{message}\nQuitting...");
+        }
 
         /// <summary>
         /// A method to perform a handshake with the server
@@ -271,9 +296,8 @@ namespace Common.Channels
                 }
                 catch (SocketException)
                 {
-                    Disconnect();
-                }
-                
+                    Close();
+                }                             
             }
 
             void ProcessPacket(Packet inPacket)
@@ -376,10 +400,8 @@ namespace Common.Channels
                     HandshakeRecursive(ar);
                 }), dataStream);
             }
-            catch (ObjectDisposedException)
-            {
-                return false;
-            }            
+            catch (ObjectDisposedException) { }
+                
 
             complete.WaitOne();
             if (!failed)
@@ -416,7 +438,7 @@ namespace Common.Channels
                 }
                 catch (SocketException)
                 {
-                    Disconnect();
+                    Close();
                 }
                 catch (ObjectDisposedException) { }
             }
@@ -428,7 +450,7 @@ namespace Common.Channels
                 }
                 catch (SocketException)
                 {
-                    Disconnect();
+                    Close();
                 }
                 catch (ObjectDisposedException) { }
             }
@@ -461,7 +483,7 @@ namespace Common.Channels
             }
             catch (SocketException)
             {
-                Disconnect();
+                Close();
             }
             catch (ObjectDisposedException) { }
         }
@@ -481,19 +503,9 @@ namespace Common.Channels
             }
             catch (SocketException)
             {
-                Disconnect();
+                Close();
             }
             catch (ObjectDisposedException) { }            
-        }
-
-        /// <summary>
-        /// A method to disconnect from the server when it dies.
-        /// </summary>
-        private void Disconnect()
-        {
-            socket?.Disconnect(false);
-            Dispose();
-            Console.WriteLine("\nConnection to server has died. Quitting...");
         }
 
         /// <summary>

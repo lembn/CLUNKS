@@ -11,25 +11,31 @@ namespace Client
     {
         private static ClientChannel channel;
         private static AutoResetEvent waiter;
-        private static int tableIndex = 0;
+        private static bool quit = false;
 
         static void Main(string[] args)
         {
-            channel = new ClientChannel(1024, IPAddress.Parse(args[0]), Convert.ToInt32(args[1]), Convert.ToInt32(args[2]), EncryptionConfig.Strength.Strong);
-            waiter = new AutoResetEvent(false);
-            if (!channel.stable)
-            {
-                Console.WriteLine("Quitting...");
-                Thread.Sleep(2000);
-                return;
-            }
+            bool state = true;
+            channel = new ClientChannel(1024, IPAddress.Parse(args[0]), Convert.ToInt32(args[1]), Convert.ToInt32(args[2]), EncryptionConfig.Strength.Strong, ref state);
+            quit = !state;
             channel.ChannelFail += FailHandler;
-            channel.Start();
+            if (!quit)
+                channel.Start();
+            waiter = new AutoResetEvent(false);
             Packet outPacket;
-            bool quit = false;
+            bool prompted = false;
             while (!quit)
             {
-                Console.Write("CLUNKS>>> ");
+                if (!prompted)
+                {
+                    Console.Write("CLUNKS>>> ");
+                    prompted = true;
+                }
+                if (!Console.KeyAvailable)
+                {
+                    Thread.Sleep(10);
+                    continue;
+                }
                 string[] input = Console.ReadLine().Split();
                 switch (input[0].ToLower())
                 {
@@ -45,15 +51,14 @@ namespace Client
                         waiter.WaitOne();
                         break;
                     case "quit":
-                        quit = true;
+                        channel.Close("Quitting...");
                         break;
                     default:
                         Console.WriteLine("Try 'help' for more info.");
                         break;
                 }                
             }
-            channel.cts.Cancel();
-            channel.Dispose();
+            Thread.Sleep(2000);
         }
 
         private static void ConnectReponseHanlder(object sender, PacketEventArgs e)
@@ -62,7 +67,6 @@ namespace Client
             if (Communication.STATUSES.Contains(values[0]))
             {
                 Console.WriteLine($"CONNECT completed with status '{values[0]}'");
-                tableIndex += values[0] == Communication.SUCCESS ? 1 : 0;
                 channel.Dispatch -= ConnectReponseHanlder;
                 waiter.Set();
             }
@@ -82,8 +86,7 @@ namespace Client
         public static void FailHandler(object sender, ChannelFailEventArgs e)
         {
             Console.WriteLine(e.Message);
-            //TODO: If fixable, fix error and set channel.stable to true, otherwise quit
-            channel.stable = true;
+            quit = true;
         }
     }
 }

@@ -6,7 +6,6 @@ using Microsoft.Extensions.Logging;
 using System;
 using System.Configuration;
 using System.IO;
-using System.Linq;
 using System.Net;
 using System.Reflection;
 using System.Threading;
@@ -54,12 +53,14 @@ namespace Server
             IPAddress ip = IPAddress.Parse(ConfigurationManager.AppSettings.Get("ipaddress"));
             int tcp = Convert.ToInt32(ConfigurationManager.AppSettings.Get("tcpPort"));
             int udp = Convert.ToInt32(ConfigurationManager.AppSettings.Get("udpPort"));
-            server = new ServerChannel(bufferSize, ip, tcp, udp);
-            if (!server.stable)
+            bool state = true;
+            server = new ServerChannel(bufferSize, ip, tcp, udp, ref state);
+            if (!state)
             {
                 logger.LogCritical("Failed to start server. Invalid IP.");
                 return;
             }
+            server.ChannelFail += FailHandler;
             server.Dispatch += DispatchHandler;
             if (ConfigurationManager.AppSettings.Get("newExp") == "true")
             {
@@ -71,8 +72,7 @@ namespace Server
                 {
                     logger.LogError("EXP load failed. No EXP file present at dataPath.");
                 }
-            }
-                
+            }                
             server.Start();
         }
 
@@ -143,7 +143,6 @@ namespace Server
                         outPacket = new Packet(DataID.Status, e.Client.id);
                         switch (values[0])
                         {
-                            //TODO handle other commands here
                             case Communication.CONNECT:
                                 if (values[1] == Communication.START)
                                     outPacket.Add(DBHandler.DBHandler.CheckUser(values[2], values[3]) ? $"{values[3]}{Communication.SEPARATOR}{values[2]}" : Communication.FAILURE);
@@ -167,5 +166,7 @@ namespace Server
                     break;
             }
         }
+
+        public static void FailHandler(object sender, ChannelFailEventArgs e) => logger.LogError(e.Message);
     }
 }
