@@ -12,6 +12,8 @@ namespace Client
         private static ClientChannel channel;
         private static AutoResetEvent waiter;
         private static bool quit = false;
+        private static bool prompted = false;
+        private static string promptHeader = null;
 
         static void Main(string[] args)
         {
@@ -22,12 +24,17 @@ namespace Client
             if (!quit)
                 channel.Start();
             waiter = new AutoResetEvent(false);
-            Packet outPacket;
-            bool prompted = false;
+            Packet outPacket;            
             while (!quit)
             {
                 if (!prompted)
                 {
+                    if (promptHeader != null)
+                    {
+                        Console.ForegroundColor = ConsoleColor.Magenta;
+                        Console.WriteLine(promptHeader);
+                        Console.ResetColor();
+                    }
                     Console.Write("CLUNKS>>> ");
                     prompted = true;
                 }
@@ -47,14 +54,20 @@ namespace Client
                         outPacket.Add(input[0], Communication.START, input[1], input[2]);
                         channel.Dispatch += ConnectReponseHanlder;
                         channel.Add(outPacket);
-                        Console.WriteLine($"Requesting CONNECT to '{input[1]}'...");                        
-                        waiter.WaitOne();
+                        Console.WriteLine($"Requesting CONNECT to '{input[1]}'...");
+                        break;
+                    case "cls":
+                    case "clear":
+                        Console.Clear();
+                        prompted = false;
                         break;
                     case "quit":
-                        channel.Close("Quitting...");
+                    case "exit":
+                        channel.Close("Shutting down CLUNKS...");
                         break;
                     default:
                         Console.WriteLine("Try 'help' for more info.");
+                        prompted = false;
                         break;
                 }                
             }
@@ -66,9 +79,10 @@ namespace Client
             string[] values = e.Packet.Get();
             if (Communication.STATUSES.Contains(values[0]))
             {
-                Console.WriteLine($"CONNECT completed with status '{values[0]}'");
+                Console.WriteLine($"CONNECT completed with status '{values[0].ToUpper()}'.");
+                promptHeader = $"[{values[1]}]";
                 channel.Dispatch -= ConnectReponseHanlder;
-                waiter.Set();
+                prompted = false;
             }
             else
             {
@@ -80,7 +94,8 @@ namespace Client
 
         private static void ShowHelp()
         {
-            throw new NotImplementedException();
+            //TODO: Populate
+            Console.WriteLine("TODO");
         }
 
         public static void FailHandler(object sender, ChannelFailEventArgs e)

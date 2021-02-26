@@ -134,7 +134,7 @@ namespace Common.Channels
                 catch (OperationCanceledException)
                 {
                     return;
-                }                
+                }
                 receiving.Reset();
                 try
                 {
@@ -148,7 +148,6 @@ namespace Common.Channels
                         else
                             socket.BeginReceiveFrom(dataStream.New(), 0, bufferSize, SocketFlags.None, ref server, new AsyncCallback(ReceiveUDPCallback), null);
                     }
-                        
                 }
                 catch (SocketException)
                 {
@@ -206,8 +205,7 @@ namespace Common.Channels
                 catch (SocketException)
                 {
                     Close();
-                }
-                
+                }                
             }            
         }
 
@@ -319,7 +317,7 @@ namespace Common.Channels
                         case DataID.Hello:
                             string serverParamString = inPacket.Get()[0];
                             packetFactory.encCfg.recipient = JsonConvert.DeserializeObject<RSAParameters>(serverParamString);
-                            packetFactory.encCfg.useCrpyto = true;
+                            packetFactory.encCfg.useCrypto = true;
                             outPacket = new Packet(DataID.Ack, id);
                             break;
                         case DataID.Info:
@@ -377,7 +375,7 @@ namespace Common.Channels
             Console.WriteLine($"Handshaking with server @{server}");
 
             packetFactory.InitEncCfg(EncryptionConfig.Strength.Strong);
-            packetFactory.encCfg.useCrpyto = false;
+            packetFactory.encCfg.useCrypto = false;
             packetFactory.encCfg.captureSalts = true;
 
             outPacket = new Packet(DataID.Hello, id);
@@ -385,7 +383,7 @@ namespace Common.Channels
             SendPacket(outPacket);
 
             packetFactory.InitEncCfg(strength);
-            packetFactory.encCfg.useCrpyto = false;
+            packetFactory.encCfg.useCrypto = false;
             packetFactory.encCfg.captureSalts = true;
             using (RSACryptoServiceProvider rsa = new RSACryptoServiceProvider(packetFactory.encCfg.RSA_KEY_BITS))
             {
@@ -472,13 +470,15 @@ namespace Common.Channels
                     receivingHeader = false;
                 }
                 if (bytesToRead - bytesRead > 0)
+                {
                     socket.BeginReceive(dataStream.New(), 0, dataStream.bufferSize, SocketFlags.None, new AsyncCallback((IAsyncResult ar) => {
                         ReceiveTCPCallback(ar, bytesToRead - bytesRead);
                     }), dataStream);
+                }                    
                 else
                 {
-                    receiving.Set();
                     inPackets.Add(packetFactory.BuildPacket(dataStream.Get()));
+                    receiving.Set();
                 }                
             }
             catch (SocketException)

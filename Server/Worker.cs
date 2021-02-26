@@ -13,14 +13,18 @@ using System.Threading.Tasks;
 
 namespace Server
 {
-    //TODO: Write summaries
     internal class Worker : BackgroundService
     {
-        private static ILogger<Worker> logger;
-        private static ServerChannel server;
+        private static ILogger<Worker> logger; //Logger object for logging information
+        private static ServerChannel server; //Server channel for network communication
 
         public Worker(ILogger<Worker> _logger) => logger = _logger;
 
+        /// <summary>
+        /// A method called at the start of the WorkerService's lifetime used to setup the required resources used at runtime 
+        /// </summary>
+        /// <param name="stoppingToken">A CancellationToken to observe</param>
+        /// <returns>A completed Task</returns>
         public override Task StartAsync(CancellationToken stoppingToken)
         {
             UriBuilder uri = new UriBuilder(Assembly.GetEntryAssembly().Location);
@@ -39,6 +43,11 @@ namespace Server
             return Task.CompletedTask;
         }
 
+        /// <summary>
+        /// A method called at the end of the WorkerService's lifetime used to cleanup any open handles
+        /// </summary>
+        /// <param name="cancellationToken">A CancellationToken to observe</param>
+        /// <returns>A completed Task</returns>
         public override Task StopAsync(CancellationToken cancellationToken)
         {
             server.Dispose();
@@ -47,6 +56,9 @@ namespace Server
 
         protected override Task ExecuteAsync(CancellationToken stoppingToken) => Task.CompletedTask;
 
+        /// <summary>
+        /// A method to intialise the Server (setup ServerChannel and load EXPs into the database if needed)
+        /// </summary>
         private static void Start()
         {
             int bufferSize = Convert.ToInt32(ConfigurationManager.AppSettings.Get("bufferSize"));
@@ -76,6 +88,11 @@ namespace Server
             server.Start();
         }
 
+        /// <summary>
+        /// The event handler called when the ServerChannel.Dispatch event is raised
+        /// </summary>
+        /// <param name="sender">The caller of the event</param>
+        /// <param name="e">The event args</param>
         private static void DispatchHandler(object sender, PacketEventArgs e)
         {
             Packet outPacket = null;
@@ -154,7 +171,7 @@ namespace Server
                                         DBHandler.DBHandler.SetPresent(values[3], values[1]);
                                         logger.LogInformation($"User@{e.Client.endpoint} logged into '{values[3]}' with username='{values[1]}'");
                                     }
-                                    outPacket.Add(state ? Communication.SUCCESS : Communication.FAILURE);
+                                    outPacket.Add(state ? Communication.SUCCESS : Communication.FAILURE, values[3]);
                                 }
                                 break;
                         }                     

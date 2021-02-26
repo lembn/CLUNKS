@@ -6,14 +6,16 @@ using System.Text.RegularExpressions;
 
 namespace Server.DBHandler
 {
-    //TODO: Summarise
+    /// <summary>
+    /// A database cursor
+    /// </summary>
     internal class Cursor : IDisposable
     {
         #region Private Memebers
 
-        private SqliteConnection connection;
-        private SqliteCommand command;
-        private SqliteDataReader reader;
+        private SqliteConnection connection; //The connection to the database
+        private SqliteCommand command; //The current SQL command
+        private SqliteDataReader reader; //A reader to read results from the database
         private bool disposed;
 
         #endregion
@@ -26,6 +28,13 @@ namespace Server.DBHandler
             command.ExecuteNonQuery();
         }
 
+        /// <summary>
+        /// A method to execute SQL statements on the database and return the results if needed
+        /// </summary>
+        /// <param name="statement">The SQL statement to execute</param>
+        /// <param name="parameters">Paramaters for parameterised queries (prepared statements)</param>
+        /// <returns>Null if the query returned no items, a single object if only one item was returned,
+        /// a single-dimensional array if only one column was queried or a multi-dimensional array otherwise.</returns>
         public object Execute(string statement, params object[] parameters)
         {
             string[] toReplace = (from match in Regex.Matches(statement, @"(\$)(\w)*") select match.Value).ToArray();

@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 
 namespace Common.Channels
 {
@@ -29,9 +30,11 @@ namespace Common.Channels
         /// <returns>The new segment</returns>
         public byte[] New()
         {
+            if (bufferList.Count == 1)
+                if (bufferList[0].All(item => item == 0))
+                    return bufferList[0];
             byte[] buffer = new byte[bufferSize];
-            lock (bufferList)
-                bufferList.Add(buffer);
+            bufferList.Add(buffer);
             return buffer;
         }
 
@@ -42,12 +45,9 @@ namespace Common.Channels
         public byte[] Get()
         {
             List<byte> output = new List<byte>();
-            lock (bufferList)
-            {
-                foreach (byte[] buffer in bufferList)
-                    output.AddRange(buffer);
-                bufferList.Clear();
-            }
+            foreach (byte[] buffer in bufferList)
+                output.AddRange(buffer);
+            bufferList.Clear();
             return output.ToArray();
         }
 

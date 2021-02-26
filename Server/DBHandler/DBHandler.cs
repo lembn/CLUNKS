@@ -10,8 +10,14 @@ namespace Server.DBHandler
     //TODO: Summarise
     internal static class DBHandler
     {
-        public static string connectionString;
+        public static string connectionString; //The connection string to use when connecting to the database
 
+        /// <summary>
+        /// A method to check if a user exists in a parent entity (subserver/room/group)
+        /// </summary>
+        /// <param name="parentName">The name of the parent entity</param>
+        /// <param name="username">The name of the user</param>
+        /// <returns>True if the users exists, false otherwise</returns>
         public static bool CheckUser(string parentName, string username)
         {
             string stmt =
@@ -30,6 +36,12 @@ namespace Server.DBHandler
             return false;
         }
 
+        /// <summary>
+        /// A method to verify the username and password of a user
+        /// </summary>
+        /// <param name="username">The user's username</param>
+        /// <param name="password">The user's (plaintext) password</param>
+        /// <returns>True if the combination is correct, false otherwise</returns>
         public static bool Login(string username, string password)
         {
             using (Cursor cursor = new Cursor(connectionString))
@@ -37,10 +49,20 @@ namespace Server.DBHandler
                 string hash = (string)cursor.Execute("SELECT password FROM users WHERE name=$username;", username);
                 if (hash.Trim() == "" && password.Trim() == "")
                     return true;
-                return BCrypt.Net.BCrypt.Verify(password, hash);
+                try
+                {
+                    return BCrypt.Net.BCrypt.Verify(password, hash);
+                }
+                catch (BCrypt.Net.SaltParseException)
+                {
+                    return false;
+                }                
             }
         }
 
+        /// <summary>
+        /// A method to load EXP configurations into the database
+        /// </summary>
         public static void LoadExp()
         {
             string table = "CREATE TABLE IF NOT EXISTS";
@@ -111,6 +133,13 @@ namespace Server.DBHandler
             }
         }
 
+        /// <summary>
+        /// A method to recursively add a room into the database from and EXP
+        /// </summary>
+        /// <param name="cursor">The Cursor to use</param>
+        /// <param name="room">The EXP representaion of the room</param>
+        /// <param name="parentID">The database id of the parent of the room</param>
+        /// <param name="parentIsRoom">A boolean to represent if the parent of the room is another room</param>
         private static void ProcessRoom(Cursor cursor, XElement room, int parentID, bool parentIsRoom = true)
         {
             cursor.Execute("INSERT INTO rooms (name, password) VALUES ($name, $password)", room.Attribute("name").Value, room.Attribute("password").Value);
@@ -139,6 +168,11 @@ namespace Server.DBHandler
             }
         }
 
+        /// <summary>
+        /// A method to set a user as present in a parent entity
+        /// </summary>
+        /// <param name="parentName">The name of the parent entity</param>
+        /// <param name="username">The username of the user</param>
         public static void SetPresent(string parentName, string username)
         {
             using (Cursor cursor = new Cursor(connectionString))
@@ -158,6 +192,11 @@ namespace Server.DBHandler
             }
         }
 
+        /// <summary>
+        /// A method to get an array containg the names of all the tables in the database
+        /// </summary>
+        /// <param name="cursor">The Cursor to use</param>
+        /// <returns>Array containg the names of all the tables in the database</returns>
         private static string[] GetTables(Cursor cursor) =>
             (from table in (object[])cursor.Execute("SELECT sql FROM sqlite_schema WHERE type='table';")
              where table.ToString().Contains("name")

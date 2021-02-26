@@ -94,7 +94,7 @@ namespace Common.Packets
             byte[] e_aesData = dataStream.Skip(HEADER_SIZE).Take(encCfg.RSA_OUTPUT).ToArray();
             byte[] payloadBytes = dataStream.Skip(HEADER_SIZE + encCfg.RSA_OUTPUT).Take(bodyLength).ToArray();
 
-            if (encCfg.useCrpyto)
+            if (encCfg.useCrypto)
             {
                 using (AesCryptoServiceProvider aes = new AesCryptoServiceProvider())
                 {
@@ -161,7 +161,7 @@ namespace Common.Packets
 
             byte[] e_aesData = new byte[encCfg.RSA_OUTPUT];
 
-            if (encCfg.useCrpyto)
+            if (encCfg.useCrypto)
             {
                 using (AesCryptoServiceProvider aes = new AesCryptoServiceProvider())
                 {

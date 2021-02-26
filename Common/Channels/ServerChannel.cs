@@ -208,7 +208,7 @@ namespace Common.Channels
                     case DataID.Hello:
                         string strengthString = inPacket.Get()[0];
                         client.packetFactory.InitEncCfg((EncryptionConfig.Strength)Convert.ToInt32(strengthString));
-                        client.packetFactory.encCfg.useCrpyto = false;
+                        client.packetFactory.encCfg.useCrypto = false;
                         client.packetFactory.encCfg.captureSalts = true;
                         outPacket = new Packet(DataID.Ack, client.id);
                         break;
@@ -265,16 +265,15 @@ namespace Common.Channels
                     SendPacket(outPacket, client);
                     try
                     {
-                        client.Handler.BeginReceive(client.New(), 0, HEADER_SIZE, SocketFlags.None, new AsyncCallback((IAsyncResult ar) => {
+                        client.Handler.BeginReceive(client.New(), 0, HEADER_SIZE, SocketFlags.None, new AsyncCallback((IAsyncResult ar) =>
+                        {
                             client.receivingHeader = true;
                             HandshakeRecursive(ar);
                         }), client);
-                        if (useCrypto)
-                            client.packetFactory.encCfg.useCrpyto = true;
-                        if (!captureSalts)
-                            client.packetFactory.encCfg.captureSalts = false;
+                        client.packetFactory.encCfg.useCrypto = useCrypto;
+                        client.packetFactory.encCfg.captureSalts = captureSalts;
                     }
-                    catch (ObjectDisposedException) { }                    
+                    catch (ObjectDisposedException) { }
                 }
             }
 
@@ -316,8 +315,8 @@ namespace Common.Channels
                     }), client);
                 else
                 {
-                    client.receiving = false;
                     inPackets.Add((client.packetFactory.BuildPacket(client.Get()), client));
+                    client.receiving = false;
                 }                    
             }
             catch (SocketException)
@@ -372,7 +371,6 @@ namespace Common.Channels
                 {
                     RemoveClient(client);
                 }
-
             }
             else
             {
@@ -393,12 +391,15 @@ namespace Common.Channels
         /// <param name="client">The client to remove</param>
         private void RemoveClient(ClientModel client)
         {
-            if (client.disposed)
-                return;
-            if (client.Handler.ProtocolType == ProtocolType.Tcp)
-                client.Handler?.Disconnect(false);
-            client.Dispose();
-            clientList.Remove(client);
+            lock (client)
+            {
+                if (client.disposed)
+                    return;
+                if (client.Handler.ProtocolType == ProtocolType.Tcp)
+                    client.Handler?.Disconnect(false);
+                clientList.Remove(client);
+                client.Dispose();
+            }            
         }
        
         /// <summary>

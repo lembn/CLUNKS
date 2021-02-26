@@ -43,7 +43,7 @@ namespace Common.Channels
         {
             packetFactory = new PacketFactory();
             packetFactory.InitEncCfg(EncryptionConfig.Strength.Strong);
-            packetFactory.encCfg.useCrpyto = false;
+            packetFactory.encCfg.useCrypto = false;
             packetFactory.encCfg.captureSalts = true;
             protocol = ProtocolType.Tcp;
             hbLock = new object();

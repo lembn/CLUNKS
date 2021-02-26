@@ -162,7 +162,7 @@ Apache servers create a new thread to serve each incoming user's requests. Of co
 
 To combat this, the **CLUNKS** server creates a new threads to only when needed to perform tasks, rather than to serve users. This means that instead of creating a new thread whenever a new user joins, a new thread is created only if there are no idle threads available. For example, if there was only one listening thread currently being used, and a new user is attempting to send data, if the current thread is idle, that thread is assigned to process the new data. This minimises the amount of threads being used by the program at any given time and also thwarts the Slow Lloris DOS attacks that Apache servers are so vulnerable to.
 
-### Networking
+### **Networking**
 The program performs all network operations on seperate threads to ensure that the user isnt left waiting for network repsonses while using the program on the client side, and to allow the server the flexibilty of serving multiple users at once.
 
 From a programming perspective, this achieved using asynchronous callbacks. This means that in the channel scripts (the classes created for network communications), a call is made to the socket to begin listening for activity on the bound endpoint (where the endpoint is the IP/port identity of the remote party) and delegate of the callback method is also passed in. The supplied callback is invoked when activity is detected, this allows the executing thread to be free to perform other activities whilst the callback is waiting to be invoked.
@@ -226,9 +226,35 @@ This functionality was added because cryptographic functions (encryption, decryp
 The EncryptionConfig class solves this by allowing different users to choose how much encrpytion to use, and when, so that they can tailor their security to best suit them.
 
 ## Memory Management
+### **IDisposable**
 The Common.Channels.Channel base class implements the C# `IDisposable` interface to allow its members (namely the sockets and encryption handlers) to be safely disposed by the Garbage Collector when they are no longer being used. This improves (decreases) the amount of memory used by the program and ensures that memory isn't being allocated or held for unnecessary objects. In the same fashion, thoughout the program, varibales are often resued for the same objective.
 
 The implementation of `IDiposable` also frees the IP address and port used by the socket when the channel is no longer in use, so that they can be cleaned up by the OS.
+
+### **Data Buffering**
+Both channels utilise buffers when reading data from the network sockets. This ensures that memory is managed efficiently and as little is used as possible. This is performed with the Common.Channels.DataStream class (which is also the base class for the client model class: Common.Channels.ClientModel). 
+
+`DataStream` manages a list of byte arrays, where the list is the full buffer, and each indidual array is a chunk of the buffer. The `Datastream.New()` method is used to create a new chunk and return that chunk so that data can be written to it. Originally, the method looked like this:
+```c#
+public byte[] New()
+{
+    byte[] buffer = new byte[bufferSize];
+    bufferList.Add(buffer);
+    return buffer;
+}
+```
+However, the design of this code made it vulnerable to memory leaks. There was a situation where a chunk would be returned from `New()`, but never written to (if no data came in on the socket), so when the channel called `New()` again, a new chunk would be returned and added to `bufferList`, but the previous empty chunk was left since chunks are only removed when the buffer is cleared out in the `Get()` call. In some case causing expasions of up to 1.1GB of memory, so to solve the issue the method was changed to:
+```c#
+public byte[] New()
+{
+    if (bufferList.Count == 1)
+        if (bufferList[0].All(item => item == 0)) //If empty
+            return bufferList[0];
+    byte[] buffer = new byte[bufferSize];
+    bufferList.Add(buffer);
+    return buffer;
+}
+```
 
 ## Network Performance
 The GetJsonSerializer method from Common.Helpers.ObjectConverter creates a serializer that serializes objects into minified JSON strings. This decreases the size of Packets and decreases the bandwidth used by the program along with it.
