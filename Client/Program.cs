@@ -17,6 +17,7 @@ namespace Client
 
         static void Main(string[] args)
         {
+            Title();
             bool state = true;
             channel = new ClientChannel(1024, IPAddress.Parse(args[0]), Convert.ToInt32(args[1]), Convert.ToInt32(args[2]), EncryptionConfig.Strength.Strong, ref state);
             quit = !state;
@@ -52,7 +53,7 @@ namespace Client
                     case "connect":
                         outPacket = new Packet(DataID.Command, channel.id);
                         outPacket.Add(input[0], Communication.START, input[1], input[2]);
-                        channel.Dispatch += ConnectReponseHanlder;
+                        channel.Dispatch += ConnectReponseHanlder; //cause????
                         channel.Add(outPacket);
                         Console.WriteLine($"Requesting CONNECT to '{input[1]}'...");
                         break;
@@ -87,9 +88,32 @@ namespace Client
             else
             {
                 Packet outPacket = new Packet(DataID.Command, channel.id);
-                outPacket.Add(Communication.CONNECT, values[0].Split(Communication.SEPARATOR)[0], ConsoleTools.HideInput("Enter password"), values[0].Split(Communication.SEPARATOR)[1]);
+                string s = ConsoleTools.HideInput("Enter password");
+                outPacket.Add(Communication.CONNECT, values[0].Split(Communication.SEPARATOR)[0], s, values[0].Split(Communication.SEPARATOR)[1]);
                 channel.Add(outPacket);
             }            
+        }
+
+        private static void Title()
+        {
+            void Output(string s)
+            {
+                Console.Write(new string(' ', (Console.WindowWidth - s.Length) / 2)); ;
+                Console.WriteLine(s);
+            }
+
+            string[] lines = new string[] { " ██████╗██╗     ██╗   ██╗███╗   ██╗██╗  ██╗███████╗", "██╔════╝██║     ██║   ██║████╗  ██║██║ ██╔╝██╔════╝",
+                                            "██║     ██║     ██║   ██║██╔██╗ ██║█████╔╝ ███████╗", "██║     ██║     ██║   ██║██║╚██╗██║██╔═██╗ ╚════██║",
+                                            "╚██████╗███████╗╚██████╔╝██║ ╚████║██║  ██╗███████║", " ╚═════╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝  ╚═╝╚══════╝" };
+            string bar = $"||{new string('=', lines[0].Length + 10)}||";
+
+            Output(bar);
+            foreach (string line in lines)
+            {                
+                Output(line);
+                Thread.Sleep(50);
+            }
+            Output(bar);
         }
 
         private static void ShowHelp()

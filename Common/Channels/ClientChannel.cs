@@ -169,15 +169,15 @@ namespace Common.Channels
             {
                 Packet packet;
                 bool packetAvailable;
+                //Console.WriteLine("before");
                 lock (inPackets)
                     packetAvailable = inPackets.TryTake(out packet);
+                //Console.WriteLine("after");
                 if (packetAvailable)
                 {
                     if (packet.dataID == DataID.Heartbeat)
-                    {
                         lock (hbLock)
                             receivedHB = true;
-                    }
                     else OnDispatch(packet);
                 }
             })); //Dispatch
