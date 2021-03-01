@@ -45,43 +45,52 @@ namespace Client
                     continue;
                 }
                 string[] input = Console.ReadLine().Split();
-                switch (input[0].ToLower())
+                try
                 {
-                    case "help":
-                        ShowHelp();
-                        break;
-                    case "connect":
-                        outPacket = new Packet(DataID.Command, channel.id);
-                        outPacket.Add(input[0], Communication.START, input[1], input[2]);
-                        channel.Dispatch += ConnectReponseHanlder; //cause????
-                        channel.Add(outPacket);
-                        Console.WriteLine($"Requesting CONNECT to '{input[1]}'...");
-                        break;
-                    case "cls":
-                    case "clear":
-                        Console.Clear();
-                        prompted = false;
-                        break;
-                    case "quit":
-                    case "exit":
-                        channel.Close("Shutting down CLUNKS...");
-                        break;
-                    default:
-                        Console.WriteLine("Try 'help' for more info.");
-                        prompted = false;
-                        break;
+                    switch (input[0].ToLower())
+                    {
+                        case "help":
+                            ShowHelp();
+                            break;
+                        case "connect":
+                            outPacket = new Packet(DataID.Command, channel.id);
+                            outPacket.Add(input[0], Communication.START, input[1], input[2]);
+                            channel.Dispatch += new Channel.DispatchEventHandler(ConnectReponseHanlder);
+                            channel.Add(outPacket);
+                            Console.WriteLine($"Requesting CONNECT to '{input[1]}'...");
+                            break;
+                        case "cls":
+                        case "clear":
+                            Console.Clear();
+                            prompted = false;
+                            break;
+                        case "quit":
+                        case "exit":
+                            channel.Close("Shutting down CLUNKS...");
+                            break;
+                        default:
+                            Console.WriteLine("Try 'help' for more info.");
+                            prompted = false;
+                            break;
+                    }
                 }                
+                catch (IndexOutOfRangeException)
+                {
+                    Console.WriteLine("Missing parameters, try 'help' for more info.");
+                    prompted = false;
+                }
             }
             Thread.Sleep(2000);
         }
 
         private static void ConnectReponseHanlder(object sender, PacketEventArgs e)
         {
-            string[] values = e.Packet.Get();
+            string[] values = e.packet.Get();
             if (Communication.STATUSES.Contains(values[0]))
             {
                 Console.WriteLine($"CONNECT completed with status '{values[0].ToUpper()}'.");
-                promptHeader = $"[{values[1]}]";
+                if (values[0] != Communication.FAILURE)
+                    promptHeader = $"[{values[1]}]";
                 channel.Dispatch -= ConnectReponseHanlder;
                 prompted = false;
             }
@@ -91,7 +100,7 @@ namespace Client
                 string s = ConsoleTools.HideInput("Enter password");
                 outPacket.Add(Communication.CONNECT, values[0].Split(Communication.SEPARATOR)[0], s, values[0].Split(Communication.SEPARATOR)[1]);
                 channel.Add(outPacket);
-            }            
+            }
         }
 
         private static void Title()

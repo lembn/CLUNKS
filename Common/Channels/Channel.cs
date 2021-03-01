@@ -60,7 +60,7 @@ namespace Common.Channels
         public virtual void OnDispatch(Packet packet)
         {
             if (Dispatch != null)
-                Dispatch(this, new PacketEventArgs() { Packet = packet });
+                Dispatch(this, new PacketEventArgs(packet));
         }
         /// <summary>
         /// A method for releasing data info to the owner of a ServerChannel
@@ -69,11 +69,7 @@ namespace Common.Channels
         public virtual void OnDispatch((Packet, ClientModel) data)
         {
             if (Dispatch != null)
-                Dispatch(this, new PacketEventArgs() 
-                { 
-                    Packet = data.Item1,
-                    Client = data.Item2
-                });
+                Dispatch(this, new PacketEventArgs(data.Item1, data.Item2));
         }
 
         /// <summary>
