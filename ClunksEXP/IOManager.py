@@ -1,6 +1,5 @@
 import os
 import pickle
-import bcrypt
 import tempfile
 from tkinter import messagebox
 import xml.etree.ElementTree as ET
@@ -152,7 +151,7 @@ class IOManager:
             nameToSubserver[entities[x][0]] = x
             for sector in entities[x][1].split(','):
                 if sector:
-                    sectorToSubserver[sector] = x
+                    sectorToSubserver[sector.strip()] = [x]
 
         roomElements = []
         sectorToRoom = {}
@@ -168,9 +167,9 @@ class IOManager:
                 nameToRoom[room[0]] = x
                 for sector in room[3].split(','):
                     try:
-                        sectorToRoom[sector].append(x)
+                        sectorToRoom[sector.strip()].append(x)
                     except KeyError:
-                        sectorToRoom[sector] = [x]
+                        sectorToRoom[sector.strip()] = [x]
             elif entities[x][2] not in roomNames:
                 logFunc(f"EXPORT FAILED: Parent of room '{entities[x][0]}' does not exist.")
                 return
@@ -187,9 +186,9 @@ class IOManager:
                 roomElements.append(ET.SubElement(parent, 'room', {'name': entities[x][0], 'password': entities[x][1]}))
                 for sector in entities[x][3].split(','):
                     try:
-                        sectorToRoom[sector].append(x)
+                        sectorToRoom[sector.strip()].append(x)
                     except KeyError:
-                        sectorToRoom[sector] = [x]
+                        sectorToRoom[sector.strip()] = [x]
 
         elevationElements = []
         sectorToElevation = {}
@@ -206,23 +205,8 @@ class IOManager:
 
         entities = self.ReadAll(self.storage['user'])
         for user in entities:
-            parents = {}
             elevationName = None
             for sector in user[2].split(','):
-                if sector in sectorToSubserver.keys():
-                    parentIndexes = sectorToSubserver[sector]
-                    try:
-                        for index in parentIndexes:
-                            parents[sector].append(subserverElements[index])
-                    except KeyError:
-                        parents = {sector: [subserverElements[index] for index in parentIndexes]}
-                if sector in sectorToRoom.keys():
-                    parentIndexes = sectorToRoom[sector]
-                    try:
-                        for index in parentIndexes:
-                            parents[sector].append(roomElements[index])
-                    except KeyError:
-                        parents = {sector: [roomElements[index] for index in parentIndexes]}
                 if sector in sectorToElevation.keys():
                     if not elevationName:
                         userElevation = elevationElements[sectorToElevation[sector]]
@@ -233,6 +217,15 @@ class IOManager:
             if elevationName == None:
                 logFunc(f"EXPORT FAILED: No elevation apllied to user '{user[0]}'.")
                 return
+            if user[3] == 'True':
+                for parent in subserverElements + roomElements:
+                    ET.SubElement(parent, 'user', {'username': user[0], 'password': user[1] , 'sectors': user[2], 'global': user[3], 'elevation': elevationName})
+                continue
+            parents = {}
+            for sector in user[2].split(','):
+                sector = sector.strip()
+                parents[sector] = [subserverElements[index] if (sector in sectorToSubserver.keys()) else [] for index in sectorToSubserver[sector]]
+                parents[sector] = [roomElements[index] if (sector in sectorToRoom.keys()) else [] for index in sectorToRoom[sector]]
             for sector, parentList in parents.items():
                 for parent in parentList:
                     parentSectors = parent.get('sectors')
@@ -241,8 +234,7 @@ class IOManager:
                     else:
                         parentSectors += f',{sector}'
                     parent.set('sectors', parentSectors)
-                    hashpwd = bcrypt.hashpw(user[1].encode('utf-8'), bcrypt.gensalt())
-                    ET.SubElement(parent, 'user', {'username': user[0], 'password': hashpwd , 'sectors': user[2], 'elevation': elevationName})
+                    ET.SubElement(parent, 'user', {'username': user[0], 'password': user[1] , 'sectors': user[2], 'global': user[3], 'elevation': elevationName})
 
         expFile.write(ET.tostring(root).decode())
         logFunc(f'Exported to: {expFile.name}')
