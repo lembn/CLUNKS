@@ -46,8 +46,7 @@ class IOManager:
                 if not userPwd:
                     logFunc(f'LOAD FAILED: User has no password attribute.')
                     return
-                userSectors = user.get('sectors')
-                userList = [[username, userPwd, userSectors]]
+                userList = [[username, userPwd, user.get('sectors'), user.get('global')]]
                 self.storage['user'].write(pickle.dumps(userList))
                 return
 
@@ -61,8 +60,7 @@ class IOManager:
                 if not roomName:
                     logFunc(f'LOAD FAILED: Room has no password attribute.')
                     return
-                roomSectors = room.get('sectors')
-                roomList = [[roomName, roomPwd, parent, roomSectors]]
+                roomList = [[roomName, roomPwd, parent, room.get('sectors')]]
                 self.storage['room'].write(pickle.dumps(roomList))
                 LoadUsers(room.findall('user'))
                 LoadRooms(room.findall('room'), roomName)
