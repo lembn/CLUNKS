@@ -7,7 +7,7 @@ namespace Server
 {
     internal static class ConfigHandler
     {
-        internal static void InitialiseConfig(string location)
+        public static void InitialiseConfig(string location)
         {
             XElement configuration = new XElement("configuration",
                 new XElement("connectionStrings",
@@ -25,7 +25,7 @@ namespace Server
             configuration.Save(location);
         }
 
-        internal static void ModifyConfig(string key, string replacement)
+        public static void ModifyConfig(string key, string replacement)
         {
             Configuration config = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
             config.AppSettings.Settings[key].Value = replacement;

@@ -38,7 +38,7 @@ namespace Common.Helpers
         public RSAParameters pub;
         public RSAParameters priv;
         public RSAParameters recipient;
-        public bool useCrpyto = false;
+        public bool useCrypto = false;
         public bool captureSalts = false;
 
         #endregion

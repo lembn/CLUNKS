@@ -4,6 +4,8 @@
 
 **CLUNKS** is a system to provide simple LAN video conferencing for large businesses and establishments. Users only need to create a **CLUNK** server on their network, and they will be able to host and join video calls with anyone on that network.
 
+Most up to date branch is [feature/create-client]
+
 ---
 
 ## Servers
@@ -122,24 +124,7 @@ There are commands that users can run to obtain information about the subserver.
 *Settings:* ```settings``` will allow the user to configure the program to run differently to optimise efficiency and improve the user experience for them personally.
 
 ----
-
-
-# Research
-C# Send Email: https://www.google.com/search?rlz=1C1CHBF_en-GBGB777GB777&sxsrf=ALeKk031_qPKoOIFowLL7Lrg2_e-ZTZgCw%3A1610481594743&ei=uv_9X-TcLPOF1fAP3Pu5wAc&q=c%23+send+email+smtp&oq=c%23+send+emai&gs_lcp=CgZwc3ktYWIQAxgBMgQIIxAnMgcIABDJAxBDMgUIABCRAjIECAAQQzIECAAQQzICCAAyAggAMgIIADICCAAyAggAOgQIABBHOgcIIxDJAxAnOgUIABCxAzoKCAAQsQMQFBCHAjoHCAAQFBCHAjoICAAQsQMQgwE6BAgAEApQn0FY7UlglVRoAHACeACAAeYBiAHbCJIBBTUuNC4xmAEAoAEBqgEHZ3dzLXdpesgBCMABAQ&sclient=psy-ab
-
-C# Access Webcam: https://www.google.com/search?q=c%23+access+webcam&rlz=1C1CHBF_en-GBGB777GB777&oq=c%23+acc&aqs=chrome.0.69i59j69i57j69i58j69i60l2.1166j0j7&sourceid=chrome&ie=UTF-8
-
-C# CTRL+C: https://docs.microsoft.com/en-us/dotnet/api/system.console.cancelkeypress?redirectedfrom=MSDN&view=net-5.0
-
-C# SQLite: 
-- https://docs.microsoft.com/en-us/dotnet/standard/data/sqlite/?tabs=netcore-cli
-- https://docs.microsoft.com/en-us/dotnet/standard/data/sqlite/connection-strings
-
-# Keep in mind
-If buffer is too small to perform handshake, handshake is treated as failed <br>
-ATM, when encryption level <= EncryptionConfig.Strength.Light, the size of the key is too small for certificates. This is because the size of the key is too small to compensate for the salt which is generated with EncryptionConfig.Strength.Strong settings (as per the Handshake protocol) <br>
-
-# Program Design
+# Technical Notes
 ## Program Protocols - Packets
 Even though CLUNKS uses TCP/UDP for network transmission, alone, they only offer the ability to send bytes over the network, making it diffuclt for the receiving device to interpret what these bytes represent. To sovle this a wrapper protocol was needed to govern how these bytes are arranged. This protocol can be seen in the Common.Packets.Packet class, which provides a wrapper for the Common.Channel classes to use when transferring data.
 
@@ -168,7 +153,16 @@ The 'body' of the packet is a JSON object which hold the actual data to send. Wh
 
 When a packet is being serialized into a byte array (so that it can be sent over the network), a the payload is constructed, then symmetrically encrypted. The symmetric key and IV then get asymmetrically with the receiver's public key. From here, the encrypted payload and encrypted symmetric data are added to a new array, preceeded by the total length of the payload. This length is used by the recipient to extract the payload bytes from the total byte array (the length of the encrypted data is a stored constant so doesn't need to be sent). The total legnth is always a 32 byte integer, so takes up the first 4 bytes of the serialization output. This new array can then be sent off across the network and the packet can be reconstruced by reversing the serialization process.
 
-## Network Concurrecny
+## Concurrecny
+Both the client and server channels use five 'master threads' to asynchronously perform operations. These five threads perform the network operations and can spawn other threads when needed to assist with their task.
+
+One of these threads is the listening thread, used for listening for incoming data on the socket. The client only communicates with one server at a time, so the listening is quite simple but the server needs the ability to listen to multiple clients simultaneously. An adapted version of the Apache philosophy was implemented to achieve this.
+
+Apache servers create a new thread to serve each incoming user's requests. Of course, this means that the limit to how many users can be served at once will be whatever the maximum thread count assigned to the program but on powerful machines with lots of system resouces, this doesnt tend to be an issue. However, **CLUNKS** is designed to be friendly to all types of machine and on slower or systems, these limitations could ruin the user experience.
+
+To combat this, the **CLUNKS** server creates a new threads to only when needed to perform tasks, rather than to serve users. This means that instead of creating a new thread whenever a new user joins, a new thread is created only if there are no idle threads available. For example, if there was only one listening thread currently being used, and a new user is attempting to send data, if the current thread is idle, that thread is assigned to process the new data. This minimises the amount of threads being used by the program at any given time and also thwarts the Slow Lloris DOS attacks that Apache servers are so vulnerable to.
+
+### **Networking**
 The program performs all network operations on seperate threads to ensure that the user isnt left waiting for network repsonses while using the program on the client side, and to allow the server the flexibilty of serving multiple users at once.
 
 From a programming perspective, this achieved using asynchronous callbacks. This means that in the channel scripts (the classes created for network communications), a call is made to the socket to begin listening for activity on the bound endpoint (where the endpoint is the IP/port identity of the remote party) and delegate of the callback method is also passed in. The supplied callback is invoked when activity is detected, this allows the executing thread to be free to perform other activities whilst the callback is waiting to be invoked.
@@ -177,9 +171,8 @@ The concurrent networking design is further extended when listening for TCP pack
 
 This introduces some complexity for processing TCP packets, since a single callback may not capture the entire data Packet. To solve this, a recursive-based design was paired with a light wrapper to protocol to make sure that TCP packets are handled correctly.
 
-**SHOW TCP CALLBACK CODE AND EXPLAIN**
+**TODO: SHOW TCP CALLBACK CODE AND EXPLAIN**
 
-# Technical Notes
 ## Data Flow
 Network commmunication mainly used TCP because of the intergrety it ensures, but during video calls, The program will use UDP instead. A broadcasting user will send: the frame of their video, the audio frame, which user they are and the total size of the data in a C# class object seriliazed into JSON which will be serialized again into a bytestream. The receiving user will display the frames using the Gstreamer multimedia library. The user identification will only be used when managing calls with more than 2 members, but will be present in all data objects as part of the protocol used by CLUNKS.
 
@@ -233,9 +226,35 @@ This functionality was added because cryptographic functions (encryption, decryp
 The EncryptionConfig class solves this by allowing different users to choose how much encrpytion to use, and when, so that they can tailor their security to best suit them.
 
 ## Memory Management
+### **IDisposable**
 The Common.Channels.Channel base class implements the C# `IDisposable` interface to allow its members (namely the sockets and encryption handlers) to be safely disposed by the Garbage Collector when they are no longer being used. This improves (decreases) the amount of memory used by the program and ensures that memory isn't being allocated or held for unnecessary objects. In the same fashion, thoughout the program, varibales are often resued for the same objective.
 
 The implementation of `IDiposable` also frees the IP address and port used by the socket when the channel is no longer in use, so that they can be cleaned up by the OS.
+
+### **Data Buffering**
+Both channels utilise buffers when reading data from the network sockets. This ensures that memory is managed efficiently and as little is used as possible. This is performed with the Common.Channels.DataStream class (which is also the base class for the client model class: Common.Channels.ClientModel). 
+
+`DataStream` manages a list of byte arrays, where the list is the full buffer, and each indidual array is a chunk of the buffer. The `Datastream.New()` method is used to create a new chunk and return that chunk so that data can be written to it. Originally, the method looked like this:
+```c#
+public byte[] New()
+{
+    byte[] buffer = new byte[bufferSize];
+    bufferList.Add(buffer);
+    return buffer;
+}
+```
+However, the design of this code made it vulnerable to memory leaks. There was a situation where a chunk would be returned from `New()`, but never written to (if no data came in on the socket), so when the channel called `New()` again, a new chunk would be returned and added to `bufferList`, but the previous empty chunk was left since chunks are only removed when the buffer is cleared out in the `Get()` call. In some case causing expasions of up to 1.1GB of memory, so to solve the issue the method was changed to:
+```c#
+public byte[] New()
+{
+    if (bufferList.Count == 1)
+        if (bufferList[0].All(item => item == 0)) //If empty
+            return bufferList[0];
+    byte[] buffer = new byte[bufferSize];
+    bufferList.Add(buffer);
+    return buffer;
+}
+```
 
 ## Network Performance
 The GetJsonSerializer method from Common.Helpers.ObjectConverter creates a serializer that serializes objects into minified JSON strings. This decreases the size of Packets and decreases the bandwidth used by the program along with it.
@@ -258,5 +277,29 @@ While also solving the race condition issue, this also improves the performance 
 
 Likewise, in the same performance-oriented mindset, shared caching is used when connecting to the database from the progam which offers faster data transfer between the threads used by the program.
 
+----
+
 # ClunksEXP
 **ClunksEXP** is the tool used to create the `.exp` files used by **CLUNKS** to load server configurations. It was created so that users would'nt have to configure the server from within the command line and so that configurations can be stored or shared between users if needed. **ClunksEXP** can load an existing `.exp` file to be edited or the user can use the program to create a new configuration from scratch, then export it into a new `.exp` file.
+
+## EXP Files
+`.exp` files are XML files that summarise the information to be stored in the database. Unlike a database file, the data stored in `.exp` don't attempt to maximise efficiency. Because of this, each item stored in the file can be stored plainly as it is rather than along with metadata about it. This makes `.exp` files smaller than database files, making them good for sharing or permanently storing different states or configurations of the server.
+
+The algorithms used for generating and loading `.exp` files utilise recursive patterns to simplify the process. This works especially well for `.exp` files since the XML markup they contain creates a tree-like structure, which is best traversed recursively.
+
+---
+
+# Research
+C# Send Email: https://www.google.com/search?rlz=1C1CHBF_en-GBGB777GB777&sxsrf=ALeKk031_qPKoOIFowLL7Lrg2_e-ZTZgCw%3A1610481594743&ei=uv_9X-TcLPOF1fAP3Pu5wAc&q=c%23+send+email+smtp&oq=c%23+send+emai&gs_lcp=CgZwc3ktYWIQAxgBMgQIIxAnMgcIABDJAxBDMgUIABCRAjIECAAQQzIECAAQQzICCAAyAggAMgIIADICCAAyAggAOgQIABBHOgcIIxDJAxAnOgUIABCxAzoKCAAQsQMQFBCHAjoHCAAQFBCHAjoICAAQsQMQgwE6BAgAEApQn0FY7UlglVRoAHACeACAAeYBiAHbCJIBBTUuNC4xmAEAoAEBqgEHZ3dzLXdpesgBCMABAQ&sclient=psy-ab
+
+C# Access Webcam: https://www.google.com/search?q=c%23+access+webcam&rlz=1C1CHBF_en-GBGB777GB777&oq=c%23+acc&aqs=chrome.0.69i59j69i57j69i58j69i60l2.1166j0j7&sourceid=chrome&ie=UTF-8
+
+C# CTRL+C: https://docs.microsoft.com/en-us/dotnet/api/system.console.cancelkeypress?redirectedfrom=MSDN&view=net-5.0
+
+# Keep in mind
+If buffer is too small to perform handshake, handshake is treated as failed <br>
+ATM, when encryption level <= EncryptionConfig.Strength.Light, the size of the key is too small for certificates. This is because the size of the key is too small to compensate for the salt which is generated with EncryptionConfig.Strength.Strong settings (as per the Handshake protocol) <br>
+
+
+# To add
+Common.Channels.ServerChannel itereates backwards though the list when checking for heartbeats so it can remove dead clients from client list within the same iteration. This mimimises lock time.

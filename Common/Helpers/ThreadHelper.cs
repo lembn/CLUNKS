@@ -23,7 +23,7 @@ namespace Common.Helpers
                 while (true && !ctoken.IsCancellationRequested)
                 {
                     method();
-                    Thread.Sleep(10); //Thread resting
+                    Thread.Sleep(10);
                 }
             });
             return thread;

@@ -31,8 +31,9 @@ namespace Common.Channels
         /// Server constructor
         /// </summary>
         /// <param name="address">The IP address to bind to</param>
-        public ServerChannel(int bufferSize, IPAddress address, int tcp, int udp) : base(bufferSize)
+        public ServerChannel(int bufferSize, IPAddress address, int tcp, int udp, ref bool valid) : base(bufferSize)
         {
+            valid = true;
             clientList = new List<ClientModel>();
             inPackets = new BlockingCollection<(Packet, ClientModel)>();
             outPackets = new BlockingCollection<(Packet, ClientModel)>();
@@ -40,9 +41,16 @@ namespace Common.Channels
             UDPSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
             var tcpEP = new IPEndPoint(address, tcp);
             var udpEP = new IPEndPoint(address, udp);
-            TCPSocket.Bind(tcpEP);
-            UDPSocket.Bind(udpEP);
-            TCPSocket.Listen(128);
+            try
+            {
+                TCPSocket.Bind(tcpEP);
+                UDPSocket.Bind(udpEP);
+                TCPSocket.Listen(128);
+            }
+            catch (SocketException)
+            {
+                valid = false;
+            }
         }
 
         /// <summary>
@@ -62,28 +70,26 @@ namespace Common.Channels
 
             threads.Add(ThreadHelper.GetECThread(ctoken, () => 
             {
-                foreach (ClientModel client in clientList)
-                {
-                    lock (outPackets)
-                        outPackets.Add((new Packet(DataID.Heartbeat, client.id), client));
-                }
+                lock (clientList)
+                    foreach (ClientModel client in clientList)
+                        lock (outPackets)
+                            outPackets.Add((new Packet(DataID.Heartbeat, client.id), client));
                 Thread.Sleep(5000);
-                foreach (ClientModel client in clientList)
+                lock (clientList)
+                for (int i = clientList.Count - 1; i >= 0; i--)
                 {
-                    lock (client.hbLock)
+                    lock (clientList[i].hbLock)
                     {
-                        if (client.receivedHB)
+                        if (clientList[i].receivedHB)
                         {
-                            client.receivedHB = false;
-                            client.missedHBs = 0;
+                            clientList[i].receivedHB = false;
+                            clientList[i].missedHBs = 0;
                         }
                         else
                         {
-                            client.missedHBs += 1;
-                            if (client.missedHBs == 2)
-                            {
-                                RemoveClient(client);
-                            }
+                            clientList[i].missedHBs += 1;
+                                if (clientList[i].missedHBs == 2)
+                                    RemoveClient(clientList[i]);
                         }
                     }
                 }
@@ -91,7 +97,6 @@ namespace Common.Channels
 
             threads.Add(ThreadHelper.GetECThread(ctoken, () => {
                 lock (clientList)
-                {
                     foreach (ClientModel client in clientList)
                     {
                         if (!client.receiving)
@@ -111,7 +116,6 @@ namespace Common.Channels
                             }
                         }
                     }
-                }
             })); //Receive (TCP/UDP)
 
             threads.Add(ThreadHelper.GetECThread(ctoken, () => { 
@@ -170,18 +174,25 @@ namespace Common.Channels
             void HandshakeRecursive(IAsyncResult ar, int bytesToRead = 0)
             {
                 ClientModel client = (ClientModel)ar.AsyncState;
-                int bytesRead = client.Handler.EndReceive(ar);
-                if (client.receivingHeader)
+                try
                 {
-                    bytesToRead = BitConverter.ToInt32(client.Get()) + HEADER_SIZE; //(+ HEADER_SIZE because when we pass the recursive CB we subtract bytesRead from bytesToRead)
-                    client.receivingHeader = false;
+                    int bytesRead = client.Handler.EndReceive(ar);
+                    if (client.receivingHeader)
+                    {
+                        bytesToRead = BitConverter.ToInt32(client.Get()) + HEADER_SIZE; //(+ HEADER_SIZE because when we pass the recursive CB we subtract bytesRead from bytesToRead)
+                        client.receivingHeader = false;
+                    }
+                    if (bytesToRead - bytesRead > 0)
+                        client.Handler.BeginReceive(client.New(), 0, client.bufferSize, SocketFlags.None, new AsyncCallback((IAsyncResult ar) => {
+                            HandshakeRecursive(ar, bytesToRead - bytesRead);
+                        }), client);
+                    else
+                        ProcessPacket(client.packetFactory.BuildPacket(client.Get()));
                 }
-                if (bytesToRead - bytesRead > 0)
-                    client.Handler.BeginReceive(client.New(), 0, client.bufferSize, SocketFlags.None, new AsyncCallback((IAsyncResult ar) => {
-                        HandshakeRecursive(ar, bytesToRead - bytesRead); 
-                    }), client);
-                else
-                    ProcessPacket(client.packetFactory.BuildPacket(client.Get()));
+                catch (SocketException)
+                {
+                   RemoveClient(client);
+                }                
             }
 
             void ProcessPacket(Packet inPacket)
@@ -195,14 +206,14 @@ namespace Common.Channels
                 switch (inPacket.dataID)
                 {
                     case DataID.Hello:
-                        string strengthString = inPacket.body.GetValue(Packet.BODYFIRST).ToString();
+                        string strengthString = inPacket.Get()[0];
                         client.packetFactory.InitEncCfg((EncryptionConfig.Strength)Convert.ToInt32(strengthString));
-                        client.packetFactory.encCfg.useCrpyto = false;
+                        client.packetFactory.encCfg.useCrypto = false;
                         client.packetFactory.encCfg.captureSalts = true;
                         outPacket = new Packet(DataID.Ack, client.id);
                         break;
                     case DataID.Info:
-                        string clientKey = inPacket.body.GetValue(Packet.BODYFIRST).ToString();
+                        string clientKey = inPacket.Get()[0];
                         using (RSACryptoServiceProvider rsa = new RSACryptoServiceProvider(client.packetFactory.encCfg.RSA_KEY_BITS))
                         {
                             client.packetFactory.encCfg.recipient = JsonConvert.DeserializeObject<RSAParameters>(clientKey);
@@ -220,7 +231,7 @@ namespace Common.Channels
                         captureSalts = false;
                         break;
                     case DataID.Signature:
-                        string clientSignatureStr = inPacket.body.GetValue(Packet.BODYFIRST).ToString();
+                        string clientSignatureStr = inPacket.Get()[0];
                         byte[] clientSignature = Convert.FromBase64String(clientSignatureStr);
                         string signatureStr;
                         using (RSACryptoServiceProvider rsa = new RSACryptoServiceProvider())
@@ -243,7 +254,7 @@ namespace Common.Channels
                         outPacket.Add(signatureStr);
                         break;
                     case DataID.Status:
-                        if (inPacket.body.GetValue(Packet.BODYFIRST).ToString() == Communication.FAILURE)
+                        if (inPacket.Get()[0] == Communication.FAILURE)
                             failed = true;
                         complete.Set();
                         break;
@@ -252,21 +263,28 @@ namespace Common.Channels
                 if (!complete.WaitOne(0))
                 {
                     SendPacket(outPacket, client);
-                    client.Handler.BeginReceive(client.New(), 0, HEADER_SIZE, SocketFlags.None, new AsyncCallback((IAsyncResult ar) => {
-                        client.receivingHeader = true;
-                        HandshakeRecursive(ar);
-                    }), client);
-                    if (useCrypto)
-                        client.packetFactory.encCfg.useCrpyto = true;
-                    if (!captureSalts)
-                        client.packetFactory.encCfg.captureSalts = false;
+                    try
+                    {
+                        client.Handler.BeginReceive(client.New(), 0, HEADER_SIZE, SocketFlags.None, new AsyncCallback((IAsyncResult ar) =>
+                        {
+                            client.receivingHeader = true;
+                            HandshakeRecursive(ar);
+                        }), client);
+                        client.packetFactory.encCfg.useCrypto = useCrypto;
+                        client.packetFactory.encCfg.captureSalts = captureSalts;
+                    }
+                    catch (ObjectDisposedException) { }
                 }
             }
 
-            client.Handler.BeginReceive(client.New(), 0, HEADER_SIZE, SocketFlags.None, new AsyncCallback((IAsyncResult ar) => {
-                client.receivingHeader = true;
-                HandshakeRecursive(ar); 
-            }), client);
+            try
+            {
+                client.Handler.BeginReceive(client.New(), 0, HEADER_SIZE, SocketFlags.None, new AsyncCallback((IAsyncResult ar) => {
+                    client.receivingHeader = true;
+                    HandshakeRecursive(ar);
+                }), client);
+            }
+            catch (ObjectDisposedException) { }
 
             complete.WaitOne();
             if (failed)
@@ -297,8 +315,8 @@ namespace Common.Channels
                     }), client);
                 else
                 {
-                    client.receiving = false;
                     inPackets.Add((client.packetFactory.BuildPacket(client.Get()), client));
+                    client.receiving = false;
                 }                    
             }
             catch (SocketException)
@@ -338,46 +356,69 @@ namespace Common.Channels
             byte[] data = client.packetFactory.GetDataStream(packet);
             if (client.protocol == ProtocolType.Tcp)
             {
-                ManualResetEvent sent = new ManualResetEvent(false);
-                client.Handler.BeginSend(BitConverter.GetBytes(data.Length), 0, HEADER_SIZE, 0, new AsyncCallback((IAsyncResult ar) => { 
-                    client.Handler.EndSend(ar);
-                    sent.Set();
-                }), null);
-                sent.WaitOne();
-                client.Handler.BeginSend(data, 0, data.Length, 0, new AsyncCallback((IAsyncResult ar) => { client.Handler.EndSend(ar); }), null);
+                try
+                {
+                    ManualResetEvent sent = new ManualResetEvent(false);
+                    client.Handler.BeginSend(BitConverter.GetBytes(data.Length), 0, HEADER_SIZE, 0, new AsyncCallback((IAsyncResult ar) =>
+                    {
+                        client.Handler.EndSend(ar);
+                        sent.Set();
+                    }), null);
+                    sent.WaitOne();
+                    client.Handler.BeginSend(data, 0, data.Length, 0, new AsyncCallback((IAsyncResult ar) => { client.Handler.EndSend(ar); }), null);
+                }
+                catch (SocketException)
+                {
+                    RemoveClient(client);
+                }
             }
             else
-                UDPSocket.BeginSendTo(data, 0, data.Length, SocketFlags.None, client.Handler.RemoteEndPoint, new AsyncCallback((IAsyncResult ar) => { UDPSocket.EndSendTo(ar); }), null);
+            {
+                try
+                {
+                    UDPSocket.BeginSendTo(data, 0, data.Length, SocketFlags.None, client.Handler.RemoteEndPoint, new AsyncCallback((IAsyncResult ar) => { UDPSocket.EndSendTo(ar); }), null);
+                }
+                catch (Exception)
+                {
+                    RemoveClient(client);
+                }
+            }
         }
 
         /// <summary>
-        /// A method to remove disconnected clients from the clientList
+        /// A method to remove and dispose of clients from the client list
         /// </summary>
         /// <param name="client">The client to remove</param>
         private void RemoveClient(ClientModel client)
         {
-            clientList.Remove(client);
-            client.Dispose();
+            lock (client)
+            {
+                if (client.disposed)
+                    return;
+                if (client.Handler.ProtocolType == ProtocolType.Tcp)
+                    client.Handler?.Disconnect(false);
+                clientList.Remove(client);
+                client.Dispose();
+            }            
         }
-        
+       
         /// <summary>
         /// A method to free resources used by the ServerChannel on closure
         /// </summary>
         /// <param name="disposing">A boolean to represent the closing state of the ServerChannel</param>
         private protected override void Dispose(bool disposing)
         {
-            if (!disposedValue)
+            if (!disposed)
             {
                 if (disposing)
                 {
                     cts.Cancel();
-                    foreach (ClientModel client in clientList)
-                    {
-                        client.Handler.Dispose();
-                    }
+                    lock (clientList)
+                        foreach (ClientModel client in clientList)
+                            client.Handler.Dispose();
                 }
 
-                disposedValue = true;
+                disposed = true;
             }
         }
         

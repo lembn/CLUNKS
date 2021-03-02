@@ -19,8 +19,9 @@ namespace Common.Helpers
             return response == ConsoleKey.Y;
         }
 
-        public static string HideInput()
+        public static string HideInput(string prompt)
         {
+            Console.Write($"{prompt}>>> ");
             string input = "";
             ConsoleKeyInfo info = Console.ReadKey(true);
             while (info.Key != ConsoleKey.Enter)

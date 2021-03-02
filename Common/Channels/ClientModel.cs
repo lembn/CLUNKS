@@ -12,7 +12,7 @@ namespace Common.Channels
     public class ClientModel : DataStream, IDisposable
     {
         private Socket handler;
-        private bool disposedValue;
+        public bool disposed;
         
         #region Public Members
 
@@ -43,7 +43,7 @@ namespace Common.Channels
         {
             packetFactory = new PacketFactory();
             packetFactory.InitEncCfg(EncryptionConfig.Strength.Strong);
-            packetFactory.encCfg.useCrpyto = false;
+            packetFactory.encCfg.useCrypto = false;
             packetFactory.encCfg.captureSalts = true;
             protocol = ProtocolType.Tcp;
             hbLock = new object();
@@ -53,7 +53,7 @@ namespace Common.Channels
 
         protected virtual void Dispose(bool disposing)
         {
-            if (!disposedValue)
+            if (!disposed)
             {
                 if (disposing)
                 {
@@ -61,13 +61,13 @@ namespace Common.Channels
                     packetFactory.Dispose();
                 }
 
-                disposedValue = true;
+                disposed = true;
             }
         }
 
         public void Dispose()
         {
-            Dispose(disposing: true);
+            Dispose(true);
             GC.SuppressFinalize(this);
         }
 

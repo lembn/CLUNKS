@@ -16,7 +16,7 @@ namespace Common.Channels
         private protected int bufferSize; //The default buffer size of the channel
         private protected CancellationToken ctoken; //A token used for cancelling threads when the channel is closed
         private protected List<Thread> threads; //A list to keep track of running threads        
-        private protected bool disposedValue; //A boolean to represent if the channel has been closed or not
+        private protected bool disposed; //A boolean to represent if the channel has been closed or not
 
         #endregion
 
@@ -24,6 +24,8 @@ namespace Common.Channels
 
         public delegate void DispatchEventHandler(object sender, PacketEventArgs e); //A delegate to represent the event handler used for handling the Dispatch event
         public event DispatchEventHandler Dispatch; //An event to represent a packet that should be processed by the owner of a channel
+        public delegate void ChannelFailEventHanlder(object sender, ChannelFailEventArgs e); //A delegate to represent the event handler used for hadling the ChannelFail event
+        public event ChannelFailEventHanlder ChannelFail; //An event to represent when something has gone wrong in the channel
         public CancellationTokenSource cts; //An object used to obtain Cancellation Tokens (when cancelling threaded operations)
         public const int NULL_ID = 1; //User ID for users who haven't been assigned ID yet
         
@@ -45,27 +47,39 @@ namespace Common.Channels
             this.bufferSize = bufferSize;
         }
 
+        ~Channel() => Dispose(false);
+
         public abstract void Start();
         private protected abstract void ReceiveUDPCallback(IAsyncResult ar);
         private protected abstract void ReceiveTCPCallback(IAsyncResult ar, int bytesToRead);
 
         /// <summary>
-        /// A method for releasing packets to the owner of the channel
+        /// A method for releasing packets to the owner of a ClientChannel
         /// </summary>
         /// <param name="packet">The packet to dispatch</param>
         public virtual void OnDispatch(Packet packet)
         {
             if (Dispatch != null)
-                Dispatch(this, new PacketEventArgs() { Packet = packet });
+                Dispatch(this, new PacketEventArgs(packet));
         }
+        /// <summary>
+        /// A method for releasing data info to the owner of a ServerChannel
+        /// </summary>
+        /// <param name="data">The data to dispatch</param>
         public virtual void OnDispatch((Packet, ClientModel) data)
         {
             if (Dispatch != null)
-                Dispatch(this, new PacketEventArgs() 
-                { 
-                    Packet = data.Item1,
-                    Client = data.Item2
-                });
+                Dispatch(this, new PacketEventArgs(data.Item1, data.Item2));
+        }
+
+        /// <summary>
+        /// A method for alerting Channel owners of problems occuring within the channel
+        /// </summary>
+        /// <param name="message">A fail message</param>
+        public virtual void OnChannelFail(string message)
+        {
+            if (ChannelFail != null)
+                ChannelFail(this, new ChannelFailEventArgs() { Message = message });
         }
 
         private protected abstract void Dispose(bool disposing);

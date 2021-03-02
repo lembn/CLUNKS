@@ -5,7 +5,10 @@ namespace Common.Helpers
     public static class Communication
     {
 
-        #region Admin Controls
+        public const string START = "start";
+        public const string SEPARATOR = "123h09yhd091y28g087d12";
+
+        #region Admin
 
         public const string USER = "changeuser";
         public const string PASSWORD = "changeuser";
@@ -25,8 +28,20 @@ namespace Common.Helpers
 
         #endregion
 
-        public static ImmutableArray<string> ADMIN_CONFIG = new ImmutableArray<string> { USER, IP, TCP, UDP, DATA };
-        public static ImmutableArray<string> ADMIN_COMMANDS = new ImmutableArray<string> { USER, PASSWORD, RESTART, STOP};
-        public static ImmutableArray<string> INFO_COMMANDS = new ImmutableArray<string> { IP, TCP, UDP };
+        #region User Commands
+
+        public const string CONNECT = "connect";
+
+        #endregion
+
+        #region Collections
+
+        public static ImmutableArray<string> ADMIN_CONFIG = ImmutableArray.Create(new string[] { USER, PASSWORD, IP, TCP, UDP, DATA });
+        public static ImmutableArray<string> ADMIN_COMMANDS = ImmutableArray.Create(new string[]  { RESTART, STOP});
+        public static ImmutableArray<string> USER_COMMANDS = ImmutableArray.Create(new string[]  { CONNECT });
+        public static ImmutableArray<string> STATUSES = ImmutableArray.Create(new string[]  { SUCCESS, FAILURE });
+
+        #endregion
+
     }
 }

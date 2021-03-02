@@ -13,19 +13,24 @@ using System.Threading.Tasks;
 
 namespace Server
 {
-    //TODO: Write summaries
     internal class Worker : BackgroundService
     {
-        private static ILogger<Worker> logger;
-        private static ServerChannel server;
+        private static ILogger<Worker> logger; //Logger object for logging information
+        private static ServerChannel server; //Server channel for network communication
 
-        internal Worker(ILogger<Worker> _logger) => logger = _logger;
+        public Worker(ILogger<Worker> _logger) => logger = _logger;
 
+        /// <summary>
+        /// A method called at the start of the WorkerService's lifetime used to setup the required resources used at runtime 
+        /// </summary>
+        /// <param name="stoppingToken">A CancellationToken to observe</param>
+        /// <returns>A completed Task</returns>
         public override Task StartAsync(CancellationToken stoppingToken)
         {
-            string cfgLoc = String.Concat(Assembly.GetEntryAssembly().Location, ".config");
-            string dataLoc = String.Concat(Directory.GetCurrentDirectory(), @"\data");
-            string accessLoc = String.Concat(Directory.GetCurrentDirectory(), @"\access");
+            UriBuilder uri = new UriBuilder(Assembly.GetEntryAssembly().Location);
+            string path = String.Concat(Path.GetDirectoryName(Uri.UnescapeDataString(uri.Path)), @"\");
+            string cfgLoc = String.Concat(path, "App.config");
+            string dataLoc = String.Concat(path, "data");
             if (!File.Exists(cfgLoc))
                 ConfigHandler.InitialiseConfig(cfgLoc);
             if (!Directory.Exists(dataLoc))
@@ -33,12 +38,16 @@ namespace Server
                 Directory.CreateDirectory(dataLoc);
                 ConfigHandler.ModifyConfig("dataPath", dataLoc);
             }
-            if (!Directory.Exists(accessLoc))
-                Directory.CreateDirectory(accessLoc);
+            DBHandler.DBHandler.connectionString = String.Format(ConfigurationManager.ConnectionStrings["default"].ConnectionString, ConfigurationManager.AppSettings.Get("dataPath"));
             Start();
             return Task.CompletedTask;
         }
 
+        /// <summary>
+        /// A method called at the end of the WorkerService's lifetime used to cleanup any open handles
+        /// </summary>
+        /// <param name="cancellationToken">A CancellationToken to observe</param>
+        /// <returns>A completed Task</returns>
         public override Task StopAsync(CancellationToken cancellationToken)
         {
             server.Dispose();
@@ -47,99 +56,134 @@ namespace Server
 
         protected override Task ExecuteAsync(CancellationToken stoppingToken) => Task.CompletedTask;
 
+        /// <summary>
+        /// A method to intialise the Server (setup ServerChannel and load EXPs into the database if needed)
+        /// </summary>
         private static void Start()
         {
-            int bufferSize = Convert.ToInt32(ConfigurationManager.AppSettings.Get("buffferSize"));
+            int bufferSize = Convert.ToInt32(ConfigurationManager.AppSettings.Get("bufferSize"));
             IPAddress ip = IPAddress.Parse(ConfigurationManager.AppSettings.Get("ipaddress"));
             int tcp = Convert.ToInt32(ConfigurationManager.AppSettings.Get("tcpPort"));
             int udp = Convert.ToInt32(ConfigurationManager.AppSettings.Get("udpPort"));
-            server = new ServerChannel(bufferSize, ip, tcp, udp);
+            bool state = true;
+            server = new ServerChannel(bufferSize, ip, tcp, udp, ref state);
+            if (!state)
+            {
+                logger.LogCritical("Failed to start server. Invalid IP.");
+                return;
+            }
+            server.ChannelFail += FailHandler;
             server.Dispatch += DispatchHandler;
             if (ConfigurationManager.AppSettings.Get("newExp") == "true")
-                DBHandler.LoadExp(ConfigurationManager.AppSettings.Get("dataPath"));
+            {
+                try
+                {
+                    DBHandler.DBHandler.LoadExp();
+                }
+                catch (IndexOutOfRangeException)
+                {
+                    logger.LogError("EXP load failed. No EXP file present at dataPath.");
+                }
+            }                
             server.Start();
         }
 
+        /// <summary>
+        /// The event handler called when the ServerChannel.Dispatch event is raised
+        /// </summary>
+        /// <param name="sender">The caller of the event</param>
+        /// <param name="e">The event args</param>
         private static void DispatchHandler(object sender, PacketEventArgs e)
         {
             Packet outPacket = null;
-            switch (e.Packet.dataID)
+            string[] values;
+            bool state;
+            switch (e.packet.dataID)
             {
                 case DataID.Login:
-                    string username = e.Packet.body.GetValue(String.Format(Packet.DATA, 0)).ToString();
-                    string password = e.Packet.body.GetValue(String.Format(Packet.DATA, 1)).ToString();
-                    if (username == ConfigurationManager.AppSettings.Get("username"))
-                        e.Client.isAdmin = BCrypt.Net.BCrypt.Verify(password, ConfigurationManager.AppSettings.Get("password"));
+                    values = e.packet.Get();
+                    if (values[0] == ConfigurationManager.AppSettings.Get("username"))
+                        e.client.isAdmin = BCrypt.Net.BCrypt.Verify(values[1], ConfigurationManager.AppSettings.Get("password"));
                     else
-                        e.Client.isAdmin = false;
-                    outPacket = new Packet(DataID.Status, e.Client.id);
-                    outPacket.Add(e.Client.isAdmin ? Communication.SUCCESS : Communication.FAILURE);
-                    server.Add(outPacket, e.Client);
-                    logger.LogInformation($"'{e.Client.endpoint}' logged in as admin.");
+                        e.client.isAdmin = false;
+                    outPacket = new Packet(DataID.Status, e.client.id);
+                    outPacket.Add(e.client.isAdmin ? Communication.SUCCESS : Communication.FAILURE);
+                    server.Add(outPacket, e.client);
+                    logger.LogInformation($"'{e.client.endpoint}' logged in as admin.");
                     break;
                 case DataID.Command:
-                    string command = e.Packet.body.GetValue(Packet.BODYFIRST).ToString();
-                    if (e.Packet.body.Count > 1)
+                    values = e.packet.Get();
+                    if (Communication.ADMIN_CONFIG.Contains(values[0]))
                     {
-                        outPacket = new Packet(DataID.Status, e.Client.id);
-                        outPacket.Add(e.Client.isAdmin ? Communication.SUCCESS : Communication.FAILURE);
-                        if (e.Client.isAdmin)
+                        outPacket = new Packet(DataID.Status, e.client.id);
+                        outPacket.Add(e.client.isAdmin ? Communication.SUCCESS : Communication.FAILURE);
+                        if (e.client.isAdmin)
                         {
-                            if (Communication.ADMIN_CONFIG.Contains(command))
+                            if (Communication.ADMIN_CONFIG.Contains(values[0]))
                             {
-                                string key = e.Packet.body.GetValue(String.Format(Packet.DATA, 0)).ToString();
-                                string value = e.Packet.body.GetValue(String.Format(Packet.DATA, 1)).ToString();
-                                logger.LogInformation($"Admin@{e.Client.endpoint} changed '{key}' from '{ConfigurationManager.AppSettings.Get(key)}' to '{value}' in config.");
-                                ConfigHandler.ModifyConfig(key, value);
+                                logger.LogInformation($"Admin@{e.client.endpoint} changed '{values[1]}' from '{ConfigurationManager.AppSettings.Get(values[1])}' to '{values[2]}' in config.");
+                                ConfigHandler.ModifyConfig(values[1], values[2]);
                             }
-                            else if (command == Communication.PASSWORD)
+                            else if (values[0] == Communication.PASSWORD)
                             {
-                                string key = e.Packet.body.GetValue(String.Format(Packet.DATA, 0)).ToString();
-                                string value = e.Packet.body.GetValue(String.Format(Packet.DATA, 1)).ToString();
-                                ConfigHandler.ModifyConfig(key, BCrypt.Net.BCrypt.HashPassword(value));
-                                logger.LogInformation($"Admin@{e.Client.endpoint} changed password.");
+                                ConfigHandler.ModifyConfig(values[1], BCrypt.Net.BCrypt.HashPassword(values[2]));
+                                logger.LogInformation($"Admin@{e.client.endpoint} changed password.");
                             }
                         }
                     }
-                    else
+                    else if (Communication.ADMIN_COMMANDS.Contains(values[0]))
                     {
-                        if (Communication.ADMIN_COMMANDS.Contains(command) && !e.Client.isAdmin)
-                        {
-                            outPacket = new Packet(DataID.Status, e.Client.id);
+                        outPacket = new Packet(DataID.Status, e.client.id);
+                        if (!e.client.isAdmin)
                             outPacket.Add(Communication.FAILURE);
-                        }
-                        else if (Communication.INFO_COMMANDS.Contains(command))
-                        {
-                            outPacket = new Packet(DataID.Info, e.Client.id);
-                            outPacket.Add(ConfigurationManager.AppSettings.Get(command));
-                        }
                         else
-                            switch (command)
+                        {
+                            if (values[0] == Communication.RESTART)
                             {
-                                //TODO handle other commands here
-                                case Communication.RESTART:
-                                    logger.LogInformation($@"{(e.Client.isAdmin ? "Admin" : "User")}@{e.Client.endpoint} requested server RESTART.");
-                                    logger.LogInformation("Restarting server.");
-                                    server.Dispose();
-                                    Start();
-                                    logger.LogInformation("Server RESTART successful.");
-                                    break;
-                                case Communication.STOP:
-                                    logger.LogInformation($@"{(e.Client.isAdmin ? "Admin" : "User")}@{e.Client.endpoint} requested server STOP.");
-                                    logger.LogInformation("Stopping server.");
-                                    server.Dispose();
-                                    outPacket = new Packet(DataID.Status, e.Client.id);
-                                    outPacket.Add(Communication.SUCCESS);
-                                    logger.LogInformation("Server STOP successful.");
-                                    break;
+                                logger.LogInformation($@"{(e.client.isAdmin ? "Admin" : "User")}@{e.client.endpoint} requested server RESTART.");
+                                logger.LogInformation("Restarting server.");
+                                server.Dispose();
+                                Start();
+                                logger.LogInformation("Server RESTART successful.");
                             }
+                            if (values[0] == Communication.STOP)
+                            {
+                                logger.LogInformation($@"{(e.client.isAdmin ? "Admin" : "User")}@{e.client.endpoint} requested server STOP.");
+                                logger.LogInformation("Stopping server.");
+                                server.Dispose();
+                                logger.LogInformation("Server STOP successful.");
+                            }
+                        }                       
                     }
-                    server.Add(outPacket, e.Client);
+                    else if (Communication.USER_COMMANDS.Contains(values[0]))
+                    {
+                        outPacket = new Packet(DataID.Status, e.client.id);
+                        switch (values[0])
+                        {
+                            case Communication.CONNECT:
+                                if (values[1] == Communication.START)
+                                    outPacket.Add(DBHandler.DBHandler.CheckUser(values[2], values[3]) ? $"{values[3]}{Communication.SEPARATOR}{values[2]}" : Communication.FAILURE);
+                                else
+                                {
+                                    state = DBHandler.DBHandler.Login(values[1], values[2]);
+                                    if (state)
+                                    {
+                                        DBHandler.DBHandler.SetPresent(values[3], values[1]);
+                                        logger.LogInformation($"User@{e.client.endpoint} logged into '{values[3]}' with username='{values[1]}'");
+                                    }
+                                    outPacket.Add(state ? Communication.SUCCESS : Communication.FAILURE, values[3]);
+                                }
+                                break;
+                        }                     
+                    }
+                    server.Add(outPacket, e.client);
                     break;
                 case DataID.AV:
                     //TODO: use DB to figure out which users need to be sent the AV packet
                     break;
             }
         }
+
+        public static void FailHandler(object sender, ChannelFailEventArgs e) => logger.LogError(e.Message);
     }
 }
