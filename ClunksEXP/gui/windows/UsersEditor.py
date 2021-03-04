@@ -38,7 +38,8 @@ class UsersEditor(cw.Editor):
         for entry in self.entries:
             entry.Reset()
         self.window.focus()
-        values[1] = bcrypt.hashpw(values[1].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        if values[1]:
+            values[1] = bcrypt.hashpw(values[1].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         values.append(str(bool(self.isGlobal.variable.get())))
         self.isGlobal.variable.set(0)
         for child in self.treeView.get_children():
