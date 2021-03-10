@@ -174,7 +174,7 @@ class Editor:
         for item in self.treeView.selection():
             self.treeView.delete(item)
 
-    def Populate(self):
+    def Populate(self, include=-1):
         self.contentFrame = ttk.Frame(self.window)
         self.contentFrame.pack(fill=tkinter.BOTH, expand=True)
         #Treeview
@@ -189,7 +189,8 @@ class Editor:
         self.creatorComponentContainer = ttk.Frame(self.creatorFrame)
         self.newTop = ttk.Label(self.creatorComponentContainer)
         self.entries = []
-        for option in self.options:
+        if include == -1: include = len(self.options)
+        for option in self.options[:include]:
             self.entries.append(PlaceholderEntry(self.newTop, option))
         for entry in self.entries:
             padding = (10, 0)

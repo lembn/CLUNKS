@@ -44,7 +44,7 @@ class MainWindow():
 
     def OpenUserEditor(self):
         if not self.userEditor:
-            self.userEditor = UsersEditor(self.master, 950, 340)
+            self.userEditor = UsersEditor(self.master, 950, 370)
             self.userEditor.Load(self.iom.LoadTemp(self.iom.storage['user']))
             self.watchUsersThread = STWThread(mainFunction=self.ResetUserEditor, waitFlags=[self.userEditor.closed], name="WatchUsersThread")
             self.watchUsersThread.start()
@@ -84,6 +84,8 @@ class MainWindow():
                 self.iom.Export(self.log.Append, exp)
         except AttributeError:
             pass
+        except:
+            self.log.Append('EXPORT FAILED')
 
     def Load(self):
         try:
@@ -91,7 +93,6 @@ class MainWindow():
                 self.iom.LoadExp(self.log.Append, exp)
         except AttributeError:
             pass
-
 
     def Populate(self):
         self.contentFrame = ttk.Frame(self.master.container)
