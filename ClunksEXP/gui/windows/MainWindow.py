@@ -84,6 +84,8 @@ class MainWindow():
                 self.iom.Export(self.log.Append, exp)
         except AttributeError:
             pass
+        except:
+            self.log.Append('EXPORT FAILED')
 
     def Load(self):
         try:
@@ -91,7 +93,6 @@ class MainWindow():
                 self.iom.LoadExp(self.log.Append, exp)
         except AttributeError:
             pass
-
 
     def Populate(self):
         self.contentFrame = ttk.Frame(self.master.container)

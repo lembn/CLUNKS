@@ -110,6 +110,23 @@ class IOManager:
 
 
     def Export(self, logFunc, expFile):
+        subserverElements = []
+        roomElements = []
+        noSectorSubservers = {}
+        noSectorRooms = {}
+
+        def ApplySectorsRecrusive(index, sectors):
+            if index in noSectorSubservers.keys():
+                subserverElements[parentIndex].set('sectors', room[3])
+                del noSectorSubservers[parentIndex]
+                return
+            roomElements[index].set('sectors', sectors)
+            del noSectorRooms[index]
+            for parent, child in noSectorRooms.items():
+                if child == index:
+                    ApplySectorsRecrusive(parent, sectors)
+                    break
+
         roomNames = []
         subserverNames = []
         elevationNames = []
@@ -132,7 +149,6 @@ class IOManager:
                 logFunc('EXPORT FAILED: Elevation names must be unique.')
                 return
 
-        subserverElements = []
         sectorToSubserver = {}
         nameToSubserver = {}
         entities = self.ReadAll(self.storage['subserver'])
@@ -147,11 +163,13 @@ class IOManager:
         for x in range(len(entities)):
             subserverElements.append(ET.SubElement(subserverRoot, 'subserver', {'name': entities[x][0]}))
             nameToSubserver[entities[x][0]] = x
-            for sector in entities[x][1].split(','):
-                if sector:
-                    sectorToSubserver[sector.strip()] = [x]
+            if len(entities[x][1].split(',')) == 0:
+                noSectorSubservers[x] = None
+            else:
+                for sector in entities[x][1].split(','):
+                    if sector:
+                        sectorToSubserver[sector.strip()] = [x]
 
-        roomElements = []
         sectorToRoom = {}
         nameToRoom = {}
         processedRooms = []
@@ -162,12 +180,22 @@ class IOManager:
                 room = entities[x]
                 processedRooms.append(x)
                 roomElements.append(ET.SubElement(subserverElements[nameToSubserver[room[2]]], 'room', {'name': room[0], 'password': room[1]}))
-                nameToRoom[room[0]] = x
-                for sector in room[3].split(','):
-                    try:
-                        sectorToRoom[sector.strip()].append(x)
-                    except KeyError:
-                        sectorToRoom[sector.strip()] = [x]
+                nameToRoom[room[0]] = len(roomElements) - 1 if len(roomElements) > 0 else 0
+                parentIndex = nameToSubserver[room[2]]
+                if len(room[3].split(',')) == 0:
+                    if parentIndex in noSectorSubservers.keys():
+                        noSectorSubservers[parentIndex] = len(roomElements) - 1
+                    else:
+                        noSectorRooms[len(roomElements) - 1] = None
+                else:
+                    if parentIndex in noSectorSubservers.keys():
+                        subserverElements[parentIndex].set('sectors', room[3])
+                        del noSectorSubservers[parentIndex]
+                    for sector in room[3].split(','):
+                        try:
+                            sectorToRoom[sector.strip()].append(len(roomElements) - 1)
+                        except KeyError:
+                            sectorToRoom[sector.strip()] = [len(roomElements) - 1]
             elif entities[x][2] not in roomNames:
                 logFunc(f"EXPORT FAILED: Parent of room '{entities[x][0]}' does not exist.")
                 return
@@ -175,6 +203,7 @@ class IOManager:
         #Rooms with room parents
         for x in range(len(entities)):
             if x not in processedRooms:
+                room = entities[x]
                 parent = None
                 parentName = entities[x][2]
                 if parentName in nameToSubserver.keys():
@@ -182,11 +211,19 @@ class IOManager:
                 elif parentName in nameToRoom.keys():
                     parent = roomElements[nameToRoom[parentName]]
                 roomElements.append(ET.SubElement(parent, 'room', {'name': entities[x][0], 'password': entities[x][1]}))
-                for sector in entities[x][3].split(','):
-                    try:
-                        sectorToRoom[sector.strip()].append(x)
-                    except KeyError:
-                        sectorToRoom[sector.strip()] = [x]
+                parentIndex = nameToRoom[room[2]]
+                if len(room[3].split(',')) == 0:
+                    if parentIndex in noSectorRooms.keys():
+                        noSectorRooms[parentIndex] = len(roomElements) - 1
+                    noSectorRooms[len(roomElements) - 1] = None
+                else:
+                    if parentIndex in noSectorRooms.keys():
+                        ApplySectorsRecrusive(parentIndex, room[3])
+                    for sector in entities[x][3].split(','):
+                        try:
+                            sectorToRoom[sector.strip()].append(len(roomElements) - 1)
+                        except KeyError:
+                            sectorToRoom[sector.strip()] = [len(roomElements) - 1]
 
         elevationElements = []
         sectorToElevation = {}
