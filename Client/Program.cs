@@ -14,6 +14,7 @@ namespace Client
         private static bool quit = false;
         private static bool prompted = false;
         private static string promptHeader = null;
+        private static int traversalIndex = -1;
 
         static void Main(string[] args)
         {
@@ -90,7 +91,13 @@ namespace Client
             {
                 Console.WriteLine($"CONNECT completed with status '{values[0].ToUpper()}'.");
                 if (values[0] != Communication.FAILURE)
-                    promptHeader = $"[{values[1]}]";
+                {
+                    traversalIndex += 1;
+                    if (traversalIndex == 0)
+                        promptHeader = $"[{values[1]}]";
+                    else if (traversalIndex > 0)
+                        promptHeader = $"{promptHeader.Substring(0, promptHeader.Length - 1)} - {values[1]}]";
+                }                    
                 channel.Dispatch -= ConnectReponseHanlder;
                 prompted = false;
             }

@@ -107,7 +107,7 @@ namespace Server.DBHandler
                     int subserverID = Convert.ToInt32(cursor.Execute("SELECT last_insert_rowid();"));
 
                     List<int> processed = new List<int>();
-                    foreach (XElement user in subserver.Descendants("user"))
+                    foreach (XElement user in subserver.Elements("user"))
                     {
                         if (!processed.Contains(user.ToString().GetHashCode()))
                         {
@@ -147,7 +147,7 @@ namespace Server.DBHandler
             cursor.Execute($"INSERT INTO {(parentIsRoom ? "room" : "subserver")}_rooms ({(parentIsRoom ? "parentRoom, childRoom" : "subserverID, roomID")}) VALUES ($parent, $roomID);", parentID, roomID);
 
             List<int> processed = new List<int>();
-            foreach (XElement user in room.Descendants("user"))
+            foreach (XElement user in room.Elements("user"))
             {
                 if (!processed.Contains(user.ToString().GetHashCode()))
                 {
