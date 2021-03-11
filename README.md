@@ -285,6 +285,9 @@ Likewise, in the same performance-oriented mindset, shared caching is used when 
 
 The algorithms used for generating and loading `.exp` files utilise recursive patterns to simplify the process. This works especially well for `.exp` files since the XML markup they contain creates a tree-like structure, which is best traversed recursively.
 
+## Sector Tracing
+If the created users are global are all marked as global users then there may not be any sectors marked on any of the server entities. In this scenario, the sectors to be marked onto the entities should be implied from the sector of the users who reside in those entities, since the all users will need to be marked with sectors anyway so that the exporter knows which elevation to apply to the user. Programmatically, this is performed with the `IOManager.Export.ApplySectorsRecrusive` function, which recursively backtracks through the structure of the server to apply sectors to subserver entities, starting with the lowest child in tree that has a user within it.
+
 ---
 
 # Research
