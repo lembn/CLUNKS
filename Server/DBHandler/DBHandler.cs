@@ -173,7 +173,7 @@ namespace Server.DBHandler
         /// </summary>
         /// <param name="parentName">The name of the parent entity</param>
         /// <param name="username">The username of the user</param>
-        public static void SetPresent(string parentName, string username)
+        public static void SetPresent(string parentName, string username, bool isPresent = true)
         {
             using (Cursor cursor = new Cursor(connectionString))
             {
@@ -182,7 +182,7 @@ namespace Server.DBHandler
                         cursor.Execute(
                         $@"
                             UPDATE users_{table}
-                            SET present=1
+                            SET present={(isPresent ? 1 : 0)}
                             WHERE EXISTS(
                                 SELECT *
                                 FROM users_{table}

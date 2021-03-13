@@ -174,6 +174,15 @@ namespace Server
                                     outPacket.Add(state ? Communication.SUCCESS : Communication.FAILURE, values[3]);
                                 }
                                 break;
+                            case Communication.DISCONNECT:
+                                state = DBHandler.DBHandler.CheckUser(values[1], values[2]);
+                                if (state)
+                                {
+                                    DBHandler.DBHandler.SetPresent(values[1], values[2], false);
+                                    logger.LogInformation($"User@{e.client.endpoint} ({values[2]}) logged out of '{values[1]}'");
+                                }
+                                outPacket.Add(state ? Communication.SUCCESS : Communication.FAILURE);
+                                break;
                         }                     
                     }
                     server.Add(outPacket, e.client);

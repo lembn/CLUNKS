@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Threading;
 using Common.Channels;
@@ -10,14 +11,15 @@ namespace Client
     class Program
     {
         private static ClientChannel channel;
-        private static AutoResetEvent waiter;
         private static bool quit = false;
         private static bool prompted = false;
         private static string promptHeader = null;
-        private static int traversalIndex = -1;
+        private static string username;
+        private static Queue<string> traversalTrace;
 
         static void Main(string[] args)
         {
+            Console.CancelKeyPress += new ConsoleCancelEventHandler(Quit);
             Title();
             bool state = true;
             channel = new ClientChannel(1024, IPAddress.Parse(args[0]), Convert.ToInt32(args[1]), Convert.ToInt32(args[2]), EncryptionConfig.Strength.Strong, ref state);
@@ -25,8 +27,8 @@ namespace Client
             channel.ChannelFail += FailHandler;
             if (!quit)
                 channel.Start();
-            waiter = new AutoResetEvent(false);
-            Packet outPacket;            
+            Packet outPacket;
+            traversalTrace = new Queue<string>();
             while (!quit)
             {
                 if (!prompted)
@@ -55,6 +57,7 @@ namespace Client
                             break;
                         case "connect":
                             outPacket = new Packet(DataID.Command, channel.id);
+                            username = input[2];
                             outPacket.Add(input[0], Communication.START, input[1], input[2]);
                             channel.Dispatch += new Channel.DispatchEventHandler(ConnectReponseHanlder);
                             channel.Add(outPacket);
@@ -67,7 +70,17 @@ namespace Client
                             break;
                         case "quit":
                         case "exit":
-                            channel.Close("Shutting down CLUNKS...");
+                            if (traversalTrace.Count == 0)
+                                Quit(null, null);
+                            else
+                            {
+                                //TODO: Test ET
+                                outPacket = new Packet(DataID.Command, channel.id);
+                                outPacket.Add(Communication.DISCONNECT, traversalTrace.Peek(), username);
+                                channel.Dispatch += new Channel.DispatchEventHandler(DisconnectResponseHandler);
+                                channel.Add(outPacket);
+                                Console.WriteLine($"Leaving...");
+                            }
                             break;
                         default:
                             Console.WriteLine("Try 'help' for more info.");
@@ -92,11 +105,11 @@ namespace Client
                 Console.WriteLine($"CONNECT completed with status '{values[0].ToUpper()}'.");
                 if (values[0] != Communication.FAILURE)
                 {
-                    traversalIndex += 1;
-                    if (traversalIndex == 0)
+                    traversalTrace.Enqueue(values[1]);
+                    if (traversalTrace.Count == 1)
                         promptHeader = $"[{values[1]}]";
-                    else if (traversalIndex > 0)
-                        promptHeader = $"{promptHeader.Substring(0, promptHeader.Length - 1)} - {values[1]}]";
+                    else
+                        promptHeader = $"[{string.Join(" - ", traversalTrace.ToArray())}]";
                 }                    
                 channel.Dispatch -= ConnectReponseHanlder;
                 prompted = false;
@@ -108,6 +121,28 @@ namespace Client
                 outPacket.Add(Communication.CONNECT, values[0].Split(Communication.SEPARATOR)[0], s, values[0].Split(Communication.SEPARATOR)[1]);
                 channel.Add(outPacket);
             }
+        }
+
+        private static void DisconnectResponseHandler(object sender, PacketEventArgs e)
+        {
+            string[] values = e.packet.Get();
+            Console.WriteLine($"DISCONNECT completed with status '{values[0].ToUpper()}'.");
+            if (values[0] != Communication.FAILURE)
+            {
+                if (traversalTrace.Count == 0)
+                    promptHeader = null;
+                traversalTrace.Dequeue();
+                promptHeader = $"[{string.Join(" - ", traversalTrace.ToArray())}]";
+            }
+            prompted = false;
+        }
+
+        private static void Quit(object sender, ConsoleCancelEventArgs e)
+        {
+            channel.Close("Shutting down CLUNKS...");
+            quit = true;
+            if (e != null)
+                e.Cancel = true;
         }
 
         private static void Title()
