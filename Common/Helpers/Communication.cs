@@ -31,6 +31,7 @@ namespace Common.Helpers
         #region User Commands
 
         public const string CONNECT = "connect";
+        public const string DISCONNECT = "disconnect";
 
         #endregion
 
@@ -38,7 +39,7 @@ namespace Common.Helpers
 
         public static ImmutableArray<string> ADMIN_CONFIG = ImmutableArray.Create(new string[] { USER, PASSWORD, IP, TCP, UDP, DATA });
         public static ImmutableArray<string> ADMIN_COMMANDS = ImmutableArray.Create(new string[]  { RESTART, STOP});
-        public static ImmutableArray<string> USER_COMMANDS = ImmutableArray.Create(new string[]  { CONNECT });
+        public static ImmutableArray<string> USER_COMMANDS = ImmutableArray.Create(new string[]  { CONNECT, DISCONNECT });
         public static ImmutableArray<string> STATUSES = ImmutableArray.Create(new string[]  { SUCCESS, FAILURE });
 
         #endregion
