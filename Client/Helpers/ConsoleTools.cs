@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 
 namespace Common.Helpers
 {
@@ -23,27 +24,34 @@ namespace Common.Helpers
         {
             Console.Write($"{prompt}>>> ");
             string input = "";
-            ConsoleKeyInfo info = Console.ReadKey(true);
-            while (info.Key != ConsoleKey.Enter)
+            ConsoleKeyInfo info;
+            bool entered = false;
+            do
             {
-                if (info.Key != ConsoleKey.Backspace)
-                {
-                    Console.Write("*");
-                    input += info.KeyChar;
-                }
-                else if (info.Key == ConsoleKey.Backspace)
-                {
-                    if (!string.IsNullOrEmpty(input))
-                    {
-                        input = input.Substring(0, input.Length - 1);
-                        int pos = Console.CursorLeft;
-                        Console.SetCursorPosition(pos - 1, Console.CursorTop);
-                        Console.Write(" ");
-                        Console.SetCursorPosition(pos - 1, Console.CursorTop);
-                    }
-                }
+                while (!Console.KeyAvailable)
+                    Thread.Sleep(10);
                 info = Console.ReadKey(true);
-            }
+                switch (info.Key)
+                {
+                    case ConsoleKey.Enter:
+                        entered = true;
+                        break;
+                    case ConsoleKey.Backspace:
+                        if (!string.IsNullOrEmpty(input))
+                        {
+                            input = input.Substring(0, input.Length - 1);
+                            int pos = Console.CursorLeft;
+                            Console.SetCursorPosition(pos - 1, Console.CursorTop);
+                            Console.Write(" ");
+                            Console.SetCursorPosition(pos - 1, Console.CursorTop);
+                        }
+                        break;
+                    default:
+                        Console.Write("*");
+                        input += info.KeyChar;
+                        break;
+                }
+            } while (!entered);
             Console.WriteLine();
             return input;
         }

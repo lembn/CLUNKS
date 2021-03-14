@@ -72,8 +72,8 @@ namespace Server
                 logger.LogCritical("Failed to start server. Invalid IP.");
                 return;
             }
-            server.ChannelFail += FailHandler;
-            server.Dispatch += DispatchHandler;
+            server.ChannelFail += new Channel.ChannelFailEventHanlder(FailHandler);
+            server.Dispatch += new Channel.DispatchEventHandler(DispatchHandler);
             if (ConfigurationManager.AppSettings.Get("newExp") == "true")
             {
                 try

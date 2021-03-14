@@ -117,8 +117,7 @@ namespace Client
             else
             {
                 Packet outPacket = new Packet(DataID.Command, channel.id);
-                string s = ConsoleTools.HideInput("Enter password");
-                outPacket.Add(Communication.CONNECT, values[0].Split(Communication.SEPARATOR)[0], s, values[0].Split(Communication.SEPARATOR)[1]);
+                outPacket.Add(Communication.CONNECT, values[0].Split(Communication.SEPARATOR)[0], ConsoleTools.HideInput("Enter password"), values[0].Split(Communication.SEPARATOR)[1]);
                 channel.Add(outPacket);
             }
         }
