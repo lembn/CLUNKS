@@ -1,8 +1,8 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Worker">
+<Project Sdk="Microsoft.NET.Sdk.Worker">
 
   <PropertyGroup>
-    <TargetFramework>netcoreapp3.1</TargetFramework>
-    <UserSecretsId>dotnet-ServerService-17BB6B4C-D5ED-40AE-B1A5-28436508A371</UserSecretsId>
+    <TargetFramework>net5.0</TargetFramework>
+    <UserSecretsId>dotnet-Server-0A5D228C-D391-48A1-A7E1-1EB6B5ECC636</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
@@ -15,5 +15,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Common\Common.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Update="App.config">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 </Project>

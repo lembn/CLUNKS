@@ -34,10 +34,10 @@ namespace Server
             if (!File.Exists(cfgLoc))
                 ConfigHandler.InitialiseConfig(cfgLoc);
             if (!Directory.Exists(dataLoc))
-            {
                 Directory.CreateDirectory(dataLoc);
+            var a = ConfigurationManager.AppSettings.Get("dataPath");
+            if (dataLoc != ConfigurationManager.AppSettings.Get("dataPath"))
                 ConfigHandler.ModifyConfig("dataPath", dataLoc);
-            }
             DBHandler.DBHandler.connectionString = String.Format(ConfigurationManager.ConnectionStrings["default"].ConnectionString, ConfigurationManager.AppSettings.Get("dataPath"));
             Start();
             return Task.CompletedTask;
