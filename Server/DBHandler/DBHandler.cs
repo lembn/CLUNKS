@@ -20,19 +20,24 @@ namespace Server.DBHandler
         /// <returns>True if the users exists, false otherwise</returns>
         public static bool CheckUser(string parentName, string username)
         {
-            string stmt =
+            string countStmt =
             $@"
-                SELECT COUNT(*)
+                SELECT userID, {{0}}ID
                 FROM users_{{0}}s
                 INNER JOIN users ON users.id=users_{{0}}s.userID
                 INNER JOIN {{0}}s ON {{0}}s.id=users_{{0}}s.{{0}}ID
-                WHERE users.name='{username}'
-                AND {{0}}s.name='{parentName}';
+                WHERE users.name=$username
+                AND {{0}}s.name=$parentName;
             ";
+            string presentStmt = $"SELECT present FROM users_{{0}}s WHERE userID=$userID AND {{0}}ID=$parentID;";
             using (Cursor cursor = new Cursor(connectionString))
                 foreach (string table in GetTables(cursor))
-                    if (Convert.ToInt32(cursor.Execute($"SELECT count(*) FROM {table} WHERE name=$parentName;", parentName)) > 0)
-                        return Convert.ToInt32(cursor.Execute(String.Format(stmt, table.Substring(0, table.Length - 1)))) > 0;
+                    if (Convert.ToInt32(cursor.Execute($"SELECT COUNT(*) FROM {table} WHERE name=$parentName;", parentName)) > 0)
+                    {
+                        object[] results = (object[])cursor.Execute(String.Format(countStmt, table.Substring(0, table.Length - 1)), username, parentName);
+                        if (results != null)                   
+                            return Convert.ToInt32(cursor.Execute(String.Format(presentStmt, table.Substring(0, table.Length - 1)), results[0], results[1])) == 0;
+                    }
             return false;
         }
 
@@ -187,7 +192,7 @@ namespace Server.DBHandler
                                 SELECT *
                                 FROM users_{table}
                                 INNER JOIN users ON users.name=$name AND users_{table}.userID=users.id
-                                INNER JOIN {table} ON users_{table}.subserverID={table.Substring(0, table.Length - 1)}.id);
+                                INNER JOIN {table} ON users_{table}.{table.Substring(0, table.Length - 1)}ID={table}.id);
                         ", username);
             }
         }
