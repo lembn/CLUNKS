@@ -17,10 +17,11 @@ namespace Server.DBHandler
         /// </summary>
         /// <param name="parentName">The name of the parent entity</param>
         /// <param name="username">The name of the user</param>
-        /// <returns>True if the users exists, false otherwise</returns>
-        public static bool CheckUser(string parentName, string username)
+        /// <param name="checkPresent">Should be set to true if users need to be present for the method to return true, false otherwise</param>
+        /// <returns>True if the users exists and checkPresent is false or if the user exists and is not present and checkPresent is true, false otherwise</returns>
+        public static bool CheckUser(string parentName, string username, bool checkPresent = true)
         {
-            string countStmt =
+            string checkStmt =
             $@"
                 SELECT userID, {{0}}ID
                 FROM users_{{0}}s
@@ -34,9 +35,12 @@ namespace Server.DBHandler
                 foreach (string table in GetTables(cursor))
                     if (Convert.ToInt32(cursor.Execute($"SELECT COUNT(*) FROM {table} WHERE name=$parentName;", parentName)) > 0)
                     {
-                        object[] results = (object[])cursor.Execute(String.Format(countStmt, table.Substring(0, table.Length - 1)), username, parentName);
-                        if (results != null)                   
-                            return Convert.ToInt32(cursor.Execute(String.Format(presentStmt, table.Substring(0, table.Length - 1)), results[0], results[1])) == 0;
+                        object[] results = (object[])cursor.Execute(String.Format(checkStmt, table.Substring(0, table.Length - 1)), username, parentName);
+                        if (results != null)
+                            if (!checkPresent)
+                                return true;
+                            else
+                                return Convert.ToInt32(cursor.Execute(String.Format(presentStmt, table.Substring(0, table.Length - 1)), results[0], results[1])) == 0;
                     }
             return false;
         }

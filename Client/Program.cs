@@ -12,6 +12,7 @@ namespace Client
     {
         private static ClientChannel channel;
         private static bool quit = false;
+        private static bool free = true;
         private static bool prompted = false;
         private static string promptHeader = null;
         private static string username;
@@ -42,11 +43,12 @@ namespace Client
                     Console.Write("CLUNKS>>> ");
                     prompted = true;
                 }
-                if (!Console.KeyAvailable)
+                if (!Console.KeyAvailable || !free)
                 {
                     Thread.Sleep(10);
                     continue;
                 }
+                free = true;
                 string[] input = Console.ReadLine().Split();
                 try
                 {
@@ -64,11 +66,9 @@ namespace Client
                             Console.WriteLine($"Requesting CONNECT to '{input[1]}'...");
                             break;
                         case "cls":
-                        case "clear":
                             Console.Clear();
                             prompted = false;
                             break;
-                        case "quit":
                         case "exit":
                             if (traversalTrace.Count == 0)
                                 Quit(null, null);
@@ -106,18 +106,18 @@ namespace Client
                 if (values[0] != Communication.FAILURE)
                 {
                     traversalTrace.Enqueue(values[1]);
-                    if (traversalTrace.Count == 1)
-                        promptHeader = $"[{values[1]}]";
-                    else
-                        promptHeader = $"[{string.Join(" - ", traversalTrace.ToArray())}]";
+                    promptHeader = traversalTrace.Count == 1 ? $"[{values[1]}]" : $"[{string.Join(" - ", traversalTrace)}]";
                 }                    
                 channel.Dispatch -= ConnectReponseHanlder;
                 prompted = false;
+                free = true;
             }
             else
             {
                 Packet outPacket = new Packet(DataID.Command, channel.id);
-                outPacket.Add(Communication.CONNECT, values[0].Split(Communication.SEPARATOR)[0], ConsoleTools.HideInput("Enter password"), values[0].Split(Communication.SEPARATOR)[1]);
+                free = false;
+                string s = ConsoleTools.HideInput("Enter password");
+                outPacket.Add(Communication.CONNECT, values[0].Split(Communication.SEPARATOR)[0], s, values[0].Split(Communication.SEPARATOR)[1]);
                 channel.Add(outPacket);
             }
         }
@@ -128,10 +128,8 @@ namespace Client
             Console.WriteLine($"DISCONNECT completed with status '{values[0].ToUpper()}'.");
             if (values[0] != Communication.FAILURE)
             {
-                if (traversalTrace.Count == 0)
-                    promptHeader = null;
                 traversalTrace.Dequeue();
-                promptHeader = $"[{string.Join(" - ", traversalTrace.ToArray())}]";
+                promptHeader = traversalTrace.Count > 0 ? $"[{string.Join(" - ", traversalTrace)}]" : null;
             }
             prompted = false;
         }

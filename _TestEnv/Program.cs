@@ -51,6 +51,8 @@ namespace _TestEnv
         static void Main(string[] args)
         {
             string a = HideInput("write");
+            Console.WriteLine(a);
+            Console.Read();
         }
     }
 

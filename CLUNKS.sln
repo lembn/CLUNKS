@@ -17,13 +17,6 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "_TestEnv", "_TestEnv\_TestE
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Server", "Server\Server.csproj", "{A8803054-408B-41FF-BFAD-9D60D792EA6A}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "exp", "exp", "{BF6A0254-4642-4AAD-A8CB-A42AE01AE192}"
-EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "_testing", "_testing", "{E6FB74CB-0A77-4911-A641-F7E2EA702E2D}"
-	ProjectSection(SolutionItems) = preProject
-		C:\Users\lembn\Downloads\setup.exp = C:\Users\lembn\Downloads\setup.exp
-	EndProjectSection
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -49,9 +42,6 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
-	EndGlobalSection
-	GlobalSection(NestedProjects) = preSolution
-		{E6FB74CB-0A77-4911-A641-F7E2EA702E2D} = {BF6A0254-4642-4AAD-A8CB-A42AE01AE192}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {EB83D1DE-3A4A-411C-9C0F-0456B7A89C54}

@@ -175,7 +175,7 @@ namespace Server
                                 }
                                 break;
                             case Communication.DISCONNECT:
-                                state = DBHandler.DBHandler.CheckUser(values[1], values[2]);
+                                state = DBHandler.DBHandler.CheckUser(values[1], values[2], false);
                                 if (state)
                                 {
                                     DBHandler.DBHandler.SetPresent(values[1], values[2], false);
