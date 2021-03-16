@@ -162,16 +162,31 @@ namespace Server
                         {
                             case Communication.CONNECT:
                                 if (values[1] == Communication.START)
-                                    outPacket.Add(DBHandler.DBHandler.CheckUser(values[2], values[3]) ? $"{values[3]}{Communication.SEPARATOR}{values[2]}" : Communication.FAILURE);
+                                {
+                                    state = DBHandler.DBHandler.CheckUser(values[2], values[3]);
+                                    if (state)
+                                    {
+                                        outPacket.Add(values[3], values[2]);
+                                        string pwd = DBHandler.DBHandler.CheckPassword(values[2]);
+                                        if (!e.client.data.TryAdd("entityPwd", pwd))
+                                            e.client.data["entityPwd"] = pwd;
+                                        if (!String.IsNullOrEmpty(pwd))
+                                            outPacket.Add(Communication.INCOMPLETE);
+                                    }
+                                    else
+                                        outPacket.Add(Communication.FAILURE);
+                                }
                                 else
                                 {
                                     state = DBHandler.DBHandler.Login(values[1], values[2]);
+                                    if (!String.IsNullOrEmpty((string)e.client.data["entityPwd"]))
+                                        state = BCrypt.Net.BCrypt.Verify(values[4], (string)e.client.data["entityPwd"]);
                                     if (state)
                                     {
                                         DBHandler.DBHandler.SetPresent(values[3], values[1]);
                                         logger.LogInformation($"User@{e.client.endpoint} logged into '{values[3]}' with username='{values[1]}'");
                                     }
-                                    outPacket.Add(state ? Communication.SUCCESS : Communication.FAILURE, values[3]);
+                                    outPacket.Add(state ? Communication.SUCCESS : Communication.FAILURE, DBHandler.DBHandler.Trace(values[3]));
                                 }
                                 break;
                             case Communication.DISCONNECT:

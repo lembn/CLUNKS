@@ -16,7 +16,7 @@ namespace Client
         private static bool prompted = false;
         private static string promptHeader = null;
         private static string username;
-        private static Queue<string> traversalTrace;
+        private static Stack<string> traversalTrace;
 
         static void Main(string[] args)
         {
@@ -29,7 +29,7 @@ namespace Client
             if (!quit)
                 channel.Start();
             Packet outPacket;
-            traversalTrace = new Queue<string>();
+            traversalTrace = new Stack<string>();
             while (!quit)
             {
                 if (!prompted)
@@ -105,19 +105,20 @@ namespace Client
                 Console.WriteLine($"CONNECT completed with status '{values[0].ToUpper()}'.");
                 if (values[0] != Communication.FAILURE)
                 {
-                    traversalTrace.Enqueue(values[1]);
+                    traversalTrace.Push(values[1]);
                     promptHeader = traversalTrace.Count == 1 ? $"[{values[1]}]" : $"[{string.Join(" - ", traversalTrace)}]";
-                }                    
+                }
                 channel.Dispatch -= ConnectReponseHanlder;
                 prompted = false;
-                free = true;
+                free = true;             
             }
             else
             {
                 Packet outPacket = new Packet(DataID.Command, channel.id);
                 free = false;
-                string s = ConsoleTools.HideInput("Enter password");
-                outPacket.Add(Communication.CONNECT, values[0].Split(Communication.SEPARATOR)[0], s, values[0].Split(Communication.SEPARATOR)[1]);
+                outPacket.Add(Communication.CONNECT, values[0], ConsoleTools.HideInput("Enter your password"), values[1]);
+                if (values.Length > 2)
+                    outPacket.Add(ConsoleTools.HideInput($"Enter '{values[1]}' password"));
                 channel.Add(outPacket);
             }
         }
@@ -128,7 +129,7 @@ namespace Client
             Console.WriteLine($"DISCONNECT completed with status '{values[0].ToUpper()}'.");
             if (values[0] != Communication.FAILURE)
             {
-                traversalTrace.Dequeue();
+                traversalTrace.Pop();
                 promptHeader = traversalTrace.Count > 0 ? $"[{string.Join(" - ", traversalTrace)}]" : null;
             }
             channel.Dispatch -= DisconnectResponseHandler;

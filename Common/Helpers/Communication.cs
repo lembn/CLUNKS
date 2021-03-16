@@ -6,7 +6,6 @@ namespace Common.Helpers
     {
 
         public const string START = "start";
-        public const string SEPARATOR = "123h09yhd091y28g087d12";
 
         #region Admin
 
@@ -24,6 +23,7 @@ namespace Common.Helpers
         #region Statuses
 
         public const string SUCCESS = "success";
+        public const string INCOMPLETE = "incomplete";
         public const string FAILURE = "failure";
 
         #endregion
@@ -40,7 +40,7 @@ namespace Common.Helpers
         public static ImmutableArray<string> ADMIN_CONFIG = ImmutableArray.Create(new string[] { USER, PASSWORD, IP, TCP, UDP, DATA });
         public static ImmutableArray<string> ADMIN_COMMANDS = ImmutableArray.Create(new string[]  { RESTART, STOP});
         public static ImmutableArray<string> USER_COMMANDS = ImmutableArray.Create(new string[]  { CONNECT, DISCONNECT });
-        public static ImmutableArray<string> STATUSES = ImmutableArray.Create(new string[]  { SUCCESS, FAILURE });
+        public static ImmutableArray<string> STATUSES = ImmutableArray.Create(new string[]  { SUCCESS, INCOMPLETE, FAILURE });
 
         #endregion
 

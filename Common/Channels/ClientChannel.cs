@@ -297,6 +297,7 @@ namespace Common.Channels
                 {
                     Close();
                 }
+                catch (ObjectDisposedException) { }
             }
 
             void ProcessPacket(Packet inPacket)
@@ -405,7 +406,8 @@ namespace Common.Channels
             complete.WaitOne();
             if (!failed)
             {
-                Console.WriteLine("Server handshake successfull.\nConnection established.");
+                if (!disposed)
+                    Console.WriteLine("Server handshake successfull.\nConnection established.");
                 return true;
             }
             else

@@ -11,6 +11,8 @@ namespace Server.DBHandler
     internal static class DBHandler
     {
         public static string connectionString; //The connection string to use when connecting to the database
+        private static string[] entityTables = { "subservers", "rooms", "groups" };
+        private static string[] _entityTables = { "subserver", "room", "group" };
 
         /// <summary>
         /// A method to check if a user exists in a parent entity (subserver/room/group)
@@ -32,7 +34,7 @@ namespace Server.DBHandler
             ";
             string presentStmt = $"SELECT present FROM users_{{0}}s WHERE userID=$userID AND {{0}}ID=$parentID;";
             using (Cursor cursor = new Cursor(connectionString))
-                foreach (string table in GetTables(cursor))
+                foreach (string table in entityTables)
                     if (Convert.ToInt32(cursor.Execute($"SELECT COUNT(*) FROM {table} WHERE name=$parentName;", parentName)) > 0)
                     {
                         object[] results = (object[])cursor.Execute(String.Format(checkStmt, table.Substring(0, table.Length - 1)), username, parentName);
@@ -43,6 +45,21 @@ namespace Server.DBHandler
                                 return Convert.ToInt32(cursor.Execute(String.Format(presentStmt, table.Substring(0, table.Length - 1)), results[0], results[1])) == 0;
                     }
             return false;
+        }
+
+        /// <summary>
+        /// A method to get the (hashed) password of an entity if it exists
+        /// </summary>
+        /// <param name="entityName">The name of the entity</param>
+        /// <returns>The hashed password of the entity if it exists, false otherwise</returns>
+        public static string CheckPassword (string entityName)
+        {
+            using (Cursor cursor = new Cursor(connectionString))
+                foreach (string table in entityTables)
+                    if (Convert.ToInt32(cursor.Execute($"SELECT COUNT(*) FROM {table} WHERE name=$entityName;", entityName)) > 0)
+                        if ((from info in (object[][])cursor.Execute($"PRAGMA table_info({table})") select (string)info[1]).Contains("password"))
+                            return (string)cursor.Execute($"SELECT password FROM {table} WHERE name=$entityName;", entityName);                    
+            return null;
         }
 
         /// <summary>
@@ -66,6 +83,39 @@ namespace Server.DBHandler
                 {
                     return false;
                 }                
+            }
+        }
+
+        public static string Trace(string trace, Cursor cursor = null)
+        {
+            if (cursor == null)
+                cursor = new Cursor(connectionString);
+            string bottom = trace.Split(" - ")[0];
+            if (Convert.ToInt32(cursor.Execute($"SELECT COUNT(*) FROM {entityTables[2]} WHERE name=$entityName;", bottom)) > 0)
+            {
+                //entity is group
+                int id = Convert.ToInt32(cursor.Execute($"SELECT id FROM {entityTables[2]} WHERE name=$entityName;", bottom));
+                object parentIDHolder = cursor.Execute($"SELECT parentRoom from {_entityTables[2]}_{entityTables[2]} WHERE childRoom={id};");
+                if (parentIDHolder != null)
+                    return Trace($"{(string)cursor.Execute($"SELECT name from {entityTables[2]} WHERE id={Convert.ToInt32(parentIDHolder)}")} - {trace};", cursor);
+                else
+                    return Trace($"{(string)cursor.Execute($"SELECT name from {entityTables[2]} WHERE id={Convert.ToInt32(cursor.Execute($"SELECT parentRoom from {_entityTables[1]}_{entityTables[2]} WHERE roomID={id};"))}")} - {trace}", cursor);
+            }
+            else if (Convert.ToInt32(cursor.Execute($"SELECT COUNT(*) FROM {entityTables[1]} WHERE name=$entityName;", bottom)) > 0)
+            {
+                //entity is room
+                int id = Convert.ToInt32(cursor.Execute($"SELECT id FROM {entityTables[1]} WHERE name=$entityName;", bottom));
+                object parentIDHolder = cursor.Execute($"SELECT parentRoom from room_{entityTables[1]} WHERE childRoom={id};");
+                if (parentIDHolder != null)
+                    return Trace($"{(string)cursor.Execute($"SELECT name from {entityTables[1]} WHERE id={Convert.ToInt32(parentIDHolder)}")} - {trace};", cursor);
+                else
+                    return Trace($"{(string)cursor.Execute($"SELECT name from {entityTables[1]} WHERE id={Convert.ToInt32(cursor.Execute($"SELECT parentRoom from {_entityTables[0]}_{entityTables[1]} WHERE roomID={id};"))}")} - {trace}", cursor);
+            }
+            else
+            {
+                //entity is subserver
+                cursor.Dispose();
+                return trace;
             }
         }
 
@@ -186,8 +236,8 @@ namespace Server.DBHandler
         {
             using (Cursor cursor = new Cursor(connectionString))
             {
-                foreach (string table in GetTables(cursor))
-                    if (Convert.ToInt32(cursor.Execute($"SELECT count(*) FROM {table} WHERE name=$parentName;", parentName)) > 0)
+                foreach (string table in entityTables)
+                    if (Convert.ToInt32(cursor.Execute($"SELECT COUNT(*) FROM {table} WHERE name=$parentName;", parentName)) > 0)
                         cursor.Execute(
                         $@"
                             UPDATE users_{table}
@@ -200,16 +250,5 @@ namespace Server.DBHandler
                         ", username);
             }
         }
-
-        /// <summary>
-        /// A method to get an array containg the names of all the tables in the database
-        /// </summary>
-        /// <param name="cursor">The Cursor to use</param>
-        /// <returns>Array containg the names of all the tables in the database</returns>
-        private static string[] GetTables(Cursor cursor) =>
-            (from table in (object[])cursor.Execute("SELECT sql FROM sqlite_schema WHERE type='table';")
-             where table.ToString().Contains("name")
-             select Regex.Match(table.ToString(), @"(?<=CREATE TABLE\s)\w*").Value)
-             .ToArray();
     }
 }

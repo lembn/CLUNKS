@@ -1,6 +1,7 @@
 ﻿using Common.Helpers;
 using Common.Packets;
 using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 
@@ -26,6 +27,7 @@ namespace Common.Channels
         public int missedHBs;
         public object hbLock;
         public bool isAdmin = false;
+        public Dictionary<string, object> data;
 
         public Socket Handler
         {
@@ -47,6 +49,7 @@ namespace Common.Channels
             packetFactory.encCfg.captureSalts = true;
             protocol = ProtocolType.Tcp;
             hbLock = new object();
+            data = new Dictionary<string, object>();
         }
 
         #region IDisposable Implementation
@@ -61,6 +64,8 @@ namespace Common.Channels
                     packetFactory.Dispose();
                 }
 
+                bufferList.Clear();
+                data.Clear();
                 disposed = true;
             }
         }
