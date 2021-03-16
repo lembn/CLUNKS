@@ -36,7 +36,7 @@ namespace Server.DBHandler
                     if (Convert.ToInt32(cursor.Execute($"SELECT COUNT(*) FROM {table} WHERE name=$parentName;", parentName)) > 0)
                     {
                         object[] results = (object[])cursor.Execute(String.Format(checkStmt, table.Substring(0, table.Length - 1)), username, parentName);
-                        if (results != null)
+                        if (results != null && results.Length > 0)
                             if (!checkPresent)
                                 return true;
                             else
