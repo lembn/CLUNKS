@@ -20,7 +20,7 @@ namespace Common.Channels
 
         private PacketFactory packetFactory; //The object to use for handling packets
         private EncryptionConfig.Strength strength; //Strength of encryption being used on the ClientChannel
-        private ManualResetEventSlim receiving; //An event used to check if the channel is currently listening on the socket
+        private ManualResetEventSlim receiving; //An waithandle used to check if the channel is currently listening on the socket
         private bool receivingHeader = true; //A boolean to represent if a TCP listen is currently reading the header or the actual packet
         private object hbLock; //A lock used for thread synchronisation when processing heartbeats
         private bool receivedHB = false; //A boolean used for checking if the channel has received a hearbeat or not
@@ -31,7 +31,8 @@ namespace Common.Channels
         private readonly int TCP_PORT; //Port used by the server for TCP communication
         private readonly int UDP_PORT; //Port used by the server for UDP communication
         private int connectAttempts = 3; //The maximum amount of handshakes to attempt before aborting
-        private ManualResetEvent connected; //An event to represent if a connection has been made to the server when using TCP
+        private ManualResetEvent connected; //An waithandle to represent if a connection has been made to the server when using TCP
+        private ManualResetEvent complete; //An waithandle to represent if a handshake attempt has completed
         private int largePackets = 0; //Number of datagrams that were too large for the buffer size
         private int packetCount; //Number of packets received in total
         private double packetLossThresh = 0.05; //Threshold to alert user about significant packet loss
@@ -61,6 +62,7 @@ namespace Common.Channels
             inPackets = new BlockingCollection<Packet>();
             receiving = new ManualResetEventSlim(true);
             connected = new ManualResetEvent(false);
+            complete = new ManualResetEvent(false);
             this.strength = strength;
             packetFactory = new PacketFactory();
             hbLock = new object();
@@ -254,6 +256,7 @@ namespace Common.Channels
                 return;
             if (socket.ProtocolType == ProtocolType.Tcp)
                 socket?.Disconnect(false);
+            complete.Set();
             cts.Cancel();
             Dispose();
             OnChannelFail($"------------------\n{message}\nQuitting...");
@@ -267,7 +270,6 @@ namespace Common.Channels
         {
             Packet outPacket = null;
             byte[] signature;
-            ManualResetEvent complete = new ManualResetEvent(false);
             bool failed = false;
             List<DataID> expectedDataList = new List<DataID> { DataID.Ack, DataID.Hello, DataID.Info, DataID.Signature };
             Queue<DataID> expectedData = new Queue<DataID>(expectedDataList);
@@ -294,7 +296,7 @@ namespace Common.Channels
                 catch (SocketException)
                 {
                     Close();
-                }                             
+                }
             }
 
             void ProcessPacket(Packet inPacket)

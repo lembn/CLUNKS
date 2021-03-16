@@ -131,6 +131,7 @@ namespace Client
                 traversalTrace.Dequeue();
                 promptHeader = traversalTrace.Count > 0 ? $"[{string.Join(" - ", traversalTrace)}]" : null;
             }
+            channel.Dispatch -= DisconnectResponseHandler;
             prompted = false;
         }
 
