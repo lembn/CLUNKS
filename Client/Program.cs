@@ -105,8 +105,8 @@ namespace Client
                 Console.WriteLine($"CONNECT completed with status '{values[0].ToUpper()}'.");
                 if (values[0] != Communication.FAILURE)
                 {
-                    traversalTrace.Push(values[1]);
-                    promptHeader = traversalTrace.Count == 1 ? $"[{values[1]}]" : $"[{string.Join(" - ", traversalTrace)}]";
+                    traversalTrace = new Stack<string>(values[1].Split(" - "));
+                    promptHeader = $"[{values[1]}]";
                 }
                 channel.Dispatch -= ConnectReponseHanlder;
                 prompted = false;
