@@ -163,7 +163,7 @@ class IOManager:
         for x in range(len(entities)):
             subserverElements.append(ET.SubElement(subserverRoot, 'subserver', {'name': entities[x][0]}))
             nameToSubserver[entities[x][0]] = x
-            if len(entities[x][1].split(',')) == 0:
+            if not entities[x][1].split(',')[0]:
                 noSectorSubservers[x] = None
             else:
                 for sector in entities[x][1].split(','):
@@ -182,11 +182,10 @@ class IOManager:
                 roomElements.append(ET.SubElement(subserverElements[nameToSubserver[room[2]]], 'room', {'name': room[0], 'password': room[1]}))
                 nameToRoom[room[0]] = len(roomElements) - 1 if len(roomElements) > 0 else 0
                 parentIndex = nameToSubserver[room[2]]
-                if len(room[3].split(',')) == 0:
+                if not room[3].split(',')[0]:
                     if parentIndex in noSectorSubservers.keys():
                         noSectorSubservers[parentIndex] = len(roomElements) - 1
-                    else:
-                        noSectorRooms[len(roomElements) - 1] = None
+                    noSectorRooms[len(roomElements) - 1] = None
                 else:
                     if parentIndex in noSectorSubservers.keys():
                         subserverElements[parentIndex].set('sectors', room[3])
@@ -212,7 +211,7 @@ class IOManager:
                     parent = roomElements[nameToRoom[parentName]]
                 roomElements.append(ET.SubElement(parent, 'room', {'name': entities[x][0], 'password': entities[x][1]}))
                 parentIndex = nameToRoom[room[2]]
-                if len(room[3].split(',')) == 0:
+                if not room[3].split(',')[0]:
                     if parentIndex in noSectorRooms.keys():
                         noSectorRooms[parentIndex] = len(roomElements) - 1
                     noSectorRooms[len(roomElements) - 1] = None
