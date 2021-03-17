@@ -101,21 +101,21 @@ namespace Server.DBHandler
             {
                 //entity is group
                 int id = Convert.ToInt32(cursor.Execute($"SELECT id FROM {entityTables[2]} WHERE name=$entityName;", bottom));
-                object parentIDHolder = cursor.Execute($"SELECT parentRoom from {_entityTables[2]}_{entityTables[2]} WHERE childRoom={id};");
-                if (parentIDHolder != null)
-                    return Trace($"{(string)cursor.Execute($"SELECT name from {entityTables[2]} WHERE id={Convert.ToInt32(parentIDHolder)}")} - {trace};", cursor);
+                object[] parentIDHolder = (object[])cursor.Execute($"SELECT parentGroup from {_entityTables[2]}_{entityTables[2]} WHERE childGroup={id};");
+                if (parentIDHolder.Length > 0)
+                    return Trace($"{(string)cursor.Execute($"SELECT name from {entityTables[2]} WHERE id={Convert.ToInt32(parentIDHolder[0])}")} - {trace};", cursor);
                 else
-                    return Trace($"{(string)cursor.Execute($"SELECT name from {entityTables[2]} WHERE id={Convert.ToInt32(cursor.Execute($"SELECT parentRoom from {_entityTables[1]}_{entityTables[2]} WHERE roomID={id};"))}")} - {trace}", cursor);
+                    return Trace($"{(string)cursor.Execute($"SELECT name from {entityTables[1]} WHERE id={Convert.ToInt32(cursor.Execute($"SELECT roomID from {_entityTables[1]}_{entityTables[2]} WHERE groupID={id};"))}")} - {trace}", cursor);
             }
             else if (Convert.ToInt32(cursor.Execute($"SELECT COUNT(*) FROM {entityTables[1]} WHERE name=$entityName;", bottom)) > 0)
             {
                 //entity is room
                 int id = Convert.ToInt32(cursor.Execute($"SELECT id FROM {entityTables[1]} WHERE name=$entityName;", bottom));
-                object parentIDHolder = cursor.Execute($"SELECT parentRoom from room_{entityTables[1]} WHERE childRoom={id};");
-                if (parentIDHolder != null)
-                    return Trace($"{(string)cursor.Execute($"SELECT name from {entityTables[1]} WHERE id={Convert.ToInt32(parentIDHolder)}")} - {trace};", cursor);
+                object[] parentIDHolder = (object[])cursor.Execute($"SELECT parentRoom from room_{entityTables[1]} WHERE childRoom={id};");
+                if (parentIDHolder.Length > 0)
+                    return Trace($"{(string)cursor.Execute($"SELECT name from {entityTables[1]} WHERE id={Convert.ToInt32(parentIDHolder[0])}")} - {trace};", cursor);
                 else
-                    return Trace($"{(string)cursor.Execute($"SELECT name from {entityTables[1]} WHERE id={Convert.ToInt32(cursor.Execute($"SELECT parentRoom from {_entityTables[0]}_{entityTables[1]} WHERE roomID={id};"))}")} - {trace}", cursor);
+                    return Trace($"{(string)cursor.Execute($"SELECT name from {entityTables[0]} WHERE id={Convert.ToInt32(cursor.Execute($"SELECT subserverID from {_entityTables[0]}_{entityTables[1]} WHERE roomID={id};"))}")} - {trace}", cursor);
             }
             else
             {
