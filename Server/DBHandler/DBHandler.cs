@@ -85,7 +85,13 @@ namespace Server.DBHandler
                 }                
             }
         }
-
+        
+        /// <summary>
+        /// A method to obtain an entity's trace as a string
+        /// </summary>
+        /// <param name="trace">The current trace of the entity</param>
+        /// <param name="cursor">The cursor to use for the operation</param>
+        /// <returns>The trace of the entity</returns>
         public static string Trace(string trace, Cursor cursor = null)
         {
             if (cursor == null)
