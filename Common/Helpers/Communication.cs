@@ -8,6 +8,8 @@ namespace Common.Helpers
         public const string START = "start";
         public const string BACKWARD = "backward";
         public const string FORWARD = "forward";
+        public const string TRUE = "true";
+        public const string FALSE = "false";
 
         #region Admin
 

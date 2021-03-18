@@ -4,6 +4,7 @@ using Common.Packets;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System;
+using System.Collections.Generic;
 using System.Configuration;
 using System.IO;
 using System.Linq;
@@ -169,11 +170,24 @@ namespace Server
                                         state = DBHandler.DBHandler.CheckUser(values[2], values[3]);
                                         if (state)
                                         {
-                                            outPacket.Add(values[3], values[2]);
-                                            string pwd = DBHandler.DBHandler.CheckPassword(values[2]);
-                                            if (!e.client.data.TryAdd("entityPwd", pwd))
-                                                e.client.data["entityPwd"] = pwd;
-                                            outPacket.Add(String.IsNullOrEmpty(pwd) ? Communication.COMPLETE : Communication.INCOMPLETE);
+                                            outPacket.Add(values[3]);
+                                            string[] trace = DBHandler.DBHandler.Trace(values[2]).Split(" - ")
+                                                                                .SkipWhile(entity => entity != values[5])
+                                                                                .ToArray();
+                                            state = true;
+                                            foreach (string entity in trace)
+                                            {
+                                                string pwd = DBHandler.DBHandler.CheckPassword(entity);
+                                                if (!String.IsNullOrEmpty(pwd))
+                                                {
+                                                    outPacket.Add(entity, Communication.INCOMPLETE);
+                                                    e.client.data["entityPwd"] = pwd;
+                                                    state = false;
+                                                    break;
+                                                }
+                                            }
+                                            if (state)
+                                                outPacket.Add(values[2], Communication.COMPLETE);
                                         }
                                         else
                                             outPacket.Add(Communication.FAILURE);
@@ -192,9 +206,18 @@ namespace Server
                                 }
                                 else
                                 {
-                                    state = DBHandler.DBHandler.Login(values[1], values[2]);
+                                    state = true;
+                                    if (values[4] == Communication.TRUE)
+                                        state = DBHandler.DBHandler.Login(values[1], values[2]);
                                     if (!String.IsNullOrEmpty((string)e.client.data["entityPwd"]))
-                                        state = BCrypt.Net.BCrypt.Verify(values[4], (string)e.client.data["entityPwd"]);
+                                        state = BCrypt.Net.BCrypt.Verify(values[5], (string)e.client.data["entityPwd"]);
+                                    if (!state)
+                                    {
+                                        outPacket.Add(Communication.FAILURE, DBHandler.DBHandler.Trace(values[3]));
+                                        break;
+                                    }
+                                    
+                                    //Check for other entity passwords
                                     if (state)
                                     {
                                         DBHandler.DBHandler.SetPresent(values[3], values[1]);

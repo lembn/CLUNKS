@@ -14,6 +14,7 @@ namespace Client
         private static bool quit = false;
         private static bool free = true;
         private static bool prompted = false;
+        private static bool sentPwd = false;
         private static string promptHeader = null;
         private static string username;
         private static Stack<string> traversalTrace;
@@ -67,12 +68,16 @@ namespace Client
                             outPacket = new Packet(DataID.Command, channel.id);
                             username = input[2];
                             if (traversalTrace.Contains(input[1]))
-                                outPacket.Add(input[0], Communication.START, input[1], input[2], Communication.BACKWARD, String.Join(" - ", traversalTrace));
+                                outPacket.Add(input[0], Communication.START, input[1], input[2],  Communication.BACKWARD, String.Join(" - ", traversalTrace));
                             else
-                                outPacket.Add(input[0], Communication.START, input[1], input[2], Communication.FORWARD);
+                                outPacket.Add(input[0], Communication.START, input[1], input[2], Communication.FORWARD, traversalTrace.Peek());
                             channel.Dispatch += new Channel.DispatchEventHandler(ConnectReponseHanlder);
                             channel.Add(outPacket);
                             Console.WriteLine($"Requesting CONNECT to '{input[1]}'...");
+                            break;
+                        case "trace":
+                        case "branch":
+                            Console.WriteLine(String.Join(" - ", traversalTrace));
                             break;
                         case "cls":
                             Console.Clear();
@@ -118,15 +123,20 @@ namespace Client
                 }
                 channel.Dispatch -= ConnectReponseHanlder;
                 prompted = false;
+                sentPwd = false;
                 free = true;             
             }
             else
             {
                 Packet outPacket = new Packet(DataID.Command, channel.id);
                 free = false;
-                outPacket.Add(Communication.CONNECT, values[0], ConsoleTools.HideInput("Enter your password"), values[1]);
+                string password = String.Empty;
+                if (!sentPwd)
+                    password = ConsoleTools.HideInput("Enter your password");
+                outPacket.Add(Communication.CONNECT, values[0], password, values[1], sentPwd ? Communication.FALSE : Communication.TRUE);
+                sentPwd = true;
                 if (values[2] == Communication.INCOMPLETE)
-                    outPacket.Add(ConsoleTools.HideInput($"Enter '{values[1]}' password"));
+                    outPacket.Add(ConsoleTools.HideInput($"Enter '{values[1]}' password"));                
                 channel.Add(outPacket);
             }
         }
