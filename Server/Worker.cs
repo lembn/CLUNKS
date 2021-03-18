@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using System;
 using System.Configuration;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Reflection;
 using System.Threading;
@@ -160,21 +161,34 @@ namespace Server
                         outPacket = new Packet(DataID.Status, e.client.id);
                         switch (values[0])
                         {
-                            case Communication.CONNECT:
+                            case Communication.CONNECT:                                
                                 if (values[1] == Communication.START)
                                 {
-                                    state = DBHandler.DBHandler.CheckUser(values[2], values[3]);
-                                    if (state)
+                                    if (values[4] == Communication.FORWARD)
                                     {
-                                        outPacket.Add(values[3], values[2]);
-                                        string pwd = DBHandler.DBHandler.CheckPassword(values[2]);
-                                        if (!e.client.data.TryAdd("entityPwd", pwd))
-                                            e.client.data["entityPwd"] = pwd;
-                                        if (!String.IsNullOrEmpty(pwd))
-                                            outPacket.Add(Communication.INCOMPLETE);
+                                        state = DBHandler.DBHandler.CheckUser(values[2], values[3]);
+                                        if (state)
+                                        {
+                                            outPacket.Add(values[3], values[2]);
+                                            string pwd = DBHandler.DBHandler.CheckPassword(values[2]);
+                                            if (!e.client.data.TryAdd("entityPwd", pwd))
+                                                e.client.data["entityPwd"] = pwd;
+                                            outPacket.Add(String.IsNullOrEmpty(pwd) ? Communication.COMPLETE : Communication.INCOMPLETE);
+                                        }
+                                        else
+                                            outPacket.Add(Communication.FAILURE);
                                     }
                                     else
-                                        outPacket.Add(Communication.FAILURE);
+                                    {
+                                        string[] trace = values[5].Split(" - ");
+                                        int i;
+                                        for (i = trace.Length - 1; i > Array.FindIndex(trace, x => x == values[2]); i--)
+                                        {
+                                            DBHandler.DBHandler.SetPresent(trace[i], values[3], false);
+                                            logger.LogInformation($"User@{e.client.endpoint} ({values[3]}) logged out of '{trace[i]}'");
+                                        }                                        
+                                        outPacket.Add(Communication.SUCCESS, String.Join(" - ", trace.Take(trace.Length - i)));
+                                    }
                                 }
                                 else
                                 {

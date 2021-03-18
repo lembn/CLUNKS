@@ -50,6 +50,7 @@ namespace Client
                 }
                 free = true;
                 string[] input = Console.ReadLine().Split();
+                Array.ForEach(input, x => x = x.Trim());
                 try
                 {
                     switch (input[0].ToLower())
@@ -58,9 +59,17 @@ namespace Client
                             ShowHelp();
                             break;
                         case "connect":
+                            if (input[1] == traversalTrace.Peek())
+                            {
+                                Console.WriteLine($"Already connected to {input[1]}");
+                                break;
+                            }
                             outPacket = new Packet(DataID.Command, channel.id);
                             username = input[2];
-                            outPacket.Add(input[0], Communication.START, input[1], input[2]);
+                            if (traversalTrace.Contains(input[1]))
+                                outPacket.Add(input[0], Communication.START, input[1], input[2], Communication.BACKWARD, String.Join(" - ", traversalTrace));
+                            else
+                                outPacket.Add(input[0], Communication.START, input[1], input[2], Communication.FORWARD);
                             channel.Dispatch += new Channel.DispatchEventHandler(ConnectReponseHanlder);
                             channel.Add(outPacket);
                             Console.WriteLine($"Requesting CONNECT to '{input[1]}'...");
@@ -74,7 +83,6 @@ namespace Client
                                 Quit(null, null);
                             else
                             {
-                                //TODO: Test ET
                                 outPacket = new Packet(DataID.Command, channel.id);
                                 outPacket.Add(Communication.DISCONNECT, traversalTrace.Peek(), username);
                                 channel.Dispatch += new Channel.DispatchEventHandler(DisconnectResponseHandler);
@@ -117,7 +125,7 @@ namespace Client
                 Packet outPacket = new Packet(DataID.Command, channel.id);
                 free = false;
                 outPacket.Add(Communication.CONNECT, values[0], ConsoleTools.HideInput("Enter your password"), values[1]);
-                if (values.Length > 2)
+                if (values[2] == Communication.INCOMPLETE)
                     outPacket.Add(ConsoleTools.HideInput($"Enter '{values[1]}' password"));
                 channel.Add(outPacket);
             }
