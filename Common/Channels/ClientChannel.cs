@@ -57,7 +57,8 @@ namespace Common.Channels
         /// <param name="packetLossThresh">The threshold of packet loss</param>
         public ClientChannel(int bufferSize, IPAddress ip, int tcp, int udp, EncryptionConfig.Strength strength, ref bool valid) : base(bufferSize)
         {
-            Console.WriteLine("Opening communications...");
+            //TODO: replace
+            //Console.WriteLine("Opening communications...");
             outPackets = new BlockingCollection<Packet>();
             inPackets = new BlockingCollection<Packet>();
             receiving = new ManualResetEventSlim(true);
@@ -97,8 +98,8 @@ namespace Common.Channels
         {
             threads.Add(ThreadHelper.GetECThread(ctoken, () => 
             {
-                lock (outPackets)
-                    outPackets.Add(new Packet(DataID.Heartbeat, id));
+                //lock (outPackets)
+                //    outPackets.Add(new Packet(DataID.Heartbeat, id));
                 ctoken.WaitHandle.WaitOne(5000);
                 lock (hbLock)
                 {
@@ -110,8 +111,8 @@ namespace Common.Channels
                     else
                     {
                         missedHBs += 1;
-                        if (missedHBs == 2)
-                            Close();
+                        if (missedHBs == 2) { }
+                            //Close();
                     }
                 }
 
@@ -274,7 +275,7 @@ namespace Common.Channels
             List<DataID> expectedDataList = new List<DataID> { DataID.Ack, DataID.Hello, DataID.Info, DataID.Signature };
             Queue<DataID> expectedData = new Queue<DataID>(expectedDataList);
 
-            void HandshakeRecursive(IAsyncResult ar, int bytesToRead = 0)
+            void HandshakeRecursive(IAsyncResult ar, int bytesToRead = 0, int a = 0)
             {
                 try
                 {
@@ -285,13 +286,16 @@ namespace Common.Channels
                         bytesToRead = BitConverter.ToInt32(dataStream.Get()) + HEADER_SIZE; //(+ HEADER_SIZE because when we pass the recursive CB we subtract bytesRead from bytesToRead)
                         receivingHeader = false;
                     }
-                    if (bytesToRead - bytesRead > 0)
+                    if ((bytesToRead - bytesRead) > 0)
                         socket.BeginReceive(dataStream.New(), 0, dataStream.bufferSize, SocketFlags.None, new AsyncCallback((IAsyncResult ar) =>
                         {
-                            HandshakeRecursive(ar, bytesToRead - bytesRead);
+                            HandshakeRecursive(ar, bytesToRead - bytesRead, a + bytesRead);
                         }), dataStream);
                     else
+                    {
+                        Console.WriteLine($"Incoming datastream length: {a + bytesRead}\n"); //TODO: remove
                         ProcessPacket(packetFactory.BuildPacket(dataStream.Get()));
+                    }
                 }
                 catch (SocketException)
                 {
@@ -374,7 +378,8 @@ namespace Common.Channels
                 }
             }
 
-            Console.WriteLine($"Handshaking with server @{server}");
+            //TODO: replace
+            //Console.WriteLine($"Handshaking with server @{server}");
 
             packetFactory.InitEncCfg(EncryptionConfig.Strength.Strong);
             packetFactory.encCfg.useCrypto = false;
@@ -406,8 +411,8 @@ namespace Common.Channels
             complete.WaitOne();
             if (!failed)
             {
-                if (!disposed)
-                    Console.WriteLine("Server handshake successfull.\nConnection established.");
+                if (!disposed) { } //TODO: remove
+                    //Console.WriteLine("Server handshake successfull.\nConnection established.");
                 return true;
             }
             else
@@ -436,6 +441,7 @@ namespace Common.Channels
                     }), null);
                     sent.WaitOne();
                     socket.BeginSend(data, 0, data.Length, 0, new AsyncCallback((IAsyncResult ar) => { socket.EndSend(ar); }), null);
+                    Console.WriteLine($"Sending datastream of length: {data.Length + HEADER_SIZE}\n"); //TODO: remove
                 }
                 catch (SocketException)
                 {

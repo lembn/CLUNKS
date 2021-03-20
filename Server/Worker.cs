@@ -175,7 +175,7 @@ namespace Server
                                                                                 .SkipWhile(entity => entity != values[5])
                                                                                 .ToArray();
                                             state = true;
-                                            e.client.data.["requiresPassword"] = String.Join(" - " , trace);
+                                            e.client.data["requiresPassword"] = String.Join(" - " , trace);
                                             foreach (string entity in trace)
                                             {
                                                 string pwd = DBHandler.DBHandler.CheckPassword(entity);
