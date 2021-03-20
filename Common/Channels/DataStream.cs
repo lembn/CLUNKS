@@ -8,7 +8,7 @@ namespace Common.Channels
         #region Public Members
 
         public int chunkSize;
-        public bool freeChunk = false;
+        public bool useNew = false;
         public bool attemptedToFill = false;
         public List<byte[]> chunkList;
 
