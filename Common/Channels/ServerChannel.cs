@@ -176,13 +176,15 @@ namespace Common.Channels
                 ClientModel client = (ClientModel)ar.AsyncState;
                 try
                 {
-                    int bytesRead = client.Handler.EndReceive(ar);
+                    int bytesRead = client.Handler.EndReceive(ar);                    
                     if (client.receivingHeader)
                     {
                         bytesToRead = BitConverter.ToInt32(client.Get()) + HEADER_SIZE; //(+ HEADER_SIZE because when we pass the recursive CB we subtract bytesRead from bytesToRead)
                         client.receivingHeader = false;
                         client.freeChunk = true;
                     }
+                    if (client.attemptedToFill)
+                        client.freeChunk = client.chunkList[client.chunkList.Count - 1].Length == client.chunkSize;
                     if (bytesToRead - bytesRead > 0)
                     {
                         if (bytesRead == client.chunkSize || client.freeChunk)
@@ -194,7 +196,7 @@ namespace Common.Channels
                         else
                             client.Handler.BeginReceive(client.chunkList[client.chunkList.Count - 1], client.chunkList[client.chunkList.Count - 1].Length, client.chunkSize - client.chunkList[client.chunkList.Count - 1].Length, SocketFlags.None, new AsyncCallback((IAsyncResult ar) =>
                             {
-                                client.freeChunk = true;
+                                client.attemptedToFill = true;
                                 HandshakeRecursive(ar, bytesToRead - bytesRead);
                             }), client);                            
                     }
@@ -322,6 +324,8 @@ namespace Common.Channels
                     client.receivingHeader = false;
                     client.freeChunk = true;
                 }
+                if (client.attemptedToFill)
+                    client.freeChunk = client.chunkList[client.chunkList.Count - 1].Length == client.chunkSize;
                 if (bytesToRead - bytesRead > 0)
                 {
                     if (bytesRead == client.chunkSize || client.freeChunk)
@@ -333,7 +337,7 @@ namespace Common.Channels
                     else
                         client.Handler.BeginReceive(client.chunkList[client.chunkList.Count - 1], client.chunkList[client.chunkList.Count - 1].Length, client.chunkSize - client.chunkList[client.chunkList.Count - 1].Length, SocketFlags.None, new AsyncCallback((IAsyncResult ar) =>
                         {
-                            client.freeChunk = true;
+                            client.attemptedToFill = true;
                             ReceiveTCPCallback(ar, bytesToRead - bytesRead);
                         }), client);
                 }
@@ -349,6 +353,7 @@ namespace Common.Channels
             }
             catch (ObjectDisposedException) { }
         }
+        
         /// <summary>
         /// The asynchronous callback to call when a UDP packet is received on a socket
         /// </summary>

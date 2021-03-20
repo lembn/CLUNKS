@@ -286,6 +286,8 @@ namespace Common.Channels
                         receivingHeader = false;
                         dataStream.freeChunk = true;
                     }
+                    if (dataStream.attemptedToFill)
+                        dataStream.freeChunk = dataStream.chunkList[dataStream.chunkList.Count - 1].Length == dataStream.chunkSize;
                     if (bytesToRead - bytesRead > 0)
                     {
                         if (bytesRead == dataStream.chunkSize || dataStream.freeChunk)
@@ -297,7 +299,7 @@ namespace Common.Channels
                         else
                             socket.BeginReceive(dataStream.chunkList[dataStream.chunkList.Count - 1], dataStream.chunkList[dataStream.chunkList.Count - 1].Length, dataStream.chunkSize - dataStream.chunkList[dataStream.chunkList.Count - 1].Length, SocketFlags.None, new AsyncCallback((IAsyncResult ar) =>
                             {
-                                dataStream.freeChunk = true;
+                                dataStream.attemptedToFill = true;
                                 HandshakeRecursive(ar, bytesToRead - bytesRead);
                             }), dataStream);
                     }
@@ -486,6 +488,8 @@ namespace Common.Channels
                     receivingHeader = false;
                     dataStream.freeChunk = true;
                 }
+                if (dataStream.attemptedToFill)
+                    dataStream.freeChunk = dataStream.chunkList[dataStream.chunkList.Count - 1].Length == dataStream.chunkSize;
                 if (bytesToRead - bytesRead > 0)
                 {
                     if (bytesRead == dataStream.chunkSize || dataStream.freeChunk)
@@ -497,7 +501,7 @@ namespace Common.Channels
                     else
                         socket.BeginReceive(dataStream.chunkList[dataStream.chunkList.Count - 1], dataStream.chunkList[dataStream.chunkList.Count - 1].Length, dataStream.chunkSize - dataStream.chunkList[dataStream.chunkList.Count - 1].Length, SocketFlags.None, new AsyncCallback((IAsyncResult ar) =>
                         {
-                            dataStream.freeChunk = true;
+                            dataStream.attemptedToFill = true;
                             ReceiveTCPCallback(ar, bytesToRead - bytesRead);
                         }), dataStream);
                 }
