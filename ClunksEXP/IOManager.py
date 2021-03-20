@@ -110,8 +110,6 @@ class IOManager:
 
 
     def Export(self, logFunc, expFile):
-        subserverElements = []
-        roomElements = []
         noSectorSubservers = {}
         noSectorRooms = {}
         sectorToSubserver = {}
@@ -119,7 +117,6 @@ class IOManager:
 
         def ApplySectorsRecrusive(index, sectors, searchSubservers = False):
             if searchSubservers:
-                subserverElements[index].set('sectors', sectors)
                 for sector in sectors:
                     if sector:
                         try:
@@ -128,7 +125,6 @@ class IOManager:
                             sectorToSubserver[sector.strip()] = [index]
                 del noSectorSubservers[index]
             else:
-                roomElements[index].set('sectors', sectors)
                 for sector in sectors:
                     if sector:
                         try:
@@ -171,6 +167,7 @@ class IOManager:
                 return
 
         nameToSubserver = {}
+        subserverElements = []
         entities = self.ReadAll(self.storage['subserver'])
         subserverRoot = None
         root = ET.Element('root')
@@ -194,6 +191,7 @@ class IOManager:
                             sectorToSubserver[sector.strip()] = [x]
 
         nameToRoom = {}
+        roomElements = []
         processedRooms = []
         entities = self.ReadAll(self.storage['room'])
         #Rooms with subserver parents
@@ -209,11 +207,14 @@ class IOManager:
                         noSectorSubservers[parentIndex] = len(roomElements) - 1
                     noSectorRooms[len(roomElements) - 1] = None
                 else:
-                    if parentIndex in noSectorSubservers.keys():
-                        subserverElements[parentIndex].set('sectors', room[3])
-                        del noSectorSubservers[parentIndex]
                     for sector in room[3].split(','):
                         if sector:
+                            if parentIndex in noSectorSubservers.keys():
+                                try:
+                                    sectorToSubserver[sector.strip()].append(len(subserverElements) - 1)
+                                except KeyError:
+                                    sectorToSubserver[sector.strip()] = [len(subserverElements) - 1]
+                                del noSectorSubservers[parentIndex]
                             try:
                                 sectorToRoom[sector.strip()].append(len(roomElements) - 1)
                             except KeyError:
@@ -277,21 +278,35 @@ class IOManager:
                 for parent in subserverElements + roomElements:
                     ET.SubElement(parent, 'user', {'username': user[0], 'password': user[1] , 'sectors': user[2], 'global': user[3], 'elevation': elevationName})
                 continue
-            parents = {}
+            sectorToParent = {}
             for sector in user[2].split(','):
                 sector = sector.strip()
                 if sector in sectorToSubserver.keys():
-                    parents[sector] = [subserverElements[index] for index in sectorToSubserver[sector]]
+                    try:
+                        sectorToParent[sector][0] += [subserverElements[index] for index in sectorToSubserver[sector]]
+                    except KeyError:
+                        sectorToParent[sector] = [[subserverElements[index] for index in sectorToSubserver[sector]], []]
                 else:
-                    parents[sector] = [roomElements[index] for index in sectorToRoom[sector]]
-            for sector, parentList in parents.items():
-                for parent in parentList:
+                    try:
+                        sectorToParent[sector][1] += [roomElements[index] for index in sectorToRoom[sector]]
+                    except KeyError:
+                        sectorToParent[sector] = [[roomElements[index] for index in sectorToRoom[sector]], []]
+            for sector, parents in sectorToParent.items():
+                finalParents = []
+                for parent in parents[0] + parents[1]:
                     parentSectors = parent.get('sectors')
                     if not parentSectors:
                         parentSectors = sector
                     else:
                         parentSectors += f',{sector}'
                     parent.set('sectors', parentSectors)
+                    lowest = True
+                    for child in parent.iter():
+                        if child is not parent and child in parents[1]:
+                            lowest = False
+                    if lowest:
+                        finalParents.append(parent)
+                for parent in finalParents:
                     ET.SubElement(parent, 'user', {'username': user[0], 'password': user[1] , 'sectors': user[2], 'global': user[3], 'elevation': elevationName})
 
         expFile.write(ET.tostring(root).decode())
