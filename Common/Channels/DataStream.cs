@@ -7,8 +7,9 @@ namespace Common.Channels
     {
         #region Public Members
 
-        public int bufferSize;
-        public List<byte[]> bufferList;
+        public int chunkSize;
+        public bool freeChunk = false;
+        public List<byte[]> chunkList;
 
         #endregion
 
@@ -18,23 +19,23 @@ namespace Common.Channels
         /// A class used for buffering incoming data from a socket
         /// </summary>
         /// <param name="bufferSize">The size of the segments of the buffer</param>
-        public DataStream(int bufferSize)
+        public DataStream(int chunkSize)
         {
-            bufferList = new List<byte[]>();
-            this.bufferSize = bufferSize;
+            chunkList = new List<byte[]>();
+            this.chunkSize = chunkSize;
         }
 
         /// <summary>
-        /// A method to get a new segment for the buffer to use for buffering
+        /// A method to get a new chunk for the buffer to use for buffering
         /// </summary>
-        /// <returns>The new segment</returns>
+        /// <returns>The new chunk</returns>
         public byte[] New()
         {
-            if (bufferList.Count == 1)
-                if (bufferList[0].All(item => item == 0))
-                    return bufferList[0];
-            byte[] buffer = new byte[bufferSize];
-            bufferList.Add(buffer);
+            if (chunkList.Count == 1)
+                if (chunkList[0].All(item => item == 0))
+                    return chunkList[0];
+            byte[] buffer = new byte[chunkSize];
+            chunkList.Add(buffer);
             return buffer;
         }
 
@@ -45,9 +46,9 @@ namespace Common.Channels
         public byte[] Get()
         {
             List<byte> output = new List<byte>();
-            foreach (byte[] buffer in bufferList)
+            foreach (byte[] buffer in chunkList)
                 output.AddRange(buffer);
-            bufferList.Clear();
+            chunkList.Clear();
             return output.ToArray();
         }
 

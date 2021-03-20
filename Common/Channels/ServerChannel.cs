@@ -162,7 +162,6 @@ namespace Common.Channels
         /// <returns>true if the handshake was successful, false otherwise</returns>
         private bool Handshake(ClientModel client)
         {
-            Console.WriteLine("\n------------- NEW CLIENT --------------\n"); //TODO: remove
             Packet outPacket = null;
             byte[] signature;
             ManualResetEvent complete = new ManualResetEvent(false);
@@ -172,7 +171,7 @@ namespace Common.Channels
             List<DataID> expectedDataList = new List<DataID> { DataID.Hello, DataID.Info, DataID.Ack, DataID.Signature, DataID.Status };
             Queue<DataID> expectedData = new Queue<DataID>(expectedDataList);
 
-            void HandshakeRecursive(IAsyncResult ar, int bytesToRead = 0, int a = 0)
+            void HandshakeRecursive(IAsyncResult ar, int bytesToRead = 0)
             {
                 ClientModel client = (ClientModel)ar.AsyncState;
                 try
@@ -182,16 +181,25 @@ namespace Common.Channels
                     {
                         bytesToRead = BitConverter.ToInt32(client.Get()) + HEADER_SIZE; //(+ HEADER_SIZE because when we pass the recursive CB we subtract bytesRead from bytesToRead)
                         client.receivingHeader = false;
+                        client.freeChunk = true;
                     }
                     if (bytesToRead - bytesRead > 0)
-                        client.Handler.BeginReceive(client.New(), 0, client.bufferSize, SocketFlags.None, new AsyncCallback((IAsyncResult ar) => {
-                            HandshakeRecursive(ar, bytesToRead - bytesRead, a + bytesRead);
-                        }), client);
-                    else
                     {
-                        Console.WriteLine($"Incoming datastream length: {a + bytesRead}\n"); //TODO: remove
-                        ProcessPacket(client.packetFactory.BuildPacket(client.Get()));
+                        if (bytesRead == client.chunkSize || client.freeChunk)
+                            client.Handler.BeginReceive(client.New(), 0, client.chunkSize, SocketFlags.None, new AsyncCallback((IAsyncResult ar) =>
+                            {
+                                client.freeChunk = false;
+                                HandshakeRecursive(ar, bytesToRead - bytesRead);
+                            }), client);
+                        else
+                            client.Handler.BeginReceive(client.chunkList[client.chunkList.Count - 1], client.chunkList[client.chunkList.Count - 1].Length, client.chunkSize - client.chunkList[client.chunkList.Count - 1].Length, SocketFlags.None, new AsyncCallback((IAsyncResult ar) =>
+                            {
+                                client.freeChunk = true;
+                                HandshakeRecursive(ar, bytesToRead - bytesRead);
+                            }), client);                            
                     }
+                    else
+                        ProcessPacket(client.packetFactory.BuildPacket(client.Get()));
                 }
                 catch (SocketException)
                 {
@@ -312,11 +320,23 @@ namespace Common.Channels
                 {
                     bytesToRead = BitConverter.ToInt32(client.Get()) + HEADER_SIZE; //(+ HEADER_SIZE because when we pass the recursive CB we subtract bytesRead from bytesToRead)
                     client.receivingHeader = false;
+                    client.freeChunk = true;
                 }
                 if (bytesToRead - bytesRead > 0)
-                    client.Handler.BeginReceive(client.New(), 0, client.bufferSize, SocketFlags.None, new AsyncCallback((IAsyncResult ar) => {
-                        ReceiveTCPCallback(ar, bytesToRead - bytesRead);
-                    }), client);
+                {
+                    if (bytesRead == client.chunkSize || client.freeChunk)
+                        client.Handler.BeginReceive(client.New(), 0, client.chunkSize, SocketFlags.None, new AsyncCallback((IAsyncResult ar) =>
+                        {
+                            client.freeChunk = false;
+                            ReceiveTCPCallback(ar, bytesToRead - bytesRead);
+                        }), client);
+                    else
+                        client.Handler.BeginReceive(client.chunkList[client.chunkList.Count - 1], client.chunkList[client.chunkList.Count - 1].Length, client.chunkSize - client.chunkList[client.chunkList.Count - 1].Length, SocketFlags.None, new AsyncCallback((IAsyncResult ar) =>
+                        {
+                            client.freeChunk = true;
+                            ReceiveTCPCallback(ar, bytesToRead - bytesRead);
+                        }), client);
+                }
                 else
                 {
                     inPackets.Add((client.packetFactory.BuildPacket(client.Get()), client));
@@ -370,7 +390,6 @@ namespace Common.Channels
                     }), null);
                     sent.WaitOne();
                     client.Handler.BeginSend(data, 0, data.Length, 0, new AsyncCallback((IAsyncResult ar) => { client.Handler.EndSend(ar); }), null);
-                    Console.WriteLine($"Sending datastream of length: {data.Length + HEADER_SIZE}\n"); //TODO: remove
                 }
                 catch (SocketException)
                 {

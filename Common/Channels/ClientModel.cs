@@ -12,7 +12,7 @@ namespace Common.Channels
     /// </summary>
     public class ClientModel : DataStream, IDisposable
     {
-        private Socket handler;
+        private Socket handler;        
         public bool disposed;
         
         #region Public Members
@@ -64,7 +64,7 @@ namespace Common.Channels
                     packetFactory.Dispose();
                 }
 
-                bufferList.Clear();
+                chunkList.Clear();
                 data.Clear();
                 disposed = true;
             }

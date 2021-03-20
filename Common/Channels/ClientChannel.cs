@@ -57,8 +57,7 @@ namespace Common.Channels
         /// <param name="packetLossThresh">The threshold of packet loss</param>
         public ClientChannel(int bufferSize, IPAddress ip, int tcp, int udp, EncryptionConfig.Strength strength, ref bool valid) : base(bufferSize)
         {
-            //TODO: replace
-            //Console.WriteLine("Opening communications...");
+            Console.WriteLine("Opening communications...");
             outPackets = new BlockingCollection<Packet>();
             inPackets = new BlockingCollection<Packet>();
             receiving = new ManualResetEventSlim(true);
@@ -285,15 +284,25 @@ namespace Common.Channels
                     {
                         bytesToRead = BitConverter.ToInt32(dataStream.Get()) + HEADER_SIZE; //(+ HEADER_SIZE because when we pass the recursive CB we subtract bytesRead from bytesToRead)
                         receivingHeader = false;
+                        dataStream.freeChunk = true;
                     }
-                    if ((bytesToRead - bytesRead) > 0)
-                        socket.BeginReceive(dataStream.New(), 0, dataStream.bufferSize, SocketFlags.None, new AsyncCallback((IAsyncResult ar) =>
-                        {
-                            HandshakeRecursive(ar, bytesToRead - bytesRead, a + bytesRead);
-                        }), dataStream);
+                    if (bytesToRead - bytesRead > 0)
+                    {
+                        if (bytesRead == dataStream.chunkSize || dataStream.freeChunk)
+                            socket.BeginReceive(dataStream.New(), 0, dataStream.chunkSize, SocketFlags.None, new AsyncCallback((IAsyncResult ar) =>
+                            {
+                                dataStream.freeChunk = false;
+                                HandshakeRecursive(ar, bytesToRead - bytesRead);
+                            }), dataStream);
+                        else
+                            socket.BeginReceive(dataStream.chunkList[dataStream.chunkList.Count - 1], dataStream.chunkList[dataStream.chunkList.Count - 1].Length, dataStream.chunkSize - dataStream.chunkList[dataStream.chunkList.Count - 1].Length, SocketFlags.None, new AsyncCallback((IAsyncResult ar) =>
+                            {
+                                dataStream.freeChunk = true;
+                                HandshakeRecursive(ar, bytesToRead - bytesRead);
+                            }), dataStream);
+                    }
                     else
                     {
-                        Console.WriteLine($"Incoming datastream length: {a + bytesRead}\n"); //TODO: remove
                         ProcessPacket(packetFactory.BuildPacket(dataStream.Get()));
                     }
                 }
@@ -378,8 +387,7 @@ namespace Common.Channels
                 }
             }
 
-            //TODO: replace
-            //Console.WriteLine($"Handshaking with server @{server}");
+            Console.WriteLine($"Handshaking with server @{server}");
 
             packetFactory.InitEncCfg(EncryptionConfig.Strength.Strong);
             packetFactory.encCfg.useCrypto = false;
@@ -411,8 +419,8 @@ namespace Common.Channels
             complete.WaitOne();
             if (!failed)
             {
-                if (!disposed) { } //TODO: remove
-                    //Console.WriteLine("Server handshake successfull.\nConnection established.");
+                if (!disposed)
+                    Console.WriteLine("Server handshake successfull.\nConnection established.");
                 return true;
             }
             else
@@ -441,7 +449,6 @@ namespace Common.Channels
                     }), null);
                     sent.WaitOne();
                     socket.BeginSend(data, 0, data.Length, 0, new AsyncCallback((IAsyncResult ar) => { socket.EndSend(ar); }), null);
-                    Console.WriteLine($"Sending datastream of length: {data.Length + HEADER_SIZE}\n"); //TODO: remove
                 }
                 catch (SocketException)
                 {
@@ -477,13 +484,23 @@ namespace Common.Channels
                 {
                     bytesToRead = BitConverter.ToInt32(dataStream.Get()) + HEADER_SIZE; //(+ HEADER_SIZE because when we pass the recursive CB we subtract bytesRead from bytesToRead)
                     receivingHeader = false;
+                    dataStream.freeChunk = true;
                 }
                 if (bytesToRead - bytesRead > 0)
                 {
-                    socket.BeginReceive(dataStream.New(), 0, dataStream.bufferSize, SocketFlags.None, new AsyncCallback((IAsyncResult ar) => {
-                        ReceiveTCPCallback(ar, bytesToRead - bytesRead);
-                    }), dataStream);
-                }                    
+                    if (bytesRead == dataStream.chunkSize || dataStream.freeChunk)
+                        socket.BeginReceive(dataStream.New(), 0, dataStream.chunkSize, SocketFlags.None, new AsyncCallback((IAsyncResult ar) =>
+                        {
+                            dataStream.freeChunk = false;
+                            ReceiveTCPCallback(ar, bytesToRead - bytesRead);
+                        }), dataStream);
+                    else
+                        socket.BeginReceive(dataStream.chunkList[dataStream.chunkList.Count - 1], dataStream.chunkList[dataStream.chunkList.Count - 1].Length, dataStream.chunkSize - dataStream.chunkList[dataStream.chunkList.Count - 1].Length, SocketFlags.None, new AsyncCallback((IAsyncResult ar) =>
+                        {
+                            dataStream.freeChunk = true;
+                            ReceiveTCPCallback(ar, bytesToRead - bytesRead);
+                        }), dataStream);
+                }
                 else
                 {
                     inPackets.Add(packetFactory.BuildPacket(dataStream.Get()));
