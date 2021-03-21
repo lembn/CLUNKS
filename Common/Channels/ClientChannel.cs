@@ -11,7 +11,6 @@ using System.Threading;
 
 namespace Common.Channels
 {
-    //TODO: turn on HB
     /// <summary>
     /// A class used by clients to communicate over the network with the server, and with other users via the server
     /// </summary>
@@ -98,8 +97,8 @@ namespace Common.Channels
         {
             threads.Add(ThreadHelper.GetECThread(ctoken, () => 
             {
-                //lock (outPackets)
-                //    outPackets.Add(new Packet(DataID.Heartbeat, id));
+                lock (outPackets)
+                    outPackets.Add(new Packet(DataID.Heartbeat, id));
                 ctoken.WaitHandle.WaitOne(5000);
                 lock (hbLock)
                 {
@@ -112,7 +111,7 @@ namespace Common.Channels
                     {
                         missedHBs += 1;
                         if (missedHBs == 2) { }
-                            //Close();
+                            Close();
                     }
                 }
 
@@ -279,39 +278,6 @@ namespace Common.Channels
             {
                 try
                 {
-                    //dataStream = (DataStream)ar.AsyncState;
-                    //int bytesRead = socket.EndReceive(ar);
-                    //if (dataStream.attemptedToFill)
-                    //    dataStream.useNew = dataStream.chunkList[dataStream.chunkList.Count - 1].Length == dataStream.chunkSize;
-                    //else
-                    //    dataStream.useNew = bytesRead == dataStream.chunkSize;
-                    //if (receivingHeader)
-                    //{
-                    //    bytesToRead = BitConverter.ToInt32(dataStream.Get()) + HEADER_SIZE; //(+ HEADER_SIZE because when we pass the recursive CB we subtract bytesRead from bytesToRead)
-                    //    receivingHeader = false;
-                    //    dataStream.useNew = true;
-                    //    dataStream.attemptedToFill = false;
-                    //}                    
-                    //if (bytesToRead - bytesRead > 0)
-                    //{
-                    //    if (dataStream.useNew)
-                    //        socket.BeginReceive(dataStream.New(), 0, dataStream.chunkSize, SocketFlags.None, new AsyncCallback((IAsyncResult ar) =>
-                    //        {
-                    //            dataStream.useNew = false;
-                    //            HandshakeRecursive(ar, bytesToRead - bytesRead);
-                    //        }), dataStream);
-                    //    else
-                    //        socket.BeginReceive(dataStream.chunkList[dataStream.chunkList.Count - 1], dataStream.chunkList[dataStream.chunkList.Count - 1].Length, dataStream.chunkSize - dataStream.chunkList[dataStream.chunkList.Count - 1].Length, SocketFlags.None, new AsyncCallback((IAsyncResult ar) =>
-                    //        {
-                    //            dataStream.attemptedToFill = true;
-                    //            HandshakeRecursive(ar, bytesToRead - bytesRead);
-                    //        }), dataStream);
-                    //}
-                    //else
-                    //{
-                    //    ProcessPacket(packetFactory.BuildPacket(dataStream.Get()));
-                    //}
-
                     dataStream = (DataStream)ar.AsyncState;
                     int bytesRead = socket.EndReceive(ar);
 

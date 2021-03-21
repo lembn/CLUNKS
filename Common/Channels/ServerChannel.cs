@@ -11,7 +11,6 @@ using System.Threading;
 
 namespace Common.Channels
 {
-    //TODO: turn on HB
     /// <summary>
     /// A class used by the server to communicate over the network with the clients
     /// </summary>
@@ -74,10 +73,10 @@ namespace Common.Channels
 
             threads.Add(ThreadHelper.GetECThread(ctoken, () => 
             {
-                //lock (clientList)
-                //    foreach (ClientModel client in clientList)
-                //        lock (outPackets)
-                //            outPackets.Add((new Packet(DataID.Heartbeat, client.id), client));
+                lock (clientList)
+                    foreach (ClientModel client in clientList)
+                        lock (outPackets)
+                            outPackets.Add((new Packet(DataID.Heartbeat, client.id), client));
                 Thread.Sleep(5000);
                 lock (clientList)
                 for (int i = clientList.Count - 1; i >= 0; i--)
@@ -93,7 +92,7 @@ namespace Common.Channels
                         {
                             clientList[i].missedHBs += 1;
                                 if (clientList[i].missedHBs == 2) { }
-                                    //RemoveClient(clientList[i]);
+                                    RemoveClient(clientList[i]);
                         }
                     }
                 }
@@ -180,37 +179,6 @@ namespace Common.Channels
                 ClientModel client = (ClientModel)ar.AsyncState;
                 try
                 {
-                    //int bytesRead = client.Handler.EndReceive(ar);
-                    //if (client.attemptedToFill)
-                    //    client.useNew = client.chunkList[client.chunkList.Count - 1].Length == client.chunkSize;
-                    //else
-                    //    client.useNew = bytesRead == client.chunkSize;
-                    //if (client.receivingHeader)
-                    //{
-                    //    bytesToRead = BitConverter.ToInt32(client.Get()) + HEADER_SIZE; //(+ HEADER_SIZE because when we pass the recursive CB we subtract bytesRead from bytesToRead)
-                    //    client.receivingHeader = false;
-                    //    client.useNew = true;
-                    //    client.attemptedToFill = false;
-                    //}                    
-                    //if (bytesToRead - bytesRead > 0)
-                    //{
-                    //    if (client.useNew)
-                    //        client.Handler.BeginReceive(client.New(), 0, client.chunkSize, SocketFlags.None, new AsyncCallback((IAsyncResult ar) =>
-                    //        {
-                    //            client.useNew = false;
-                    //            HandshakeRecursive(ar, bytesToRead - bytesRead);
-                    //        }), client);
-                    //    else
-                    //        client.Handler.BeginReceive(client.chunkList[client.chunkList.Count - 1], client.chunkList[client.chunkList.Count - 1].Length, client.chunkSize - client.chunkList[client.chunkList.Count - 1].Length, SocketFlags.None, new AsyncCallback((IAsyncResult ar) =>
-                    //        {
-                    //            client.attemptedToFill = true;
-                    //            HandshakeRecursive(ar, bytesToRead - bytesRead);
-                    //        }), client);                            
-                    //}
-                    //else
-                    //    ProcessPacket(client.packetFactory.BuildPacket(client.Get()));
-
-
                     int bytesRead = client.Handler.EndReceive(ar);
                     int maxBytesToReceive = 0;
                     if (client.receivingHeader)
