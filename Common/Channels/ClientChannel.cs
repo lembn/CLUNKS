@@ -69,7 +69,7 @@ namespace Common.Channels
             serverIP = ip;
             TCP_PORT = tcp;
             UDP_PORT = udp;
-            dataStream = new DataStream(bufferSize);
+            dataStream = new DataStream();
             server = (EndPoint)new IPEndPoint(serverIP, TCP_PORT);
             socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             bool state = true;
@@ -143,12 +143,12 @@ namespace Common.Channels
                     lock (socket)
                     {
                         if (socket.ProtocolType == ProtocolType.Tcp)
-                            socket.BeginReceive(dataStream.New(), 0, HEADER_SIZE, SocketFlags.None, new AsyncCallback((IAsyncResult ar) => {
+                            socket.BeginReceive(dataStream.New(HEADER_SIZE), 0, HEADER_SIZE, SocketFlags.None, new AsyncCallback((IAsyncResult ar) => {
                                 receivingHeader = true;
                                 ReceiveTCPCallback(ar);
                             }), dataStream);
                         else
-                            socket.BeginReceiveFrom(dataStream.New(), 0, bufferSize, SocketFlags.None, ref server, new AsyncCallback(ReceiveUDPCallback), null);
+                            socket.BeginReceiveFrom(dataStream.New(bufferSize), 0, bufferSize, SocketFlags.None, ref server, new AsyncCallback(ReceiveUDPCallback), null);
                     }
                 }
                 catch (SocketException)
@@ -276,41 +276,34 @@ namespace Common.Channels
 
             void HandshakeRecursive(IAsyncResult ar, int offset = 0)
             {
+                dataStream = (DataStream)ar.AsyncState;
                 try
                 {
-                    dataStream = (DataStream)ar.AsyncState;
                     int bytesRead = socket.EndReceive(ar);
-
-                    int maxBytesToReceive = 0;
+                    int maxToReceive;
                     if (receivingHeader)
                     {
-                        int bytesToRead = BitConverter.ToInt32(dataStream.Get());
-                        int numChunks = bytesToRead / dataStream.chunkSize;
-                        if ((bytesToRead % dataStream.chunkSize) != 0)
-                            ++numChunks;
-                        dataStream.CreateFlattenChunks(numChunks, bytesToRead);
-                        var flattenSize = dataStream.GetFlattenSize();
-                        maxBytesToReceive = flattenSize;
+                        int bytesToRead = BitConverter.ToInt32(dataStream.buffer);
+                        dataStream.New(bytesToRead);
+                        maxToReceive = bytesToRead;
                         receivingHeader = false;
                     }
                     else
                     {
                         offset += bytesRead;
-                        maxBytesToReceive = dataStream.GetFlattenSize() - bytesRead - dataStream.GetNumStoredBytes();
-                        dataStream.AddNumBytesStored(bytesRead);
+                        dataStream.Update(bytesRead);
+                        maxToReceive = dataStream.FreeBytes();
                     }
 
-                    if (dataStream.isBufferFull())
-                    {
-                        ProcessPacket(packetFactory.BuildPacket(dataStream.GetFlattenChunks()));
-                    }
-                    else
-                    {
-                        var flattenChunks = dataStream.GetFlattenChunks();
-                        socket.BeginReceive(flattenChunks, offset, maxBytesToReceive, SocketFlags.None, new AsyncCallback((IAsyncResult ar) =>
+                    if (maxToReceive > 0)
+                        socket.BeginReceive(dataStream.buffer, offset, maxToReceive, SocketFlags.None, new AsyncCallback((IAsyncResult ar) =>
                         {
                             HandshakeRecursive(ar, offset);
                         }), dataStream);
+                    else
+                    {
+                        ProcessPacket(packetFactory.BuildPacket(dataStream.Get()));
+                        receiving.Set();
                     }
                 }
                 catch (SocketException)
@@ -382,7 +375,7 @@ namespace Common.Channels
 
                     SendPacket(outPacket);
                     if (!complete.WaitOne(0))
-                        socket.BeginReceive(dataStream.New(), 0, HEADER_SIZE, SocketFlags.None, new AsyncCallback((IAsyncResult ar) => {
+                        socket.BeginReceive(dataStream.New(HEADER_SIZE), 0, HEADER_SIZE, SocketFlags.None, new AsyncCallback((IAsyncResult ar) => {
                             receivingHeader = true;
                             HandshakeRecursive(ar);
                         }), dataStream);
@@ -415,7 +408,7 @@ namespace Common.Channels
 
             try
             {
-                socket.BeginReceive(dataStream.New(), 0, HEADER_SIZE, SocketFlags.None, new AsyncCallback((IAsyncResult ar) => {
+                socket.BeginReceive(dataStream.New(HEADER_SIZE), 0, HEADER_SIZE, SocketFlags.None, new AsyncCallback((IAsyncResult ar) => {
                     receivingHeader = true;
                     HandshakeRecursive(ar);
                 }), dataStream);
@@ -481,42 +474,37 @@ namespace Common.Channels
         /// The callback to run when TCP packets are recieved from the server
         /// </summary>
         /// <param name="ar">An object representing the result of the asynchoronous task</param>
-        private protected override void ReceiveTCPCallback(IAsyncResult ar, int bytesToRead = HEADER_SIZE)
+        private protected override void ReceiveTCPCallback(IAsyncResult ar, int offset = 0)
         {
+            DataStream dataStream = (DataStream)ar.AsyncState;
             try
             {
-                DataStream dataStream = (DataStream)ar.AsyncState;
                 int bytesRead = socket.EndReceive(ar);
-                if (dataStream.attemptedToFill)
-                    dataStream.useNew = dataStream.chunkList[dataStream.chunkList.Count - 1].Length == dataStream.chunkSize;
-                else
-                    dataStream.useNew = bytesRead == dataStream.chunkSize;
+                int maxToReceive;
                 if (receivingHeader)
                 {
-                    bytesToRead = BitConverter.ToInt32(dataStream.Get()) + HEADER_SIZE; //(+ HEADER_SIZE because when we pass the recursive CB we subtract bytesRead from bytesToRead)
+                    int bytesToRead = BitConverter.ToInt32(dataStream.buffer);
+                    dataStream.New(bytesToRead);
+                    maxToReceive = bytesToRead;
                     receivingHeader = false;
-                    dataStream.useNew = true;
-                }                
-                if (bytesToRead - bytesRead > 0)
-                {
-                    if (dataStream.useNew)
-                        socket.BeginReceive(dataStream.New(), 0, dataStream.chunkSize, SocketFlags.None, new AsyncCallback((IAsyncResult ar) =>
-                        {
-                            dataStream.useNew = false;
-                            ReceiveTCPCallback(ar, bytesToRead - bytesRead);
-                        }), dataStream);
-                    else
-                        socket.BeginReceive(dataStream.chunkList[dataStream.chunkList.Count - 1], dataStream.chunkList[dataStream.chunkList.Count - 1].Length, dataStream.chunkSize - dataStream.chunkList[dataStream.chunkList.Count - 1].Length, SocketFlags.None, new AsyncCallback((IAsyncResult ar) =>
-                        {
-                            dataStream.attemptedToFill = true;
-                            ReceiveTCPCallback(ar, bytesToRead - bytesRead);
-                        }), dataStream);
                 }
+                else
+                {
+                    offset += bytesRead;
+                    dataStream.Update(bytesRead);
+                    maxToReceive = dataStream.FreeBytes();
+                }
+
+                if (maxToReceive > 0)
+                    socket.BeginReceive(dataStream.buffer, offset, maxToReceive, SocketFlags.None, new AsyncCallback((IAsyncResult ar) =>
+                    {
+                        ReceiveTCPCallback(ar, offset);
+                    }), dataStream);
                 else
                 {
                     inPackets.Add(packetFactory.BuildPacket(dataStream.Get()));
                     receiving.Set();
-                }                
+                }
             }
             catch (SocketException)
             {

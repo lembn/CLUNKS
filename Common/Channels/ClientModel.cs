@@ -41,7 +41,7 @@ namespace Common.Channels
 
         #endregion
 
-        public ClientModel(int bufferSize) : base(bufferSize)
+        public ClientModel()
         {
             packetFactory = new PacketFactory();
             packetFactory.InitEncCfg(EncryptionConfig.Strength.Strong);
@@ -64,7 +64,7 @@ namespace Common.Channels
                     packetFactory.Dispose();
                 }
 
-                chunkList.Clear();
+                Array.Clear(buffer, 0, buffer.Length);
                 data.Clear();
                 disposed = true;
             }
