@@ -275,41 +275,76 @@ namespace Common.Channels
             List<DataID> expectedDataList = new List<DataID> { DataID.Ack, DataID.Hello, DataID.Info, DataID.Signature };
             Queue<DataID> expectedData = new Queue<DataID>(expectedDataList);
 
-            void HandshakeRecursive(IAsyncResult ar, int bytesToRead = 0, int a = 0)
+            void HandshakeRecursive(IAsyncResult ar, int offset = 0)
             {
                 try
                 {
+                    //dataStream = (DataStream)ar.AsyncState;
+                    //int bytesRead = socket.EndReceive(ar);
+                    //if (dataStream.attemptedToFill)
+                    //    dataStream.useNew = dataStream.chunkList[dataStream.chunkList.Count - 1].Length == dataStream.chunkSize;
+                    //else
+                    //    dataStream.useNew = bytesRead == dataStream.chunkSize;
+                    //if (receivingHeader)
+                    //{
+                    //    bytesToRead = BitConverter.ToInt32(dataStream.Get()) + HEADER_SIZE; //(+ HEADER_SIZE because when we pass the recursive CB we subtract bytesRead from bytesToRead)
+                    //    receivingHeader = false;
+                    //    dataStream.useNew = true;
+                    //    dataStream.attemptedToFill = false;
+                    //}                    
+                    //if (bytesToRead - bytesRead > 0)
+                    //{
+                    //    if (dataStream.useNew)
+                    //        socket.BeginReceive(dataStream.New(), 0, dataStream.chunkSize, SocketFlags.None, new AsyncCallback((IAsyncResult ar) =>
+                    //        {
+                    //            dataStream.useNew = false;
+                    //            HandshakeRecursive(ar, bytesToRead - bytesRead);
+                    //        }), dataStream);
+                    //    else
+                    //        socket.BeginReceive(dataStream.chunkList[dataStream.chunkList.Count - 1], dataStream.chunkList[dataStream.chunkList.Count - 1].Length, dataStream.chunkSize - dataStream.chunkList[dataStream.chunkList.Count - 1].Length, SocketFlags.None, new AsyncCallback((IAsyncResult ar) =>
+                    //        {
+                    //            dataStream.attemptedToFill = true;
+                    //            HandshakeRecursive(ar, bytesToRead - bytesRead);
+                    //        }), dataStream);
+                    //}
+                    //else
+                    //{
+                    //    ProcessPacket(packetFactory.BuildPacket(dataStream.Get()));
+                    //}
+
                     dataStream = (DataStream)ar.AsyncState;
                     int bytesRead = socket.EndReceive(ar);
-                    if (dataStream.attemptedToFill)
-                        dataStream.useNew = dataStream.chunkList[dataStream.chunkList.Count - 1].Length == dataStream.chunkSize;
-                    else
-                        dataStream.useNew = bytesRead == dataStream.chunkSize;
+
+                    int maxBytesToReceive = 0;
                     if (receivingHeader)
                     {
-                        bytesToRead = BitConverter.ToInt32(dataStream.Get()) + HEADER_SIZE; //(+ HEADER_SIZE because when we pass the recursive CB we subtract bytesRead from bytesToRead)
+                        int bytesToRead = BitConverter.ToInt32(dataStream.Get());
+                        int numChunks = bytesToRead / dataStream.chunkSize;
+                        if ((bytesToRead % dataStream.chunkSize) != 0)
+                            ++numChunks;
+                        dataStream.CreateFlattenChunks(numChunks, bytesToRead);
+                        var flattenSize = dataStream.GetFlattenSize();
+                        maxBytesToReceive = flattenSize;
                         receivingHeader = false;
-                        dataStream.useNew = true;
-                        dataStream.attemptedToFill = false;
-                    }                    
-                    if (bytesToRead - bytesRead > 0)
-                    {
-                        if (dataStream.useNew)
-                            socket.BeginReceive(dataStream.New(), 0, dataStream.chunkSize, SocketFlags.None, new AsyncCallback((IAsyncResult ar) =>
-                            {
-                                dataStream.useNew = false;
-                                HandshakeRecursive(ar, bytesToRead - bytesRead);
-                            }), dataStream);
-                        else
-                            socket.BeginReceive(dataStream.chunkList[dataStream.chunkList.Count - 1], dataStream.chunkList[dataStream.chunkList.Count - 1].Length, dataStream.chunkSize - dataStream.chunkList[dataStream.chunkList.Count - 1].Length, SocketFlags.None, new AsyncCallback((IAsyncResult ar) =>
-                            {
-                                dataStream.attemptedToFill = true;
-                                HandshakeRecursive(ar, bytesToRead - bytesRead);
-                            }), dataStream);
                     }
                     else
                     {
-                        ProcessPacket(packetFactory.BuildPacket(dataStream.Get()));
+                        offset += bytesRead;
+                        maxBytesToReceive = dataStream.GetFlattenSize() - bytesRead - dataStream.GetNumStoredBytes();
+                        dataStream.AddNumBytesStored(bytesRead);
+                    }
+
+                    if (dataStream.isBufferFull())
+                    {
+                        ProcessPacket(packetFactory.BuildPacket(dataStream.GetFlattenChunks()));
+                    }
+                    else
+                    {
+                        var flattenChunks = dataStream.GetFlattenChunks();
+                        socket.BeginReceive(flattenChunks, offset, maxBytesToReceive, SocketFlags.None, new AsyncCallback((IAsyncResult ar) =>
+                        {
+                            HandshakeRecursive(ar, offset);
+                        }), dataStream);
                     }
                 }
                 catch (SocketException)

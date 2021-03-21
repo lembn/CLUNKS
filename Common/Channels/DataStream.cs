@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace Common.Channels
@@ -11,6 +12,11 @@ namespace Common.Channels
         public bool useNew = false;
         public bool attemptedToFill = false;
         public List<byte[]> chunkList;
+        private byte[] flattenChunks;
+        private int flattenSize = 0;
+        private int bytesToRead = 0;
+        private int bytesRead = 0;
+
 
         #endregion
 
@@ -53,6 +59,40 @@ namespace Common.Channels
             return output.ToArray();
         }
 
+        public byte[] CreateFlattenChunks(int numchunks, int bytesToRead)
+        {
+            this.bytesToRead = bytesToRead;
+            flattenChunks = new byte[numchunks * chunkSize];
+            flattenSize = numchunks * chunkSize;
+            bytesRead = 0;
+
+            return flattenChunks;
+        }
+
+        public byte[] GetFlattenChunks()
+        {
+            return flattenChunks;
+        }
+
+        public int GetFlattenSize()
+        {
+            return flattenSize;
+        }
+
+        public void AddNumBytesStored(int bytesRead)
+        {
+            this.bytesRead += bytesRead;
+        }
+
+        public int GetNumStoredBytes()
+        {
+            return this.bytesRead;
+        }
+
+        public bool isBufferFull()
+        {
+            return (this.bytesRead >= this.bytesToRead);
+        }
         #endregion
     }
 }

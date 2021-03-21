@@ -175,45 +175,79 @@ namespace Common.Channels
             List<DataID> expectedDataList = new List<DataID> { DataID.Hello, DataID.Info, DataID.Ack, DataID.Signature, DataID.Status };
             Queue<DataID> expectedData = new Queue<DataID>(expectedDataList);
 
-            void HandshakeRecursive(IAsyncResult ar, int bytesToRead = 0)
+            void HandshakeRecursive(IAsyncResult ar, int offset = 0) 
             {
                 ClientModel client = (ClientModel)ar.AsyncState;
                 try
                 {
+                    //int bytesRead = client.Handler.EndReceive(ar);
+                    //if (client.attemptedToFill)
+                    //    client.useNew = client.chunkList[client.chunkList.Count - 1].Length == client.chunkSize;
+                    //else
+                    //    client.useNew = bytesRead == client.chunkSize;
+                    //if (client.receivingHeader)
+                    //{
+                    //    bytesToRead = BitConverter.ToInt32(client.Get()) + HEADER_SIZE; //(+ HEADER_SIZE because when we pass the recursive CB we subtract bytesRead from bytesToRead)
+                    //    client.receivingHeader = false;
+                    //    client.useNew = true;
+                    //    client.attemptedToFill = false;
+                    //}                    
+                    //if (bytesToRead - bytesRead > 0)
+                    //{
+                    //    if (client.useNew)
+                    //        client.Handler.BeginReceive(client.New(), 0, client.chunkSize, SocketFlags.None, new AsyncCallback((IAsyncResult ar) =>
+                    //        {
+                    //            client.useNew = false;
+                    //            HandshakeRecursive(ar, bytesToRead - bytesRead);
+                    //        }), client);
+                    //    else
+                    //        client.Handler.BeginReceive(client.chunkList[client.chunkList.Count - 1], client.chunkList[client.chunkList.Count - 1].Length, client.chunkSize - client.chunkList[client.chunkList.Count - 1].Length, SocketFlags.None, new AsyncCallback((IAsyncResult ar) =>
+                    //        {
+                    //            client.attemptedToFill = true;
+                    //            HandshakeRecursive(ar, bytesToRead - bytesRead);
+                    //        }), client);                            
+                    //}
+                    //else
+                    //    ProcessPacket(client.packetFactory.BuildPacket(client.Get()));
+
+
                     int bytesRead = client.Handler.EndReceive(ar);
-                    if (client.attemptedToFill)
-                        client.useNew = client.chunkList[client.chunkList.Count - 1].Length == client.chunkSize;
-                    else
-                        client.useNew = bytesRead == client.chunkSize;
+                    int maxBytesToReceive = 0;
                     if (client.receivingHeader)
                     {
-                        bytesToRead = BitConverter.ToInt32(client.Get()) + HEADER_SIZE; //(+ HEADER_SIZE because when we pass the recursive CB we subtract bytesRead from bytesToRead)
+                        int bytesToRead = BitConverter.ToInt32(client.Get());
+                        int numChunks = bytesToRead / client.chunkSize;
+                        if ((bytesToRead % client.chunkSize) != 0)
+                            ++numChunks;
+                        client.CreateFlattenChunks(numChunks, bytesToRead);
+                        var flattenSize = client.GetFlattenSize();
+                        maxBytesToReceive = flattenSize;
                         client.receivingHeader = false;
-                        client.useNew = true;
-                        client.attemptedToFill = false;
-                    }                    
-                    if (bytesToRead - bytesRead > 0)
-                    {
-                        if (client.useNew)
-                            client.Handler.BeginReceive(client.New(), 0, client.chunkSize, SocketFlags.None, new AsyncCallback((IAsyncResult ar) =>
-                            {
-                                client.useNew = false;
-                                HandshakeRecursive(ar, bytesToRead - bytesRead);
-                            }), client);
-                        else
-                            client.Handler.BeginReceive(client.chunkList[client.chunkList.Count - 1], client.chunkList[client.chunkList.Count - 1].Length, client.chunkSize - client.chunkList[client.chunkList.Count - 1].Length, SocketFlags.None, new AsyncCallback((IAsyncResult ar) =>
-                            {
-                                client.attemptedToFill = true;
-                                HandshakeRecursive(ar, bytesToRead - bytesRead);
-                            }), client);                            
                     }
                     else
-                        ProcessPacket(client.packetFactory.BuildPacket(client.Get()));
+                    {
+                        offset += bytesRead;
+                        maxBytesToReceive = client.GetFlattenSize() - bytesRead - client.GetNumStoredBytes();
+                        client.AddNumBytesStored(bytesRead);
+                    }
+
+                    var flattenChunks = client.GetFlattenChunks();
+                    if (client.isBufferFull())
+                    {
+                        ProcessPacket(client.packetFactory.BuildPacket(flattenChunks));
+                    }
+                    else
+                    {
+                        client.Handler.BeginReceive(flattenChunks, offset, maxBytesToReceive, SocketFlags.None, new AsyncCallback((IAsyncResult ar) =>
+                        {
+                            HandshakeRecursive(ar, offset);
+                        }), client);
+                    }
                 }
                 catch (SocketException)
                 {
                    RemoveClient(client);
-                }                
+                }            
             }
 
             void ProcessPacket(Packet inPacket)
