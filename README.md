@@ -301,3 +301,6 @@ ATM, when encryption level <= EncryptionConfig.Strength.Light, the size of the k
 
 # To add
 Common.Channels.ServerChannel itereates backwards though the list when checking for heartbeats so it can remove dead clients from client list within the same iteration. This mimimises lock time.
+TCP Listening overhaul. Compare new and old alogirhtms, talk about 3k problem of old algorithm, talk about consistency of new algorithm
+Buffer size is now only for UDP, new TCP buffer is not chunked
+Change any of the old Common.Channels.DataStream notes
