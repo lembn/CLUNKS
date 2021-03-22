@@ -116,7 +116,7 @@ There are commands that users can run to obtain information about the subserver.
 
 *Notifications:* ```notifications``` will show the any notifications the user has from the server, such as missed calls. The user can clear their notifications, otherwise all uncleared notifications will be loaded when the command is run. (Add limit per user to prevent inifite database expansion?)
 
-*Stats:* ```stats``` will show logged statistics to the user. This can include information such as processed packets per second; how many datagrams are too large for the buffer size as a percentage, etc. The user can use these statistics to make informed decisions on which settings to set in ```settings```
+*Stats:* ```stats``` will show logged statistics to the user. This can include information such as processed packets per second; how many UDP datagrams are too large for the buffer size as a percentage, etc. The user can use these statistics to make informed decisions on which settings to set in ```settings```
 
 *Settings:* ```settings``` will allow the user to configure the program to run differently to optimise efficiency and improve the user experience for them personally.
 
@@ -166,9 +166,165 @@ From a programming perspective, this achieved using asynchronous callbacks. This
 
 The concurrent networking design is further extended when listening for TCP packets. When listening for UDP, the process is relatively simple since data is sent in datagrams (packaged and sent all at once), so only one callback is needed to capture and process the datagram. However, TCP is a stream based protocol, this means that after a connection is established data is broken down and sent in pieces, contrary to the 'all at once' approach of UDP.
 
-This introduces some complexity for processing TCP packets, since a single callback may not capture the entire data Packet. To solve this, a recursive-based design was paired with a light wrapper to protocol to make sure that TCP packets are handled correctly.
+This introduces some complexity for processing data sent in TCP, since a single callback may not capture the entire data Packet. To solve this, a recursive design, paired with a chunk-segmented buffer was implemented to make sure that TCP packets are handled correctly. Here is a snippet containing the TCP reception algorithm implemented in the server (the client utilises the same algorith, but uses some different variables to do so).
 
-**TODO: SHOW TCP CALLBACK CODE AND EXPLAIN**
+First, the server begins listening for incoming data on the network pipe:
+
+``` c#  
+client.Handler.BeginReceive(client.New(), 0, HEADER_SIZE, SocketFlags.None, new AsyncCallback((IAsyncResult ar) => 
+{
+    client.receivingHeader = true;
+    ReceiveTCPCallback(ar, 0);
+}), client);
+```
+
+Here, `client.Handler` is the socket being used to receive data from the client. `BeginReceive()` is the method which begins listening to incoming data. Into this method, we pass:
+- `buffer`: The array to read data into, created by `client.New()`, which creates and returns a new chunk of the client's buffer.
+- `offset`: The zero-based index to write data from (`0`) when writing data into the buffer.
+- `length`: The maximum amount of data to receive, in this case `HEADER_SIZE` equals 4 because a 4 byte header is always sent before the rest of the data to inform the recipient how much data they should expect to receive in total.
+- `socketFlags`: The `SocketFlags` to use (extra socket confiuration), in this case it is set to `SocketFlags.None`, which is the `SocketFlags` class' equivalient to `null`
+- `callback`: The asynchronous callback to invoke when data is received
+- `state`: An object which can be casted out of the `IAsyncResult.AsyncState` object that gets passed into the asynchronous callback. Since the algorithm is recursive, the `client` object gets passed as the the state object parameter so it can be used in later recursions. This has the same effect as passing the object directly into the method as an argument
+
+The asynchronous callback first sets the boolean value `receivingHeader` to `true`. `receivingHeader` is a feild on the `ClientModel` class (the class that `client` is a member of) which represents if a client is currently reading the 4 byte header or the actual datastream. It then calls into `ReceiveTCPCallback()`, the method that handles the procesing of the datastream for TCP listening. Here is a simplified sample of it (*exception handling removed*):
+
+``` c#
+private protected override void ReceiveTCPCallback(IAsyncResult ar, int bytesToRead)
+{
+    ClientModel client = (ClientModel)ar.AsyncState;
+    int bytesRead = client.Handler.EndReceive(ar);
+    if (client.receivingHeader)
+    {
+        bytesToRead = BitConverter.ToInt32(client.Get());
+        bytesRead = 0;
+        client.receivingHeader = false;
+    }
+    if (bytesToRead - bytesRead > 0)
+        client.Handler.BeginReceive(client.New(), 0, client.bufferSize, SocketFlags.None, new AsyncCallback((IAsyncResult ar) => {
+            ReceiveTCPCallback(ar, bytesToRead - bytesRead);
+        }), client);
+    else
+    {
+        Process(client.Get());
+        client.receiving = false;
+    }
+}
+```
+
+The parameters of `ReceiveTCPCallback()` are an `IAsyncResult` which stores information about the asynchronous callback, and an `int` (`bytesToRead`) which represnets the number of bytes left unread in the datastream. First, the client is casted out of the `AsyncState` of the `IAsyncResult`. The number of bytes read from the receive is then stored into `bytesRead`. If the client is currently reading the header, `bytesToRead` is overwritten with the value stored in the 4 byte header that was just received. If the client is not currently receiving the header, the algorithm will check to see if the original number of unread bytes (before the receive) is equal to the number of bytes that it just received, if so then all the data has been read and the data stored in the buffer can be processed . Otherwise, it begins receiving again with an new chunk of the buffer to write into, and calls itself in the asynchronous callback with `bytesToRead` set to the recalculated value of the new number of undread bytes in the datastream.
+
+On first glance this algorithm may seem to work fine, but there is a flaw in the design with how `BeginRecieve()` is used. When the method was first being written, I had thought that `BeginRecieve()` would only invoke its asynchronous callback when it had read all bytes passed into `length`, when actually `length` only specifies the *maximum* amount of bytes that can be received. This creates the issue that if the incoming data doesn't fill the chunk of the buffer that was created for it, then a new chunk is created and the rest of the data is stored in there, runinig the continuity of the datasream. On intial testing of the method this caused no issues, since the client and server were being tested locally on the same machine the data never actually left the machine, but later on when attempting to connect to the server on a different machine, the TCP listeners revealed the issue, behaving unpredicatbly and incosistently since the rate of data transfer over a network is much slower than the rate of data transfer within a single machine, so some packets didn't make it in time to get picked up by `BeginRecieve()` by the time the callback had been invoked.
+
+After troubleshooting the issue and identifying that this was the problem, the original solution was to re-write the current algorithm to re-use old chunks of the buffer if data didn't fill the chunk:
+
+``` c#
+private protected override void ReceiveTCPCallback(IAsyncResult ar, int bytesToRead)
+{
+    ClientModel client = (ClientModel)ar.AsyncState;
+    int bytesRead = client.Handler.EndReceive(ar);
+    if (client.receivingHeader)
+    {
+        bytesToRead = BitConverter.ToInt32(client.Get());
+        bytesRead = 0;
+        client.receivingHeader = false;
+        client.freeChunk = true;
+    }
+    if (client.attemptedToFill)
+        client.freeChunk = client.chunkList[client.chunkList.Count - 1].Length == client.chunkSize;
+    if (bytesToRead - bytesRead > 0)
+    {
+        if (bytesRead == client.chunkSize || client.freeChunk)
+            client.Handler.BeginReceive(client.New(), 0, client.chunkSize, SocketFlags.None, new AsyncCallback((IAsyncResult ar) =>
+            {
+                client.freeChunk = false;
+                ReceiveTCPCallback(ar, bytesToRead - bytesRead);
+            }), client);
+        else
+            client.Handler.BeginReceive(client.chunkList[client.chunkList.Count - 1], client.chunkList[client.chunkList.Count - 1].Length, client.chunkSize - client.chunkList[client.chunkList.Count - 1].Length, SocketFlags.None, new AsyncCallback((IAsyncResult ar) =>
+            {
+                client.attemptedToFill = true;
+                ReceiveTCPCallback(ar, bytesToRead - bytesRead);
+            }), client);
+    }
+    else
+    {
+        Process(client.Get());
+        client.receiving = false;
+    }
+}
+```
+
+However this also was scrapped since it added complexity into the logic of the algorithm and variable feilds of the `ClientModel` class, and still utilised a chunked buffer. In situations such as this, a chunked buffer is undesirable since the process of creating chunks has a large computional footprint so is quite expesive on the CPU. To solve these issue the algorithm was redesigned into this *(also simplified)*:
+
+``` c#
+private protected override void ReceiveTCPCallback(IAsyncResult ar, int offset = 0)
+{
+    ClientModel client = (ClientModel)ar.AsyncState;
+    int bytesRead = client.Handler.EndReceive(ar);
+    int maxToReceive;
+    if (client.receivingHeader)
+    {
+        int bytesToRead = BitConverter.ToInt32(client.buffer);
+        client.CreateBuffer(bytesToRead);
+        maxToReceive = bytesToRead;
+        client.receivingHeader = false;
+    }
+    else
+    {
+        offset += bytesRead;
+        client.Update(bytesRead);
+        maxToReceive = client.FreeBytes();
+    }
+
+    if (maxToReceive > 0)
+        client.Handler.BeginReceive(client.buffer, offset, maxToReceive, SocketFlags.None, new AsyncCallback((IAsyncResult ar) =>
+        {
+            ReceiveTCPCallback(ar, offset);
+        }), client);
+    else
+    {
+        Process(client.Get());
+        client.receiving = false;
+    }
+}
+```
+
+In this final version of the redesigned algorithm, the uses the header to determine how many bytes to expect (as usual), but then creates a buffer which is the size of the incoming data. This way the buffer only needs to be created once and doesn't need to be expanded, and it also allows the buffer to be implemented as an `Array` instead of a `List` (since the size is no longer variable) which much more efficient to use. This algorithm also attempts to always read as much of the incoming data in one go as is possible. This reduces the depth of recursion since less data is left behind per read. To do this, the algorithm utilises the `offset` parameter of the `BeginReceive()` method, to write continuous data into the next available space of the buffer, eliminating continuity the problems caused by the old chunked buffer algorithm.
+
+The computational footprint of this algorithm is much smaller since the buffer is only created once and gets passed around when needed. All this was achived at the cost of the memory footprint, though since each time `client` gets recasted out of `ar.AsyncState` the complete buffer is copied into the new object, so if a single datastream reception recurses very deeply, then the buffer will be copied many many times which could be dangerous, especially if the buffer is large. Both algorithms would require the buffer to be copied into the new object, the only difference is that in the original algorithm the buffer gradually increased in size, so the first copy would be smaller than the next, resulting in a smaller total overall. This comparison of memory footprint expressed mathematically, using big O notation (*examples will use a chunk size of 1Kb and a recusion depth of 3*):
+
+> ***Algorithm 1***: As metioned before, the first algorithm gradually increased the size of the user's buffer, so after all the data has been received, the client would have been copied 3 times with the first buffer having size *1Kb*, the second *2Kb* and the third *3Kb*. The total size therefore is: 
+![image](https://quicklatex.com/cache3/47/ql_6d44af1c80e2867a19f8568d07ae4c47_l3.png) .
+> <!--- 1 + 2 + 3 = 6Kb ---> 
+>
+> This can be expressed in general form as:
+>
+> ![image](https://quicklatex.com/cache3/65/ql_5ef79726b95689f973258984fbf55065_l3.png)
+> <!--- \begin{displaymath}\sum_{r=1}^n r = \frac{n(n+1)}{2} = \frac{n^2 + n}{2}\end{displaymath} --->
+>
+> *(where ![image](https://quicklatex.com/cache3/29/ql_831c2406b034c3ff4a4734ebb9a95129_l3.png) is recursion depth)*
+> <!--- n --->
+> 
+> Showing that the memory footprint of the first algorithm is: ![image](https://quicklatex.com/cache3/c2/ql_a848ead8d33b03bc84ae88df124dacc2_l3.png) .
+<!--- O(n^2) --->
+<br>
+
+> ***Algorithm 2***: Unlike the first algorithm, the second algorithm creates the buffer once, instead of adding to it over time, so after all the data has been received, the total size used to store the buffer in memory would be: ![image](https://quicklatex.com/cache3/64/ql_4fa9c9fde3379ca3a7b4a9d4cf57f064_l3.png) (in the worst case).
+>
+> This can be expressed in general form as:
+>
+> ![image](https://quicklatex.com/cache3/8f/ql_95cf19dac5e28557c50d3163ffcd548f_l3.png)
+> <!--- a^n --->
+>
+> *(where ![image](https://quicklatex.com/cache3/7e/ql_d27e058636fa137d40ebca2a1fb9837e_l3.png) is the buffer size [Kb] and ![image](https://quicklatex.com/cache3/29/ql_831c2406b034c3ff4a4734ebb9a95129_l3.png) is recursion depth)*
+> <!--- a --->
+> <!--- n --->
+>
+> Showing that the memory footprint of the second algorithm is: ![image](https://quicklatex.com/cache3/bb/ql_08cde144f94b505a7961884e81d26dbb_l3.png), an exponential complexity which grows much faster than the polynomial complexity of the first algorithm. 
+<!--- O(a^n) --->
+
+While the new algorithm is clearly significantly worse on memory as `n` grows large, it is saved by the fact that `n` is very rarely large so on average the reduction of stress put the CPU by not needing to create new chunks of the buffer is worth the trade-off in memory performance.
+
 
 ## Data Flow
 Network commmunication mainly used TCP because of the intergrety it ensures, but during video calls, The program will use UDP instead. A broadcasting user will send: the frame of their video, the audio frame, which user they are and the total size of the data in a C# class object seriliazed into JSON which will be serialized again into a bytestream. The receiving user will display the frames using the Gstreamer multimedia library. The user identification will only be used when managing calls with more than 2 members, but will be present in all data objects as part of the protocol used by CLUNKS.
@@ -213,7 +369,7 @@ After some debugging the problem was identified to be caused by the ClientChanne
 
 Even though 10 milliseconds seems to be such a minor change to be creating such a significant result, it is important to note that 10 milliseconds in moder CPU time is a very large span of time in which much can happen.
 
-It also may have come to mind that if the threads are waiting for 10 milliseconds per iteration, they could potentially miss any information that is sent to the socket while the thread is asleep. Fortunately, for C# this is not the case. The C# socket class is based off of the Berkley Socket Interface (originally implemented in C++) in which sockets communicate over a FIFO pipe created on the network. Any incoming datagrams missed by the thread will be buffered by the pipe and can be collected when the thread resumes execution. Since the fastest that a thread will (most likely) ever need to run is around 30 iterations per second (since video calls often render frames at 30fps), the threads will have more than enough time to be able to sleep for 10ms and collect any missed datagrams from the network pipe without introducting noticable latency in video calls, whilst still minimising CPU usage.
+It also may have come to mind that if the threads are waiting for 10 milliseconds per iteration, they could potentially miss any information that is sent to the socket while the thread is asleep. Fortunately, for C# this is not the case. The C# socket class is based off of the Berkley Socket Interface (originally implemented in C++) in which sockets communicate over a FIFO pipe created on the network. Any incoming data missed by the thread will be buffered by the pipe and can be collected when the thread resumes execution. Since the fastest that a thread will (most likely) ever need to run is around 30 iterations per second (since video calls often render frames at 30fps), the threads will have more than enough time to be able to sleep for 10ms and collect any missed data from the network pipe without introducting noticable latency in video calls, whilst still minimising CPU usage.
 
 ### EncryptionConfig
 The EncryptionConfig class from Common.Helpers allows different users to use different levels of encryption instead of forcing all users to use the same.
@@ -227,31 +383,6 @@ The EncryptionConfig class solves this by allowing different users to choose how
 The Common.Channels.Channel base class implements the C# `IDisposable` interface to allow its members (namely the sockets and encryption handlers) to be safely disposed by the Garbage Collector when they are no longer being used. This improves (decreases) the amount of memory used by the program and ensures that memory isn't being allocated or held for unnecessary objects. In the same fashion, thoughout the program, varibales are often resued for the same objective.
 
 The implementation of `IDiposable` also frees the IP address and port used by the socket when the channel is no longer in use, so that they can be cleaned up by the OS.
-
-### **Data Buffering**
-Both channels utilise buffers when reading data from the network sockets. This ensures that memory is managed efficiently and as little is used as possible. This is performed with the Common.Channels.DataStream class (which is also the base class for the client model class: Common.Channels.ClientModel). 
-
-`DataStream` manages a list of byte arrays, where the list is the full buffer, and each indidual array is a chunk of the buffer. The `Datastream.New()` method is used to create a new chunk and return that chunk so that data can be written to it. Originally, the method looked like this:
-```c#
-public byte[] New()
-{
-    byte[] buffer = new byte[bufferSize];
-    bufferList.Add(buffer);
-    return buffer;
-}
-```
-However, the design of this code made it vulnerable to memory leaks. There was a situation where a chunk would be returned from `New()`, but never written to (if no data came in on the socket), so when the channel called `New()` again, a new chunk would be returned and added to `bufferList`, but the previous empty chunk was left since chunks are only removed when the buffer is cleared out in the `Get()` call. In some case causing expasions of up to 1.1GB of memory, so to solve the issue the method was changed to:
-```c#
-public byte[] New()
-{
-    if (bufferList.Count == 1)
-        if (bufferList[0].All(item => item == 0)) //If empty
-            return bufferList[0];
-    byte[] buffer = new byte[bufferSize];
-    bufferList.Add(buffer);
-    return buffer;
-}
-```
 
 ## Network Performance
 The GetJsonSerializer method from Common.Helpers.ObjectConverter creates a serializer that serializes objects into minified JSON strings. This decreases the size of Packets and decreases the bandwidth used by the program along with it.
@@ -295,12 +426,8 @@ C# Send Email: https://www.google.com/search?rlz=1C1CHBF_en-GBGB777GB777&sxsrf=A
 C# Access Webcam: https://www.google.com/search?q=c%23+access+webcam&rlz=1C1CHBF_en-GBGB777GB777&oq=c%23+acc&aqs=chrome.0.69i59j69i57j69i58j69i60l2.1166j0j7&sourceid=chrome&ie=UTF-8
 
 # Keep in mind
-If buffer is too small to perform handshake, handshake is treated as failed <br>
 ATM, when encryption level <= EncryptionConfig.Strength.Light, the size of the key is too small for certificates. This is because the size of the key is too small to compensate for the salt which is generated with EncryptionConfig.Strength.Strong settings (as per the Handshake protocol) <br>
 
 
 # To add
 Common.Channels.ServerChannel itereates backwards though the list when checking for heartbeats so it can remove dead clients from client list within the same iteration. This mimimises lock time.
-TCP Listening overhaul. Compare new and old alogirhtms, talk about 3k problem of old algorithm, talk about consistency of new algorithm
-Buffer size is now only for UDP, new TCP buffer is not chunked
-Change any of the old Common.Channels.DataStream notes
