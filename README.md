@@ -309,21 +309,22 @@ The computational footprint of this algorithm is much smaller since the buffer i
 <!--- O(n^2) --->
 <br>
 
-> ***Algorithm 2***: Unlike the first algorithm, the second algorithm creates the buffer once, instead of adding to it over time, so after all the data has been received, the total size used to store the buffer in memory would be: ![image](https://quicklatex.com/cache3/64/ql_4fa9c9fde3379ca3a7b4a9d4cf57f064_l3.png) (in the worst case).
+> ***Algorithm 2***: Unlike the first algorithm, the second algorithm creates the buffer once, instead of adding to it over time, so after all the data has been received, the total size used to store the buffer in memory would be: ![image](https://quicklatex.com/cache3/c4/ql_a9c37e29a37b337340150a9cfb0a40c4_l3.png) (in the worst case).
+> <!-- 3 \times 3 = 27Kb -->
 >
 > This can be expressed in general form as:
 >
-> ![image](https://quicklatex.com/cache3/8f/ql_95cf19dac5e28557c50d3163ffcd548f_l3.png)
-> <!--- a^n --->
+> ![image](https://quicklatex.com/cache3/c7/ql_bdefda676da15fe02841a02f885ce8c7_l3.png)
+> <!--- a \times n --->
 >
 > *(where ![image](https://quicklatex.com/cache3/7e/ql_d27e058636fa137d40ebca2a1fb9837e_l3.png) is the buffer size [Kb] and ![image](https://quicklatex.com/cache3/29/ql_831c2406b034c3ff4a4734ebb9a95129_l3.png) is recursion depth)*
 > <!--- a --->
 > <!--- n --->
 >
-> Showing that the memory footprint of the second algorithm is: ![image](https://quicklatex.com/cache3/bb/ql_08cde144f94b505a7961884e81d26dbb_l3.png), an exponential complexity which grows much faster than the polynomial complexity of the first algorithm. 
-<!--- O(a^n) --->
+> Showing that the memory footprint of the second algorithm is: ![image](https://quicklatex.com/cache3/cc/ql_670e1727c1d3fb2a121a6b9974c248cc_l3.png), a linear complexity which grows much slower than the polynomial complexity of the first algorithm. 
+<!--- O(n) --->
 
-While the new algorithm is clearly significantly worse on memory as `n` grows large, it is saved by the fact that `n` is very rarely large so on average the reduction of stress put the CPU by not needing to create new chunks of the buffer is worth the trade-off in memory performance.
+While the new algorithm is clearly significantly better on memory as `n` grows large, it must be considered that `n` is very rarely large enough for the second algorithm to have a smaller memory footprint that the first, but on average the reduction of stress put the CPU by not needing to create new chunks of the buffer is worth the trade-off in memory performance.
 
 
 ## Data Flow
