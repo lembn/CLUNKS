@@ -37,6 +37,7 @@ class ElevationsEditor(cw.Editor):
             btn.variable.set(0)
         values.append(self.sectorsEntry.get().strip())
         self.nameEntry.Reset()
+        self.sectorsEntry.Reset()
         self.window.focus()
         for child in self.treeView.get_children():
             if self.treeView.item(child)['values'][0] == values[0]:
