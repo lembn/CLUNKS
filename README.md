@@ -299,18 +299,19 @@ The computational footprint of this algorithm is much smaller since the buffer i
 >
 > This can be expressed in general form as:
 >
-> ![image](https://quicklatex.com/cache3/65/ql_5ef79726b95689f973258984fbf55065_l3.png)
-> <!--- \begin{displaymath}\sum_{r=1}^n r = \frac{n(n+1)}{2} = \frac{n^2 + n}{2}\end{displaymath} --->
+> ![image](https://quicklatex.com/cache3/fe/ql_d6fc47aaa51ff48be1ee09fb6db24ffe_l3.png)
+> <!--- begin{displaymath}a\sum_{r=1}^n r = \frac{an(n+1)}{2} = \frac{a(n^2 + n)}{2}\end{displaymath} --->
 >
-> *(where ![image](https://quicklatex.com/cache3/29/ql_831c2406b034c3ff4a4734ebb9a95129_l3.png) is recursion depth)*
+> *(where ![image](https://quicklatex.com/cache3/7e/ql_d27e058636fa137d40ebca2a1fb9837e_l3.png) is the buffer size [Kb] and ![image](https://quicklatex.com/cache3/29/ql_831c2406b034c3ff4a4734ebb9a95129_l3.png) is recursion depth)*
+> <!--- a --->
 > <!--- n --->
 > 
 > Showing that the memory footprint of the first algorithm is: ![image](https://quicklatex.com/cache3/c2/ql_a848ead8d33b03bc84ae88df124dacc2_l3.png) .
 <!--- O(n^2) --->
 <br>
 
-> ***Algorithm 2***: Unlike the first algorithm, the second algorithm creates the buffer once, instead of adding to it over time, so after all the data has been received, the total size used to store the buffer in memory would be: ![image](https://quicklatex.com/cache3/c4/ql_a9c37e29a37b337340150a9cfb0a40c4_l3.png) (in the worst case).
-> <!-- 3 \times 3 = 27Kb -->
+> ***Algorithm 2***: Unlike the first algorithm, the second algorithm creates the buffer once, instead of adding to it over time, so after all the data has been received, the total size used to store the buffer in memory would be: ![image](https://quicklatex.com/cache3/ff/ql_5b300f0df3563ba7c7ef1145f70138ff_l3.png) (in the worst case).
+> <!-- 3 \times 3 = 9Kb -->
 >
 > This can be expressed in general form as:
 >
@@ -326,6 +327,9 @@ The computational footprint of this algorithm is much smaller since the buffer i
 
 While the new algorithm is clearly significantly better on memory as `n` grows large, it must be considered that `n` is very rarely large enough for the second algorithm to have a smaller memory footprint that the first, but on average the reduction of stress put the CPU by not needing to create new chunks of the buffer is worth the trade-off in memory performance.
 
+![image](README_img/MemoryFootprintAnalysis.png)
+
+In the above graph, the red line represents the growth of memory usage for the first algorithm with a buffer size of `1Kb`; the blue line shows the growth of memory usage for the second algoritm with a `1Kb` buffer; the purple line is the first algorithm with a `3Kb` buffer and the green line is the second algorithm with a `3Kb` buffer. The graph shows that using the first algorithm with a small buffer size is signifiactly better than other combinations as the recursion depth increases.
 
 ## Data Flow
 Network commmunication mainly used TCP because of the intergrety it ensures, but during video calls, The program will use UDP instead. A broadcasting user will send: the frame of their video, the audio frame, which user they are and the total size of the data in a C# class object seriliazed into JSON which will be serialized again into a bytestream. The receiving user will display the frames using the Gstreamer multimedia library. The user identification will only be used when managing calls with more than 2 members, but will be present in all data objects as part of the protocol used by CLUNKS.
