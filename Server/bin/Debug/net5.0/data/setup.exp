@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<root>
+  <subservers>
+    <subserver name="ss1">
+      <user username="lem" password="" sectors="user" global="True" elevation="user"/>
+    </subserver>
+  </subservers>
+  <elevations>
+    <elevation name="user" privilege="768" sectors="user"/>
+  </elevations>
+</root>
