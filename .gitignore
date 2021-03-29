@@ -667,4 +667,8 @@ dmypy.json
 
 # My stuff
 Pipfile
+<<<<<<< HEAD
 !Server\bin\Debug\net5.0\data\
+=======
+!Server\bin\Debug\net5.0\data\*
+>>>>>>> 77618cd1eea68ab2de52b98b8f4b897cf95f1a1d
