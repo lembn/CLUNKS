@@ -36,53 +36,57 @@ class IOManager:
             QUIT.set()
 
     def LoadExp(self, logFunc, expFile):
+        failed = False
+
         def LoadUsers(users):
+            global failed
             for user in users:
-                username = user.get('username', None)
-                if not username:
+                username = user.get('username', -1)
+                if username == -1:
                     logFunc(f'LOAD FAILED: User has no name attribute.')
-                    return
-                userPwd = user.get('password', None)
-                if not userPwd:
+                    failed = True
+                userPwd = user.get('password', -1)
+                if userPwd == -1:
                     logFunc(f'LOAD FAILED: User has no password attribute.')
-                    return
-                userList = [[username, userPwd, user.get('sectors'), user.get('global')]]
+                    failed = True
+                userList = [[username, userPwd, user.get('sectors', []), user.get('global')]]
                 self.storage['user'].write(pickle.dumps(userList))
-                return
+                failed = False
 
         def LoadRooms(rooms, parent):
+            global failed
             for room in rooms:
-                roomName = room.get('name', None)
-                if not roomName:
+                roomName = room.get('name', -1)
+                if roomName == -1:
                     logFunc(f'LOAD FAILED: Room has no name attribute.')
-                    return
-                roomPwd = room.get('password', None)
-                if not roomName:
+                    failed = True
+                roomPwd = room.get('password', -1)
+                if roomName == -1:
                     logFunc(f'LOAD FAILED: Room has no password attribute.')
-                    return
-                roomList = [[roomName, roomPwd, parent, room.get('sectors')]]
+                    failed = True
+                roomList = [[roomName, roomPwd, parent, room.get('sectors', []), room.get('global')]]
                 self.storage['room'].write(pickle.dumps(roomList))
                 LoadUsers(room.findall('user'))
                 LoadRooms(room.findall('room'), roomName)
-                return
+                failed = False
 
         self.Cleanup()
         self.storage = {'user': tempfile.TemporaryFile(), 'subserver': tempfile.TemporaryFile(), 'room': tempfile.TemporaryFile(), 'elevation': tempfile.TemporaryFile()}
         data = expFile.read()
         if not data:
             logFunc(f"LOAD FAILED: '{expFile.name}' is empty.")
-            return
+            failed = True
         root = ET.fromstring(data)
         subservers = root.findall('subservers')[0]
         if not subservers:
             logFunc('LOAD FAILED: The selected EXP has no subservers.')
-            return
+            failed = True
         for subserver in subservers:
-            subserverName = subserver.get('name', None)
-            if not subserverName:
+            subserverName = subserver.get('name', -1)
+            if subserverName == -1:
                 logFunc(f'LOAD FAILED: Subserver {subservers.index(subserver)} has no name attribute.')
-                return
-            subserverSectors = subserver.get('sectors')
+                failed = True
+            subserverSectors = subserver.get('sectors', [])
             subserverList = [[subserverName, subserverSectors]]
             self.storage['subserver'].write(pickle.dumps(subserverList))
             LoadRooms(subserver.findall('room'), subserverName)
@@ -91,23 +95,23 @@ class IOManager:
         #Load elevations
         elevations = root.findall('elevations')[0]
         for elevation in elevations:
-            elevationName = elevation.get('name', None)
-            if not elevationName:
+            elevationName = elevation.get('name', -1)
+            if elevationName == -1:
                 logFunc(f'LOAD FAILED: Elevation {elevations.index(elevation)} has no name attribute.')
-                return
-            privilege = elevation.get('privilege', None)
-            if privilege == None:
+                failed = True
+            privilege = elevation.get('privilege', -1)
+            if privilege == -1:
                 logFunc(f'LOAD FAILED: Elevation {elevations.index(elevation)} has no privilege attribute.')
-                return
+                failed = True
             privileges = ['True' if i == '1' else 'False' for i in bin(int(privilege))[2:]]
             while len(privileges) < NUM_PRIV:
                 privileges = ['False'] + privileges
-            elevationSectors = elevation.get('sectors', None)
+            elevationSectors = elevation.get('sectors', [])
             elevationList = [[elevationName] + privileges + [elevationSectors]]
             self.storage['elevation'].write(pickle.dumps(elevationList))
 
-        logFunc(f"Sucessfully loaded '{expFile.name}'")
-
+        if not failed:
+            logFunc(f"Sucessfully loaded '{expFile.name}'")
 
     def Export(self, logFunc, expFile):
         noSectorSubservers = {}
