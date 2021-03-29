@@ -665,4 +665,6 @@ dmypy.json
 
 # End of https://www.toptal.com/developers/gitignore/api/csharp,visualstudio
 
+# My stuff
 Pipfile
+!Server\bin\Debug\net5.0\data\*

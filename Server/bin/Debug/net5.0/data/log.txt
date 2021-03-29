@@ -1,0 +1,21 @@
+2021-03-14 20:03:48.083 +00:00 [FTL] Failed to start server. Invalid IP.
+2021-03-15 10:46:52.434 +00:00 [FTL] Failed to start server. Invalid IP.
+2021-03-15 10:47:11.380 +00:00 [FTL] Failed to start server. Invalid IP.
+2021-03-16 08:25:19.656 +00:00 [FTL] Failed to start server. Invalid IP.
+2021-03-16 08:37:02.285 +00:00 [ERR] EXP load failed. No EXP file present at dataPath.
+2021-03-16 09:01:35.224 +00:00 [INF] User@10.12.166.49:51732 logged into 'subserver1' with username='lem'
+2021-03-16 09:01:40.256 +00:00 [INF] User@10.12.166.49:51732 (lem) logged out of 'subserver1'
+2021-03-16 09:03:22.506 +00:00 [INF] User@10.12.166.49:51751 logged into 'subserver1' with username='lem'
+2021-03-16 09:06:47.128 +00:00 [INF] User@10.12.166.49:51796 logged into 'subserver1' with username='lem'
+2021-03-16 09:10:16.323 +00:00 [INF] User@10.12.166.49:51845 logged into 'subserver1' with username='general'
+2021-03-16 09:10:19.312 +00:00 [INF] User@10.12.166.49:51845 (general) logged out of 'subserver1'
+2021-03-16 09:11:31.046 +00:00 [INF] User@10.12.166.49:51858 logged into 'subserver1' with username='lem'
+2021-03-16 09:11:32.518 +00:00 [INF] User@10.12.166.49:51858 (lem) logged out of 'subserver1'
+2021-03-16 09:13:35.202 +00:00 [INF] User@10.12.166.49:51868 logged into 'subserver1' with username='lem'
+2021-03-16 09:14:05.864 +00:00 [INF] User@10.12.166.49:51868 (lem) logged out of 'subserver1'
+2021-03-16 09:36:18.341 +00:00 [INF] User@10.12.166.49:52427 logged into 'subserver1' with username='general'
+2021-03-16 09:38:29.397 +00:00 [INF] User@10.12.166.49:52484 logged into 'subserver1' with username='lem'
+2021-03-16 09:47:54.658 +00:00 [INF] User@10.12.166.49:52962 logged into 'subserver1' with username='lem'
+2021-03-16 09:47:56.789 +00:00 [INF] User@10.12.166.49:52962 (lem) logged out of 'subserver1'
+2021-03-17 09:29:31.070 +00:00 [FTL] Failed to start server. Invalid IP.
+2021-03-17 09:36:38.441 +00:00 [INF] User@10.12.166.9:59389 logged into 'ss1' with username='lem'
