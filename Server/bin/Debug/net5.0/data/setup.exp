@@ -1,11 +1,19 @@
 <?xml version="1.0"?>
+<!-- Passwords are all 'a' -->
 <root>
   <subservers>
     <subserver name="ss1">
-      <user username="lem" password="" sectors="user" global="True" elevation="user"/>
+      <room name="room1" password="$2b$12$UDLD5mtCG92l0nKC5y8Y/.kTDcoUZUGxVWYA8taBVuRVKrl4uWj5O">
+        <room name="room2" password="$2b$12$naWTnxb447ZamzU.Q6wVX.q0sqRjqt3KBbH4HnW7V8za/Ul0g.xFO">
+          <room name="room3" password="$2b$12$POEdp0kyWmUl8MlLG/GpuuzqVZqmLEIDk31zAEKMcstmbdkp4TkKC"/>
+        </room>
+      </room>
     </subserver>
   </subservers>
+  <globalUsers>
+    <user username="lem" password="" sectors="user" global="True" elevation="user_elv"/>
+  </globalUsers>
   <elevations>
-    <elevation name="user" privilege="768" sectors="user"/>
+    <elevation name="user_elv" privilege="1020" sectors="user"/>
   </elevations>
 </root>

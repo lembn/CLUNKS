@@ -163,8 +163,10 @@ namespace Server.DBHandler
                     $@" INSERT INTO elevations 
                         (name, canCallSubserver, canCallRoom, canCallGroup, canCallUser, canMsgSubserver, canMsgRoom, canMsgGroup, canMsgUser, canCreateRoom, canCreateGroup) 
                         VALUES($name, $param0, $param1, $param2, $param3, $param4, $param5, $param6, $param7, $param8, $param9);
-                    ", elevation.Attribute("name").Value, paramList[0], paramList[1], paramList[2], paramList[3], paramList[4], paramList[5], paramList[5], paramList[6], paramList[7], paramList[8], paramList[9]);
+                    ", elevation.Attribute("name").Value, paramList[0], paramList[1], paramList[2], paramList[3], paramList[4], paramList[5], paramList[6], paramList[7], paramList[8], paramList[9]);
                 }
+
+                IEnumerable<XElement> globalUsers = exp.Descendants("globalUsers").Descendants("user");
 
                 foreach (XElement subserver in exp.Descendants("subserver"))
                 {
@@ -172,7 +174,7 @@ namespace Server.DBHandler
                     int subserverID = Convert.ToInt32(cursor.Execute("SELECT last_insert_rowid();"));
 
                     List<int> processed = new List<int>();
-                    foreach (XElement user in subserver.Descendants("user"))
+                    foreach (XElement user in subserver.Descendants("user").Concat(globalUsers))
                     {
                         if (!processed.Contains(user.ToString().GetHashCode()))
                         {
@@ -184,13 +186,12 @@ namespace Server.DBHandler
                         }
                     }
 
-                    processed.Clear();
-                    var a = subserver.Descendants("room").ToArray();
-                    foreach (XElement room in subserver.Descendants("room"))
+                    processed.Clear();                    
+                    foreach (XElement room in subserver.Elements("room"))
                     {
                         if (!processed.Contains(room.ToString().GetHashCode()))
                         {
-                            ProcessRoom(cursor, room, subserverID, false);
+                            ProcessRoom(cursor, room, subserverID, globalUsers, false);
                             processed.Add(room.ToString().GetHashCode());
                         }
                     }
@@ -205,14 +206,14 @@ namespace Server.DBHandler
         /// <param name="room">The EXP representaion of the room</param>
         /// <param name="parentID">The database id of the parent of the room</param>
         /// <param name="parentIsRoom">A boolean to represent if the parent of the room is another room</param>
-        private static void ProcessRoom(Cursor cursor, XElement room, int parentID, bool parentIsRoom = true)
+        private static void ProcessRoom(Cursor cursor, XElement room, int parentID, IEnumerable<XElement> globalUsers, bool parentIsRoom = true)
         {
             cursor.Execute("INSERT INTO rooms (name, password) VALUES ($name, $password)", room.Attribute("name").Value, room.Attribute("password").Value);
             int roomID = Convert.ToInt32(cursor.Execute("SELECT last_insert_rowid();"));
-            cursor.Execute($"INSERT INTO {(parentIsRoom ? "room" : "subserver")}_rooms ({(parentIsRoom ? "parentRoom, childRoom" : "subserverID, roomID")}) VALUES ($parent, $roomID);", parentID, roomID);
+            cursor.Execute($"INSERT INTO {(parentIsRoom ? _entityTables[1] : _entityTables[0])}_{entityTables[1]} ({(parentIsRoom ? "parentRoom, childRoom" : "subserverID, roomID")}) VALUES ($parent, $roomID);", parentID, roomID);
 
             List<int> processed = new List<int>();
-            foreach (XElement user in room.Descendants("user"))
+            foreach (XElement user in room.Descendants("user").Concat(globalUsers))
             {
                 if (!processed.Contains(user.ToString().GetHashCode()))
                 {
@@ -223,11 +224,11 @@ namespace Server.DBHandler
             }
 
             processed.Clear();
-            foreach (XElement child in room.Descendants("room"))
+            foreach (XElement child in room.Elements("room"))
             {
                 if (!processed.Contains(room.ToString().GetHashCode()))
                 {
-                    ProcessRoom(cursor, child, roomID);
+                    ProcessRoom(cursor, child, roomID, globalUsers);
                     processed.Add(room.ToString().GetHashCode());
                 }
             }

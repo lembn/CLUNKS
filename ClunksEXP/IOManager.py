@@ -49,7 +49,10 @@ class IOManager:
                 if userPwd == -1:
                     logFunc(f'LOAD FAILED: User has no password attribute.')
                     failed = True
-                userList = [[username, userPwd, user.get('sectors', []), user.get('global')]]
+                userSectors = user.get('sectors', [])
+                if not isinstance(userSectors, list):
+                    userSectors = [userSectors]
+                userList = [[username, userPwd, userSectors, user.get('global')]]
                 self.storage['user'].write(pickle.dumps(userList))
                 failed = False
 
@@ -64,7 +67,10 @@ class IOManager:
                 if roomName == -1:
                     logFunc(f'LOAD FAILED: Room has no password attribute.')
                     failed = True
-                roomList = [[roomName, roomPwd, parent, room.get('sectors', []), room.get('global')]]
+                roomSectors = room.get('sectors', [])
+                if not isinstance(roomSectors, list):
+                    roomSectors = [roomSectors]
+                roomList = [[roomName, roomPwd, parent, roomSectors, room.get('global')]]
                 self.storage['room'].write(pickle.dumps(roomList))
                 LoadUsers(room.findall('user'))
                 LoadRooms(room.findall('room'), roomName)
@@ -87,6 +93,8 @@ class IOManager:
                 logFunc(f'LOAD FAILED: Subserver {subservers.index(subserver)} has no name attribute.')
                 failed = True
             subserverSectors = subserver.get('sectors', [])
+            if not isinstance(subserverSectors, list):
+                subserverSectors = [subserverSectors]
             subserverList = [[subserverName, subserverSectors]]
             self.storage['subserver'].write(pickle.dumps(subserverList))
             LoadRooms(subserver.findall('room'), subserverName)
@@ -107,7 +115,9 @@ class IOManager:
             while len(privileges) < NUM_PRIV:
                 privileges = ['False'] + privileges
             elevationSectors = elevation.get('sectors', [])
-            elevationList = [[elevationName] + privileges + [elevationSectors]]
+            if not isinstance(elevationSectors, list):
+                elevationSectors = [elevationSectors]
+            elevationList = [[elevationName] + privileges + elevationSectors]
             self.storage['elevation'].write(pickle.dumps(elevationList))
 
         if not failed:
@@ -233,6 +243,7 @@ class IOManager:
                 room = entities[x]
                 parent = roomElements[nameToRoom[entities[x][2]]]
                 roomElements.append(ET.SubElement(parent, 'room', {'name': entities[x][0], 'password': entities[x][1]}))
+                nameToRoom[room[0]] = len(roomElements) - 1
                 parentIndex = nameToRoom[room[2]]
                 if not room[3].split(',')[0]:
                     if parentIndex in noSectorRooms.keys():
@@ -254,6 +265,7 @@ class IOManager:
         elevationElements = []
         sectorToElevation = {}
         elevationRoot = None
+        globalUserRoot = ET.SubElement(root, 'globalUsers')
         entities = self.ReadAll(self.storage['elevation'])
         if entities:
             elevationRoot = ET.SubElement(root, 'elevations')
@@ -279,8 +291,7 @@ class IOManager:
                 logFunc(f"EXPORT FAILED: No elevation apllied to user '{user[0]}'.")
                 return
             if user[3] == 'True':
-                for parent in subserverElements + roomElements:
-                    ET.SubElement(parent, 'user', {'username': user[0], 'password': user[1] , 'sectors': user[2], 'global': user[3], 'elevation': elevationName})
+                ET.SubElement(globalUserRoot, 'user', {'username': user[0], 'password': user[1] , 'sectors': user[2], 'global': user[3], 'elevation': elevationName})
                 continue
             sectorToParent = {}
             for sector in user[2].split(','):
