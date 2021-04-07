@@ -21,7 +21,7 @@ namespace Server.DBHandler
         /// <param name="username">The name of the user</param>
         /// <param name="checkPresent">Should be set to true if users need to be present for the method to return true, false otherwise</param>
         /// <returns>True if the users exists and checkPresent is false or if the user exists and is not present and checkPresent is true, false otherwise</returns>
-        public static bool CheckUser(string parentName, string username, bool checkPresent = true)
+        public static bool CheckUser(string parentName, string username)
         {
             string checkStmt =
             $@"
@@ -39,27 +39,35 @@ namespace Server.DBHandler
                     {
                         object[] results = (object[])cursor.Execute(String.Format(checkStmt, table.Substring(0, table.Length - 1)), username, parentName);
                         if (results != null && results.Length > 0)
-                            if (!checkPresent)
-                                return true;
-                            else
-                                return Convert.ToInt32(cursor.Execute(String.Format(presentStmt, table.Substring(0, table.Length - 1)), results[0], results[1])) == 0;
+                            return true;
                     }
             return false;
+        }
+
+        /// <summary>
+        /// A method to get the password of a user
+        /// </summary>
+        /// <param name="username">The user who's password is being queried</param>
+        /// <returns>The password or an empty string if no password exists</returns>
+        public static string GetUserPassword(string username)
+        {
+            using (Cursor cursor = new Cursor(connectionString))
+                return (string)cursor.Execute("SELECT password FROM users WHERE name=$name", username);
         }
 
         /// <summary>
         /// A method to get the (hashed) password of an entity if it exists
         /// </summary>
         /// <param name="entityName">The name of the entity</param>
-        /// <returns>The hashed password of the entity if it exists, false otherwise</returns>
-        public static string CheckPassword (string entityName)
+        /// <returns>The hashed password of the entity if it exists, empty string otherwise</returns>
+        public static string CheckPassword(string entityName)
         {
             using (Cursor cursor = new Cursor(connectionString))
                 foreach (string table in entityTables)
                     if (Convert.ToInt32(cursor.Execute($"SELECT COUNT(*) FROM {table} WHERE name=$entityName;", entityName)) > 0)
                         if ((from info in (object[][])cursor.Execute($"PRAGMA table_info({table})") select (string)info[1]).Contains("password"))
                             return (string)cursor.Execute($"SELECT password FROM {table} WHERE name=$entityName;", entityName);                    
-            return null;
+            return String.Empty;
         }
 
         /// <summary>
@@ -73,8 +81,11 @@ namespace Server.DBHandler
             using (Cursor cursor = new Cursor(connectionString))
             {
                 string hash = (string)cursor.Execute("SELECT password FROM users WHERE name=$username;", username);
-                if (hash.Trim() == "" && password.Trim() == "")
-                    return true;
+                if (hash.Trim() == "")
+                    if (password.Trim() == "")
+                        return true;
+                    else
+                        return false;
                 try
                 {
                     return BCrypt.Net.BCrypt.Verify(password, hash);
@@ -97,31 +108,23 @@ namespace Server.DBHandler
             if (cursor == null)
                 cursor = new Cursor(connectionString);
             string bottom = trace.Split(" - ")[0];
-            if (Convert.ToInt32(cursor.Execute($"SELECT COUNT(*) FROM {entityTables[2]} WHERE name=$entityName;", bottom)) > 0)
+            if (Convert.ToInt32(cursor.Execute($"SELECT COUNT(*) FROM {entityTables[0]} WHERE name=$entityName;", bottom)) > 0)
             {
-                //entity is group
-                int id = Convert.ToInt32(cursor.Execute($"SELECT id FROM {entityTables[2]} WHERE name=$entityName;", bottom));
-                object[] parentIDHolder = (object[])cursor.Execute($"SELECT parentGroup from {_entityTables[2]}_{entityTables[2]} WHERE childGroup={id};");
-                if (parentIDHolder.Length > 0)
-                    return Trace($"{(string)cursor.Execute($"SELECT name from {entityTables[2]} WHERE id={Convert.ToInt32(parentIDHolder[0])}")} - {trace};", cursor);
-                else
-                    return Trace($"{(string)cursor.Execute($"SELECT name from {entityTables[1]} WHERE id={Convert.ToInt32(cursor.Execute($"SELECT roomID from {_entityTables[1]}_{entityTables[2]} WHERE groupID={id};"))}")} - {trace}", cursor);
-            }
-            else if (Convert.ToInt32(cursor.Execute($"SELECT COUNT(*) FROM {entityTables[1]} WHERE name=$entityName;", bottom)) > 0)
-            {
-                //entity is room
-                int id = Convert.ToInt32(cursor.Execute($"SELECT id FROM {entityTables[1]} WHERE name=$entityName;", bottom));
-                object[] parentIDHolder = (object[])cursor.Execute($"SELECT parentRoom from room_{entityTables[1]} WHERE childRoom={id};");
-                if (parentIDHolder.Length > 0)
-                    return Trace($"{(string)cursor.Execute($"SELECT name from {entityTables[1]} WHERE id={Convert.ToInt32(parentIDHolder[0])}")} - {trace};", cursor);
-                else
-                    return Trace($"{(string)cursor.Execute($"SELECT name from {entityTables[0]} WHERE id={Convert.ToInt32(cursor.Execute($"SELECT subserverID from {_entityTables[0]}_{entityTables[1]} WHERE roomID={id};"))}")} - {trace}", cursor);
-            }
-            else
-            {
-                //entity is subserver
                 cursor.Dispose();
                 return trace;
+            }
+            int index = 1;
+            if (Convert.ToInt32(cursor.Execute($"SELECT COUNT(*) FROM {entityTables[2]} WHERE name=$entityName;", bottom)) > 0)
+                index = 2;
+            int id = Convert.ToInt32(cursor.Execute($"SELECT id FROM {entityTables[index]} WHERE name=$entityName;", bottom));
+            try
+            {
+                int parentID = Convert.ToInt32(cursor.Execute($"SELECT parent from {_entityTables[index]}_{entityTables[index]} WHERE child='{id}';"));
+                return Trace($"{(string)cursor.Execute($"SELECT name from {entityTables[index]} WHERE id='{Convert.ToInt32(parentID)}';")} - {trace}", cursor);
+            }
+            catch (InvalidCastException)
+            {
+                return Trace($"{(string)cursor.Execute($"SELECT name from {entityTables[index - 1]} WHERE id='{Convert.ToInt32(cursor.Execute($"SELECT {_entityTables[index - 1]}ID from {_entityTables[index - 1]}_{entityTables[index]} WHERE {_entityTables[index]}ID='{id}';"))}';")} - {trace}", cursor);
             }
         }
 
@@ -144,13 +147,13 @@ namespace Server.DBHandler
                     {table} subservers ({IPK}, {name});
                     {table} rooms ({IPK}, {name}, password TEXT NOT NULL);
                     {table} subserver_rooms ({IPK}, subserverID INTEGER REFERENCES subservers(id), roomID INTEGER REFERENCES rooms(id), UNIQUE (subserverID, roomID));
-                    {table} room_rooms ({IPK}, parentRoom INTEGER REFERENCES rooms(id), childRoom INTEGER REFERENCES rooms(id), UNIQUE (parentRoom, childRoom));
+                    {table} room_rooms ({IPK}, parent INTEGER REFERENCES rooms(id), child INTEGER REFERENCES rooms(id), UNIQUE (parent, child));
                     {table} users ({IPK}, {name}, password TEXT NOT NULL, elevation INTEGER REFERENCES elevations(id));
                     {table} users_subservers ({IPK}, userID INTEGER REFERENCES users(id), subserverID INTEGER REFERENCES subservers(id), present {iBool}, UNIQUE (userID, subserverID));
                     {table} users_rooms ({IPK}, userID INTEGER REFERENCES users(id), roomID INTEGER REFERENCES rooms(id), present {iBool}, UNIQUE (userID, roomID));
                     {table} groups ({IPK}, {name}, password TEXT NOT NULL, owner INTEGER references users(id));
                     {table} room_groups ({IPK}, roomID INTEGER REFERENCES rooms(id), groupID INTEGER REFERENCES groups(id), UNIQUE (roomID, groupID));
-                    {table} group_groups ({IPK}, parentGroup INTEGER REFERENCES groups(id), childGroup INTEGER REFERENCES groups(id), UNIQUE (parentGroup, childGroup));
+                    {table} group_groups ({IPK}, parent INTEGER REFERENCES groups(id), child INTEGER REFERENCES groups(id), UNIQUE (parent, child));
                     {table} users_groups ({IPK}, userID INTEGER REFERENCES users(id), groupID INTEGER REFERENCES groups(id), present {iBool}, UNIQUE (userID, groupID));
                     {table} notifications ({IPK}, sender INTEGER REFERENCES users(id), receiver INTEGER REFERENCES users(id), time INTEGER, msg TEXT, type TEXT, UNIQUE (sender, receiver, time));
                 ");
@@ -210,7 +213,7 @@ namespace Server.DBHandler
         {
             cursor.Execute("INSERT INTO rooms (name, password) VALUES ($name, $password)", room.Attribute("name").Value, room.Attribute("password").Value);
             int roomID = Convert.ToInt32(cursor.Execute("SELECT last_insert_rowid();"));
-            cursor.Execute($"INSERT INTO {(parentIsRoom ? _entityTables[1] : _entityTables[0])}_{entityTables[1]} ({(parentIsRoom ? "parentRoom, childRoom" : "subserverID, roomID")}) VALUES ($parent, $roomID);", parentID, roomID);
+            cursor.Execute($"INSERT INTO {(parentIsRoom ? _entityTables[1] : _entityTables[0])}_{entityTables[1]} ({(parentIsRoom ? "parent, child" : "subserverID, roomID")}) VALUES ($parent, $roomID);", parentID, roomID);
 
             List<int> processed = new List<int>();
             foreach (XElement user in room.Descendants("user").Concat(globalUsers))

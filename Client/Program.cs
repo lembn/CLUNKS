@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Net;
+using System.Linq;
 using System.Threading;
 using Common.Channels;
 using Common.Helpers;
@@ -14,9 +15,8 @@ namespace Client
         private static bool quit = false;
         private static bool free = true;
         private static bool prompted = false;
-        private static bool sentPwd = false;
         private static string promptHeader = null;
-        private static string username;
+        private static string username = "lem"; //TODO: CHANGE
         private static Stack<string> traversalTrace;
 
         static void Main(string[] args)
@@ -60,23 +60,27 @@ namespace Client
                             ShowHelp();
                             break;
                         case "connect":
+                            if (!(traversalTrace.Count == 0))
                             if (input[1] == traversalTrace.Peek())
                             {
                                 Console.WriteLine($"Already connected to {input[1]}");
                                 break;
                             }
+                            if (username == null)
+                            {
+                                Console.WriteLine("You must log into a subserver before connecting to entities");
+                                break;
+                            }
                             outPacket = new Packet(DataID.Command, channel.id);
-                            username = input[2];
                             if (traversalTrace.Contains(input[1]))
-                                outPacket.Add(input[0], Communication.START, input[1], input[2],  Communication.BACKWARD, String.Join(" - ", traversalTrace));
+                                outPacket.Add(input[0], Communication.START, input[1], username, Communication.BACKWARD, String.Join(" - ", traversalTrace));
                             else
-                                outPacket.Add(input[0], Communication.START, input[1], input[2], Communication.FORWARD, traversalTrace.Peek());
+                                outPacket.Add(input[0], Communication.START, input[1], username, Communication.FORWARD, traversalTrace.Count == 0 ? "" : traversalTrace.Peek());
                             channel.Dispatch += new Channel.DispatchEventHandler(ConnectReponseHanlder);
                             channel.Add(outPacket);
                             Console.WriteLine($"Requesting CONNECT to '{input[1]}'...");
                             break;
                         case "trace":
-                        case "branch":
                             Console.WriteLine(String.Join(" - ", traversalTrace));
                             break;
                         case "cls":
@@ -123,20 +127,13 @@ namespace Client
                 }
                 channel.Dispatch -= ConnectReponseHanlder;
                 prompted = false;
-                sentPwd = false;
                 free = true;             
             }
             else
             {
                 Packet outPacket = new Packet(DataID.Command, channel.id);
                 free = false;
-                string password = String.Empty;
-                if (!sentPwd)
-                    password = ConsoleTools.HideInput("Enter your password");
-                outPacket.Add(Communication.CONNECT, values[0], password, values[1], sentPwd ? Communication.FALSE : Communication.TRUE);
-                sentPwd = true;
-                if (values[2] == Communication.INCOMPLETE)
-                    outPacket.Add(ConsoleTools.HideInput($"Enter '{values[1]}' password"));                
+                outPacket.Add(Communication.CONNECT, ConsoleTools.HideInput($"Enter '{values[0]}' password"), username);
                 channel.Add(outPacket);
             }
         }
@@ -148,7 +145,7 @@ namespace Client
             if (values[0] != Communication.FAILURE)
             {
                 traversalTrace.Pop();
-                promptHeader = traversalTrace.Count > 0 ? $"[{string.Join(" - ", traversalTrace)}]" : null;
+                promptHeader = traversalTrace.Count > 0 ? $"[{string.Join(" - ", traversalTrace.Reverse())}]" : null;
             }
             channel.Dispatch -= DisconnectResponseHandler;
             prompted = false;

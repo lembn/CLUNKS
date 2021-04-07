@@ -25,7 +25,6 @@ namespace Common.Channels
         public bool receivingHeader = true;
         public bool receivedHB;
         public int missedHBs;
-        public object hbLock;
         public bool isAdmin = false;
         public Dictionary<string, object> data;
 
@@ -48,7 +47,6 @@ namespace Common.Channels
             packetFactory.encCfg.useCrypto = false;
             packetFactory.encCfg.captureSalts = true;
             protocol = ProtocolType.Tcp;
-            hbLock = new object();
             data = new Dictionary<string, object>();
         }
 

@@ -22,7 +22,6 @@ namespace Common.Channels
         private EncryptionConfig.Strength strength; //Strength of encryption being used on the ClientChannel
         private ManualResetEventSlim receiving; //An waithandle used to check if the channel is currently listening on the socket
         private bool receivingHeader = true; //A boolean to represent if a TCP listen is currently reading the header or the actual packet
-        private object hbLock; //A lock used for thread synchronisation when processing heartbeats
         private bool receivedHB = false; //A boolean used for checking if the channel has received a hearbeat or not
         private int missedHBs = 0; //A counter of how many hearbeats have been missed
         private Socket socket; //The socket to listen on (and send over)
@@ -65,7 +64,6 @@ namespace Common.Channels
             complete = new ManualResetEvent(false);
             this.strength = strength;
             packetFactory = new PacketFactory();
-            hbLock = new object();
             serverIP = ip;
             TCP_PORT = tcp;
             UDP_PORT = udp;
@@ -100,21 +98,17 @@ namespace Common.Channels
                 lock (outPackets)
                     outPackets.Add(new Packet(DataID.Heartbeat, id));
                 ctoken.WaitHandle.WaitOne(5000);
-                lock (hbLock)
+                if (receivedHB)
                 {
-                    if (receivedHB)
-                    {
-                        receivedHB = false;
-                        missedHBs = 0;
-                    }
-                    else
-                    {
-                        missedHBs += 1;
-                        if (missedHBs == 2) { }
-                            Close();
-                    }
+                    receivedHB = false;
+                    missedHBs = 0;
                 }
-
+                else
+                {
+                    missedHBs += 1;
+                    if (missedHBs == 2) { } //TODO: replace
+                        //Close();
+                }
             })); //Heartbeat
 
             threads.Add(ThreadHelper.GetECThread(ctoken, () => 
@@ -176,8 +170,7 @@ namespace Common.Channels
                 if (packetAvailable)
                 {
                     if (packet.dataID == DataID.Heartbeat)
-                        lock (hbLock)
-                            receivedHB = true;
+                        receivedHB = true;
                     else
                         OnDispatch(packet);
                 }
@@ -480,6 +473,8 @@ namespace Common.Channels
             try
             {
                 int bytesRead = socket.EndReceive(ar);
+                if (bytesRead < 1)
+                    throw new SocketException();
                 int maxToReceive;
                 if (receivingHeader)
                 {
@@ -521,7 +516,9 @@ namespace Common.Channels
         {
             try
             {
-                socket.EndReceiveFrom(ar, ref server);
+                int bytesRead = socket.EndReceiveFrom(ar, ref server);
+                if (bytesRead < 1)
+                    throw new SocketException();
                 lock (inPackets)
                     inPackets.Add(packetFactory.BuildPacket(dataStream.Get()));
                 receiving.Set();

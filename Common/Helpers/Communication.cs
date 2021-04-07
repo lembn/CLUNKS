@@ -10,10 +10,11 @@ namespace Common.Helpers
         public const string FORWARD = "forward";
         public const string TRUE = "true";
         public const string FALSE = "false";
+        public const string USER = "user";
 
         #region Admin
 
-        public const string USER = "changeuser";
+        public const string CHANGE_USER = "changeuser";
         public const string PASSWORD = "changeuser";
         public const string IP = "ipaddress";
         public const string TCP = "tcpport";
@@ -29,7 +30,6 @@ namespace Common.Helpers
         public const string SUCCESS = "success";
         public const string FAILURE = "failure";
         public const string INCOMPLETE = "incomplete";
-        public const string COMPLETE = "complete";
 
         #endregion
 
@@ -42,10 +42,10 @@ namespace Common.Helpers
 
         #region Collections
 
-        public static ImmutableArray<string> ADMIN_CONFIG = ImmutableArray.Create(new string[] { USER, PASSWORD, IP, TCP, UDP, DATA });
+        public static ImmutableArray<string> ADMIN_CONFIG = ImmutableArray.Create(new string[] { CHANGE_USER, PASSWORD, IP, TCP, UDP, DATA });
         public static ImmutableArray<string> ADMIN_COMMANDS = ImmutableArray.Create(new string[]  { RESTART, STOP});
         public static ImmutableArray<string> USER_COMMANDS = ImmutableArray.Create(new string[]  { CONNECT, DISCONNECT });
-        public static ImmutableArray<string> STATUSES = ImmutableArray.Create(new string[]  { SUCCESS, FAILURE, INCOMPLETE, COMPLETE });
+        public static ImmutableArray<string> STATUSES = ImmutableArray.Create(new string[]  { SUCCESS, FAILURE, INCOMPLETE});
 
         #endregion
 

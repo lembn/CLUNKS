@@ -81,19 +81,16 @@ namespace Common.Channels
                 lock (clientList)
                 for (int i = clientList.Count - 1; i >= 0; i--)
                 {
-                    lock (clientList[i].hbLock)
+                    if (clientList[i].receivedHB)
                     {
-                        if (clientList[i].receivedHB)
-                        {
-                            clientList[i].receivedHB = false;
-                            clientList[i].missedHBs = 0;
-                        }
-                        else
-                        {
-                            clientList[i].missedHBs += 1;
-                                if (clientList[i].missedHBs == 2) { }
-                                    RemoveClient(clientList[i]);
-                        }
+                        clientList[i].receivedHB = false;
+                        clientList[i].missedHBs = 0;
+                    }
+                    else
+                    {
+                        clientList[i].missedHBs += 1;
+                        if (clientList[i].missedHBs == 2) { } //TODO: replace
+                            //RemoveClient(clientList[i]);
                     }
                 }
             })); //Heartbeat
@@ -142,8 +139,7 @@ namespace Common.Channels
                     packetAvailable = inPackets.TryTake(out output);
                 if (packetAvailable)
                     if (output.Item1.dataID == DataID.Heartbeat)
-                        lock (output.Item2.hbLock)
-                            output.Item2.receivedHB = true;
+                        output.Item2.receivedHB = true;
                     else OnDispatch(output);
             })); //Dispatch
 
@@ -320,6 +316,8 @@ namespace Common.Channels
             try
             {
                 int bytesRead = client.Handler.EndReceive(ar);
+                if (bytesRead < 1)
+                    throw new SocketException();
                 int maxToReceive;
                 if (client.receivingHeader)
                 {
@@ -342,7 +340,8 @@ namespace Common.Channels
                     }), client);
                 else
                 {
-                    inPackets.Add((client.packetFactory.BuildPacket(client.Get()), client));
+                    var data = client.Get();
+                    inPackets.Add((client.packetFactory.BuildPacket(data), client));
                     client.receiving = false;
                 }
             }
@@ -362,7 +361,9 @@ namespace Common.Channels
             ClientModel client = (ClientModel)ar.AsyncState;
             try
             {
-                UDPSocket.EndReceiveFrom(ar, ref client.endpoint);
+                int bytesRead = UDPSocket.EndReceiveFrom(ar, ref client.endpoint);
+                if (bytesRead < 1)
+                    throw new SocketException();
                 lock (inPackets)
                     inPackets.Add((client.packetFactory.BuildPacket(client.Get()), client));
                 client.receiving = false;
@@ -399,6 +400,7 @@ namespace Common.Channels
                 {
                     RemoveClient(client);
                 }
+                catch (ObjectDisposedException) { }
             }
             else
             {
@@ -406,10 +408,11 @@ namespace Common.Channels
                 {
                     UDPSocket.BeginSendTo(data, 0, data.Length, SocketFlags.None, client.Handler.RemoteEndPoint, new AsyncCallback((IAsyncResult ar) => { UDPSocket.EndSendTo(ar); }), null);
                 }
-                catch (Exception)
+                catch (SocketException)
                 {
                     RemoveClient(client);
                 }
+                catch (ObjectDisposedException) { }
             }
         }
 

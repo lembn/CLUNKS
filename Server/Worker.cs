@@ -162,7 +162,7 @@ namespace Server
                         outPacket = new Packet(DataID.Status, e.client.id);
                         switch (values[0])
                         {
-                            case Communication.CONNECT:                                
+                            case Communication.CONNECT:
                                 if (values[1] == Communication.START)
                                 {
                                     if (values[4] == Communication.FORWARD)
@@ -170,28 +170,33 @@ namespace Server
                                         state = DBHandler.DBHandler.CheckUser(values[2], values[3]);
                                         if (state)
                                         {
-                                            outPacket.Add(values[3]);
+                                            string next = String.Empty;
                                             string[] trace = DBHandler.DBHandler.Trace(values[2]).Split(" - ")
                                                                                 .SkipWhile(entity => entity != values[5])
+                                                                                .Skip(1)
                                                                                 .ToArray();
-                                            state = true;
-                                            e.client.data["requiresPassword"] = String.Join(" - " , trace);
-                                            foreach (string entity in trace)
+                                            e.client.data["requiresPassword"] = String.Join(" - ", trace);
+                                            e.client.data["ETTarget"] = values[2];
+                                            foreach (string entity in trace.Reverse())
                                             {
                                                 string pwd = DBHandler.DBHandler.CheckPassword(entity);
+                                                e.client.data[entity] = pwd;
                                                 if (!String.IsNullOrEmpty(pwd))
                                                 {
-                                                    outPacket.Add(entity, Communication.INCOMPLETE);
-                                                    e.client.data["entityPwd"] = pwd;
                                                     state = false;
-                                                    break;
+                                                    if (String.IsNullOrEmpty(next))
+                                                        next = entity;
                                                 }
                                             }
                                             if (state)
                                             {
                                                 e.client.data.Remove("requiresPassword");
-                                                outPacket.Add(values[2], Communication.COMPLETE);
+                                                DBHandler.DBHandler.SetPresent(values[2], values[3]);
+                                                logger.LogInformation($"User@{e.client.endpoint} logged into '{values[2]}' with username='{values[3]}'");
+                                                outPacket.Add(Communication.SUCCESS, values[2], values[3]);
                                             }
+                                            else
+                                                outPacket.Add(next, Communication.INCOMPLETE);
                                         }
                                         else
                                             outPacket.Add(Communication.FAILURE);
@@ -200,46 +205,66 @@ namespace Server
                                     {
                                         string[] trace = values[5].Split(" - ");
                                         int i;
-                                        for (i = trace.Length - 1; i > Array.FindIndex(trace, x => x == values[2]); i--)
+                                        for (i = trace.Length - 1; i >= 0; i--)
                                         {
-                                            DBHandler.DBHandler.SetPresent(trace[i], values[3], false);
+                                            if (trace[i] == values[2])
+                                                break;
+                                            DBHandler.DBHandler.SetPresent(trace[i], values[3]);
                                             logger.LogInformation($"User@{e.client.endpoint} ({values[3]}) logged out of '{trace[i]}'");
-                                        }                                        
+                                        }
                                         outPacket.Add(Communication.SUCCESS, String.Join(" - ", trace.Take(trace.Length - i)));
                                     }
                                 }
                                 else
                                 {
                                     state = true;
-                                    if (values[4] == Communication.TRUE)
-                                        state = DBHandler.DBHandler.Login(values[1], values[2]);
-                                    string[] trace = e.client.data["requiresPassword"].ToString().Split(" - ");
-                                    if (!String.IsNullOrEmpty((string)e.client.data[trace[0]]))
-                                        state = BCrypt.Net.BCrypt.Verify(values[5], (string)e.client.data[trace[0]]);
-                                    e.client.data.Remove(trace[0]);
-                                    if (trace.Length == 1)
+                                    List<string> trace = e.client.data["requiresPassword"].ToString().Split(" - ").ToList();
+                                    bool broke = false;
+                                    string entity = String.Empty;
+                                    string next = String.Empty;
+                                    for (int i = trace.Count - 1; i >= 0; i--)
                                     {
-                                        e.client.data.Remove("requiresPassword");
-                                        if (state)
+                                        entity = trace[i];
+                                        if (i > 0)
+                                            next = trace[i - 1];
+                                        string pwd = (string)e.client.data[entity];
+                                        e.client.data.Remove(entity);
+                                        trace.RemoveAt(i);
+                                        if (!String.IsNullOrEmpty(pwd))
                                         {
-                                            DBHandler.DBHandler.SetPresent(values[3], values[1]);
-                                            logger.LogInformation($"User@{e.client.endpoint} logged into '{values[3]}' with username='{values[1]}'");
-                                            outPacket.Add(Communication.SUCCESS, DBHandler.DBHandler.Trace(values[3]));
+                                            state = BCrypt.Net.BCrypt.Verify(values[1], pwd);
+                                            broke = true;
+                                            break;
+                                        }                                        
+                                    }
+                                    if (state)
+                                    {
+                                        DBHandler.DBHandler.SetPresent(entity, values[2]);
+                                        logger.LogInformation($"User@{e.client.endpoint} logged into '{entity}' with username='{values[2]}'");
+                                        if (broke && trace.Count > 0)
+                                        {
+                                            e.client.data["requiresPassword"] = String.Join(" - ", trace);
+                                            outPacket.Add(next, Communication.INCOMPLETE);
+                                        }
+                                        else
+                                        {
+                                            e.client.data.Remove("requiresPassword");
+                                            outPacket.Add(Communication.SUCCESS, DBHandler.DBHandler.Trace(e.client.data["ETTarget"].ToString()));
+                                            e.client.data.Remove("ETTarget");
                                         }
                                     }
                                     else
                                     {
-                                        if (state)
-                                        {
-                                            DBHandler.DBHandler.SetPresent(values[3], values[1]);
-                                            logger.LogInformation($"User@{e.client.endpoint} logged into '{values[3]}' with username='{values[1]}'");
-                                        }
-                                        outPacket.Add(state ? Communication.INCOMPLETE : Communication.FAILURE, DBHandler.DBHandler.Trace(values[3]));
-                                    }                                    
+                                        e.client.data.Remove("requiresPassword");
+                                        foreach (string _entity in trace)
+                                            if (e.client.data.ContainsKey(_entity))
+                                                e.client.data.Remove(_entity);
+                                        outPacket.Add(Communication.FAILURE);                                
+                                    }
                                 }
                                 break;
                             case Communication.DISCONNECT:
-                                state = DBHandler.DBHandler.CheckUser(values[1], values[2], false);
+                                state = DBHandler.DBHandler.CheckUser(values[1], values[2]);
                                 if (state)
                                 {
                                     DBHandler.DBHandler.SetPresent(values[1], values[2], false);
