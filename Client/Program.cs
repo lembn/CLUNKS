@@ -13,10 +13,10 @@ namespace Client
     {
         private static ClientChannel channel;
         private static bool quit = false;
-        private static bool free = true;
+        private static bool pass = true;
         private static bool prompted = false;
         private static string promptHeader = null;
-        private static string username = "lem"; //TODO: CHANGE
+        private static string username = null;
         private static Stack<string> traversalTrace;
 
         static void Main(string[] args)
@@ -35,21 +35,30 @@ namespace Client
             {
                 if (!prompted)
                 {
-                    if (promptHeader != null)
+                    if (username != null)
                     {
-                        Console.ForegroundColor = ConsoleColor.Magenta;
-                        Console.WriteLine(promptHeader);
-                        Console.ResetColor();
-                    }
+                        Console.ForegroundColor = ConsoleColor.Cyan;
+                        if (promptHeader != null)
+                        {
+                            Console.Write($"'{username}'");
+                            Console.ForegroundColor = ConsoleColor.White;
+                            Console.Write(" @ ");
+                            Console.ForegroundColor = ConsoleColor.Magenta;
+                            Console.WriteLine(promptHeader);
+                        }
+                        else
+                            Console.WriteLine($"'{username}'");
+                    }                    
+                    Console.ResetColor();
                     Console.Write("CLUNKS>>> ");
                     prompted = true;
                 }
-                if (!Console.KeyAvailable || !free)
+                if (!Console.KeyAvailable || !pass)
                 {
                     Thread.Sleep(10);
                     continue;
                 }
-                free = true;
+                pass = true;
                 string[] input = Console.ReadLine().Split();
                 Array.ForEach(input, x => x = x.Trim());
                 try
@@ -59,26 +68,34 @@ namespace Client
                         case "help":
                             ShowHelp();
                             break;
-                        case "connect":
+                        case Communication.CONNECT:
                             if (!(traversalTrace.Count == 0))
-                            if (input[1] == traversalTrace.Peek())
-                            {
-                                Console.WriteLine($"Already connected to {input[1]}");
-                                break;
-                            }
+                                if (input[1] == traversalTrace.Peek())
+                                {
+                                    Console.WriteLine($"Already connected to {input[1]}");
+                                    prompted = false;
+                                    break;
+                                }
                             if (username == null)
                             {
                                 Console.WriteLine("You must log into a subserver before connecting to entities");
+                                prompted = false;
                                 break;
                             }
                             outPacket = new Packet(DataID.Command, channel.id);
                             if (traversalTrace.Contains(input[1]))
                                 outPacket.Add(input[0], Communication.START, input[1], username, Communication.BACKWARD, String.Join(" - ", traversalTrace));
                             else
-                                outPacket.Add(input[0], Communication.START, input[1], username, Communication.FORWARD, traversalTrace.Count == 0 ? "" : traversalTrace.Peek());
+                                outPacket.Add(input[0], Communication.START, input[1], username, Communication.FORWARD, traversalTrace.Count == 0 ? String.Empty : traversalTrace.Peek());
                             channel.Dispatch += new Channel.DispatchEventHandler(ConnectReponseHanlder);
                             channel.Add(outPacket);
                             Console.WriteLine($"Requesting CONNECT to '{input[1]}'...");
+                            break;
+                        case Communication.LOGIN:
+                            outPacket = new Packet(DataID.Command, channel.id);
+                            outPacket.Add(input[0], Communication.START, input[1]);
+                            channel.Dispatch += new Channel.DispatchEventHandler(LoginResponseHandler);
+                            channel.Add(outPacket);
                             break;
                         case "trace":
                             Console.WriteLine(String.Join(" - ", traversalTrace));
@@ -104,7 +121,7 @@ namespace Client
                             prompted = false;
                             break;
                     }
-                }                
+                }
                 catch (IndexOutOfRangeException)
                 {
                     Console.WriteLine("Missing parameters, try 'help' for more info.");
@@ -127,12 +144,12 @@ namespace Client
                 }
                 channel.Dispatch -= ConnectReponseHanlder;
                 prompted = false;
-                free = true;             
+                pass = true;             
             }
             else
             {
                 Packet outPacket = new Packet(DataID.Command, channel.id);
-                free = false;
+                pass = false;
                 outPacket.Add(Communication.CONNECT, ConsoleTools.HideInput($"Enter '{values[0]}' password"), username);
                 channel.Add(outPacket);
             }
@@ -149,6 +166,27 @@ namespace Client
             }
             channel.Dispatch -= DisconnectResponseHandler;
             prompted = false;
+        }
+
+        private static void LoginResponseHandler(object sender, PacketEventArgs e)
+        {
+            string[] values = e.packet.Get();
+            if (Communication.FINAL_STATUSES.Contains(values[0]))
+            {
+                Console.WriteLine($"LOGIN completed with status '{values[0].ToUpper()}'.");
+                if (values[0] != Communication.FAILURE)
+                    username = values[1];
+                channel.Dispatch -= LoginResponseHandler;
+                prompted = false;
+                pass = true;
+            }
+            else
+            {
+                Packet outPacket = new Packet(DataID.Command, channel.id);
+                pass = false;
+                outPacket.Add(Communication.LOGIN, ConsoleTools.HideInput($"Enter your password"));
+                channel.Add(outPacket);
+            }
         }
 
         private static void Quit(object sender, ConsoleCancelEventArgs e)

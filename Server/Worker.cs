@@ -167,19 +167,19 @@ namespace Server
                                 {
                                     if (values[4] == Communication.FORWARD)
                                     {
-                                        state = DBHandler.DBHandler.CheckUser(values[2], values[3]);
+                                        state = DBHandler.DBHandler.UserInEntity(values[2], values[3]);
                                         if (state)
                                         {
                                             string next = String.Empty;
-                                            string[] trace = DBHandler.DBHandler.Trace(values[2]).Split(" - ")
-                                                                                .SkipWhile(entity => entity != values[5])
-                                                                                .Skip(1)
-                                                                                .ToArray();
+                                            string[] trace = DBHandler.DBHandler.Trace(values[2]).Split(" - ");
+                                            if (String.IsNullOrEmpty(values[5]))
+                                                values[5] = trace[0];
+                                            trace = trace.SkipWhile(entity => entity != values[5]).Skip(1).ToArray();
                                             e.client.data["requiresPassword"] = String.Join(" - ", trace);
                                             e.client.data["ETTarget"] = values[2];
                                             foreach (string entity in trace.Reverse())
                                             {
-                                                string pwd = DBHandler.DBHandler.CheckPassword(entity);
+                                                string pwd = DBHandler.DBHandler.GetEntityPassword(entity);
                                                 e.client.data[entity] = pwd;
                                                 if (!String.IsNullOrEmpty(pwd))
                                                 {
@@ -264,13 +264,29 @@ namespace Server
                                 }
                                 break;
                             case Communication.DISCONNECT:
-                                state = DBHandler.DBHandler.CheckUser(values[1], values[2]);
+                                state = DBHandler.DBHandler.UserInEntity(values[1], values[2]);
                                 if (state)
                                 {
                                     DBHandler.DBHandler.SetPresent(values[1], values[2], false);
                                     logger.LogInformation($"User@{e.client.endpoint} ({values[2]}) logged out of '{values[1]}'");
                                 }
                                 outPacket.Add(state ? Communication.SUCCESS : Communication.FAILURE);
+                                break;
+                            case Communication.LOGIN:
+                                if (values[1] == Communication.START)
+                                {
+                                    state = DBHandler.DBHandler.UserExists(values[2]);
+                                    e.client.data["username"] = values[2];
+                                    outPacket.Add(state ? Communication.INCOMPLETE : Communication.FAILURE);
+                                }
+                                else
+                                {
+                                    state = DBHandler.DBHandler.LoginUser(e.client.data["username"].ToString(), values[1]);
+                                    if (state)
+                                        logger.LogInformation($"User@{e.client.endpoint} logged in as '{e.client.data["username"]}'");
+                                    outPacket.Add(state ? Communication.SUCCESS : Communication.FAILURE, e.client.data["username"].ToString());
+                                    e.client.data.Remove("username");
+                                }
                                 break;
                         }                     
                     }

@@ -15,13 +15,24 @@ namespace Server.DBHandler
         private static string[] _entityTables = { "subserver", "room", "group" };
 
         /// <summary>
+        /// A method to check if a user exists on the database
+        /// </summary>
+        /// <param name="username">The username of the user</param>
+        /// <returns>True if the user exists, false otherwise</returns>
+        public static bool UserExists(string username)
+        {
+            using (Cursor cursor = new Cursor(connectionString))
+                return Convert.ToInt32(cursor.Execute("SELECT COUNT(*) FROM users WHERE name=$name", username)) > 0;
+        }
+
+        /// <summary>
         /// A method to check if a user exists in a parent entity (subserver/room/group)
         /// </summary>
-        /// <param name="parentName">The name of the parent entity</param>
+        /// <param name="entity">The name of the parent entity</param>
         /// <param name="username">The name of the user</param>
         /// <param name="checkPresent">Should be set to true if users need to be present for the method to return true, false otherwise</param>
         /// <returns>True if the users exists and checkPresent is false or if the user exists and is not present and checkPresent is true, false otherwise</returns>
-        public static bool CheckUser(string parentName, string username)
+        public static bool UserInEntity(string entity, string username)
         {
             string checkStmt =
             $@"
@@ -32,12 +43,11 @@ namespace Server.DBHandler
                 WHERE users.name=$username
                 AND {{0}}s.name=$parentName;
             ";
-            string presentStmt = $"SELECT present FROM users_{{0}}s WHERE userID=$userID AND {{0}}ID=$parentID;";
             using (Cursor cursor = new Cursor(connectionString))
                 foreach (string table in entityTables)
-                    if (Convert.ToInt32(cursor.Execute($"SELECT COUNT(*) FROM {table} WHERE name=$parentName;", parentName)) > 0)
+                    if (Convert.ToInt32(cursor.Execute($"SELECT COUNT(*) FROM {table} WHERE name=$parentName;", entity)) > 0)
                     {
-                        object[] results = (object[])cursor.Execute(String.Format(checkStmt, table.Substring(0, table.Length - 1)), username, parentName);
+                        object[] results = (object[])cursor.Execute(String.Format(checkStmt, table.Substring(0, table.Length - 1)), username, entity);
                         if (results != null && results.Length > 0)
                             return true;
                     }
@@ -45,22 +55,11 @@ namespace Server.DBHandler
         }
 
         /// <summary>
-        /// A method to get the password of a user
-        /// </summary>
-        /// <param name="username">The user who's password is being queried</param>
-        /// <returns>The password or an empty string if no password exists</returns>
-        public static string GetUserPassword(string username)
-        {
-            using (Cursor cursor = new Cursor(connectionString))
-                return (string)cursor.Execute("SELECT password FROM users WHERE name=$name", username);
-        }
-
-        /// <summary>
         /// A method to get the (hashed) password of an entity if it exists
         /// </summary>
         /// <param name="entityName">The name of the entity</param>
         /// <returns>The hashed password of the entity if it exists, empty string otherwise</returns>
-        public static string CheckPassword(string entityName)
+        public static string GetEntityPassword(string entityName)
         {
             using (Cursor cursor = new Cursor(connectionString))
                 foreach (string table in entityTables)
@@ -76,13 +75,13 @@ namespace Server.DBHandler
         /// <param name="username">The user's username</param>
         /// <param name="password">The user's (plaintext) password</param>
         /// <returns>True if the combination is correct, false otherwise</returns>
-        public static bool Login(string username, string password)
+        public static bool LoginUser(string username, string password)
         {
             using (Cursor cursor = new Cursor(connectionString))
             {
                 string hash = (string)cursor.Execute("SELECT password FROM users WHERE name=$username;", username);
-                if (hash.Trim() == "")
-                    if (password.Trim() == "")
+                if (String.IsNullOrEmpty(hash.Trim()))
+                    if (String.IsNullOrEmpty(password.Trim()))
                         return true;
                     else
                         return false;

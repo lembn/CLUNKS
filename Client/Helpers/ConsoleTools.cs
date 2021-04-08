@@ -23,7 +23,7 @@ namespace Common.Helpers
         public static string HideInput(string prompt)
         {
             Console.Write($"{prompt}>>> ");
-            string input = "";
+            string input = String.Empty;
             ConsoleKeyInfo info;
             bool entered = false;
             do
