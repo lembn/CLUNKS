@@ -171,13 +171,15 @@ namespace Server
                                         if (state)
                                         {
                                             string next = String.Empty;
-                                            string[] trace = DBHandler.DBHandler.Trace(values[2]).Split(" - ");
+                                            string[] targetTrace = DBHandler.DBHandler.Trace(values[2]).Split(" - ");
                                             if (String.IsNullOrEmpty(values[5]))
-                                                values[5] = trace[0];
-                                            trace = trace.SkipWhile(entity => entity != values[5]).Skip(1).ToArray();
-                                            e.client.data["requiresPassword"] = String.Join(" - ", trace);
+                                                values[5] = targetTrace[0];
+                                            targetTrace = targetTrace.SkipWhile(entity => entity != values[5]).Skip(1).ToArray();
+                                            string[] currentTrace = DBHandler.DBHandler.Trace(values[5]).Split(" - "); 
+                                            e.client.data["requiresPassword"] = String.Join(" - ", targetTrace);
                                             e.client.data["ETTarget"] = values[2];
-                                            foreach (string entity in trace.Reverse())
+                                            e.client.data["toUnset"] = String.Join(" - ", currentTrace.Where(entity => !targetTrace.Contains(entity)));
+                                            foreach (string entity in targetTrace.Reverse())
                                             {
                                                 string pwd = DBHandler.DBHandler.GetEntityPassword(entity);
                                                 e.client.data[entity] = pwd;
@@ -191,6 +193,14 @@ namespace Server
                                             if (state)
                                             {
                                                 e.client.data.Remove("requiresPassword");
+                                                string[] toUnset = e.client.data["ETTarget"].ToString().Split(" - ");
+                                                foreach (string entity in toUnset)
+                                                {
+                                                    DBHandler.DBHandler.SetPresent(entity, values[3], false);
+                                                    logger.LogInformation($"User@{e.client.endpoint} ({values[3]}) logged out of '{entity}'");
+                                                }
+                                                e.client.data.Remove("ETTarget");
+                                                e.client.data.Remove("toUnset");
                                                 DBHandler.DBHandler.SetPresent(values[2], values[3]);
                                                 logger.LogInformation($"User@{e.client.endpoint} logged into '{values[2]}' with username='{values[3]}'");
                                                 outPacket.Add(Communication.SUCCESS, values[2], values[3]);
@@ -209,7 +219,7 @@ namespace Server
                                         {
                                             if (trace[i] == values[2])
                                                 break;
-                                            DBHandler.DBHandler.SetPresent(trace[i], values[3]);
+                                            DBHandler.DBHandler.SetPresent(trace[i], values[3], false);
                                             logger.LogInformation($"User@{e.client.endpoint} ({values[3]}) logged out of '{trace[i]}'");
                                         }
                                         outPacket.Add(Communication.SUCCESS, String.Join(" - ", trace.Take(trace.Length - i)));
@@ -220,15 +230,15 @@ namespace Server
                                     state = true;
                                     List<string> trace = e.client.data["requiresPassword"].ToString().Split(" - ").ToList();
                                     bool broke = false;
-                                    string entity = String.Empty;
+                                    string currentEntity = String.Empty;
                                     string next = String.Empty;
                                     for (int i = trace.Count - 1; i >= 0; i--)
                                     {
-                                        entity = trace[i];
+                                        currentEntity = trace[i];
                                         if (i > 0)
                                             next = trace[i - 1];
-                                        string pwd = (string)e.client.data[entity];
-                                        e.client.data.Remove(entity);
+                                        string pwd = (string)e.client.data[currentEntity];
+                                        e.client.data.Remove(currentEntity);
                                         trace.RemoveAt(i);
                                         if (!String.IsNullOrEmpty(pwd))
                                         {
@@ -239,8 +249,8 @@ namespace Server
                                     }
                                     if (state)
                                     {
-                                        DBHandler.DBHandler.SetPresent(entity, values[2]);
-                                        logger.LogInformation($"User@{e.client.endpoint} logged into '{entity}' with username='{values[2]}'");
+                                        DBHandler.DBHandler.SetPresent(currentEntity, values[2]);
+                                        logger.LogInformation($"User@{e.client.endpoint} logged into '{currentEntity}' with username='{values[2]}'");
                                         if (broke && trace.Count > 0)
                                         {
                                             e.client.data["requiresPassword"] = String.Join(" - ", trace);
@@ -249,6 +259,13 @@ namespace Server
                                         else
                                         {
                                             e.client.data.Remove("requiresPassword");
+                                            string[] toUnset = e.client.data["ETTarget"].ToString().Split(" - ");
+                                            foreach (string entity in toUnset)
+                                            {
+                                                DBHandler.DBHandler.SetPresent(entity, values[3], false);
+                                                logger.LogInformation($"User@{e.client.endpoint} ({values[3]}) logged out of '{entity}'");
+                                            }
+                                            e.client.data.Remove("toUnset");
                                             outPacket.Add(Communication.SUCCESS, DBHandler.DBHandler.Trace(e.client.data["ETTarget"].ToString()));
                                             e.client.data.Remove("ETTarget");
                                         }
@@ -256,9 +273,11 @@ namespace Server
                                     else
                                     {
                                         e.client.data.Remove("requiresPassword");
-                                        foreach (string _entity in trace)
-                                            if (e.client.data.ContainsKey(_entity))
-                                                e.client.data.Remove(_entity);
+                                        e.client.data.Remove("ETTarget");
+                                        e.client.data.Remove("toUnset");
+                                        foreach (string entity in trace)
+                                            if (e.client.data.ContainsKey(entity))
+                                                e.client.data.Remove(entity);
                                         outPacket.Add(Communication.FAILURE);                                
                                     }
                                 }
