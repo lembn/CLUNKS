@@ -15,7 +15,6 @@ namespace Client
         private static bool quit = false;
         private static bool pass = true;
         private static bool prompted = false;
-        private static string promptHeader = null;
         private static string username = null;
         private static Stack<string> traversalTrace;
 
@@ -38,13 +37,38 @@ namespace Client
                     if (username != null)
                     {
                         Console.ForegroundColor = ConsoleColor.Cyan;
-                        if (promptHeader != null)
+                        if (traversalTrace.Count > 0)
                         {
                             Console.Write($"'{username}'");
                             Console.ForegroundColor = ConsoleColor.White;
                             Console.Write(" @ ");
                             Console.ForegroundColor = ConsoleColor.Magenta;
-                            Console.WriteLine(promptHeader);
+                            if (traversalTrace.Count > 3)
+                            {
+                                string header = String.Empty;
+                                int i = 0;
+                                bool dash = false;
+                                foreach (string entity in traversalTrace.Reverse())
+                                {
+                                    if (String.IsNullOrEmpty(header))
+                                        header = $"[{entity}";
+                                    if (i++ > traversalTrace.Count - 3)
+                                    {
+                                        header += dash ? $"- {entity}" : $"{entity}";
+                                        if (!dash)
+                                            dash = true;
+                                    }
+                                    else if (!header.Contains("..."))
+                                    {
+                                        header += " ... ";
+                                        dash = false;
+                                    }
+
+                                }
+                                Console.WriteLine($"{header}]");
+                            }
+                            else
+                                Console.WriteLine($"[{String.Join(" - ", traversalTrace.Reverse())}]");
                         }
                         else
                             Console.WriteLine($"'{username}'");
@@ -138,10 +162,7 @@ namespace Client
             {
                 Console.WriteLine($"CONNECT completed with status '{values[0].ToUpper()}'.");
                 if (values[0] != Communication.FAILURE)
-                {
                     traversalTrace = new Stack<string>(values[1].Split(" - "));
-                    promptHeader = $"[{values[1]}]";
-                }
                 channel.Dispatch -= ConnectReponseHanlder;
                 prompted = false;
                 pass = true;             
@@ -160,10 +181,7 @@ namespace Client
             string[] values = e.packet.Get();
             Console.WriteLine($"DISCONNECT completed with status '{values[0].ToUpper()}'.");
             if (values[0] != Communication.FAILURE)
-            {
                 traversalTrace.Pop();
-                promptHeader = traversalTrace.Count > 0 ? $"[{string.Join(" - ", traversalTrace.Reverse())}]" : null;
-            }
             channel.Dispatch -= DisconnectResponseHandler;
             prompted = false;
         }
