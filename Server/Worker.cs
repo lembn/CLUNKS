@@ -76,6 +76,7 @@ namespace Server
             }
             server.ChannelFail += new Channel.ChannelFailEventHanlder(FailHandler);
             server.Dispatch += new Channel.DispatchEventHandler(DispatchHandler);
+            server.RemoveClientEvent += new ServerChannel.RemoveClientEventHandler(RemoveClientHandler);
             if (ConfigurationManager.AppSettings.Get("newExp") == "true")
             {
                 try
@@ -305,6 +306,7 @@ namespace Server
                                         logger.LogInformation($"User@{e.client.endpoint} logged in as '{e.client.data["username"]}'");
                                     outPacket.Add(state ? Communication.SUCCESS : Communication.FAILURE, e.client.data["username"].ToString());
                                     e.client.data.Remove("username");
+                                    e.client.data["DB_userID"] = DBHandler.DBHandler.GetUserID(e.client.data["username"].ToString());
                                 }
                                 break;
                         }                     
@@ -318,5 +320,7 @@ namespace Server
         }
 
         public static void FailHandler(object sender, ChannelFailEventArgs e) => logger.LogError(e.Message);
+
+        public static void RemoveClientHandler(object sender, RemoveClientEventArgs e) => DBHandler.DBHandler.Logout(e.ID);
     }
 }

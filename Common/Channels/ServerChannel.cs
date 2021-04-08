@@ -25,8 +25,14 @@ namespace Common.Channels
         private Socket UDPSocket;
 
         #endregion
-        
+
+        #region Public Members
+
         public List<ClientModel> clientList;
+        public delegate void RemoveClientEventHandler(object sender, RemoveClientEventArgs e);
+        public event RemoveClientEventHandler RemoveClientEvent;
+
+        #endregion
 
         #region Methods
 
@@ -430,7 +436,8 @@ namespace Common.Channels
                     client.Handler?.Disconnect(false);
                 clientList.Remove(client);
                 client.Dispose();
-            }            
+                RemoveClientEvent(this, new RemoveClientEventArgs { ID = Convert.ToInt32(client.data["DB_userID"].ToString()) });
+            }
         }
        
         /// <summary>

@@ -147,7 +147,7 @@ namespace Server.DBHandler
                     {table} rooms ({IPK}, {name}, password TEXT NOT NULL);
                     {table} subserver_rooms ({IPK}, subserverID INTEGER REFERENCES subservers(id), roomID INTEGER REFERENCES rooms(id), UNIQUE (subserverID, roomID));
                     {table} room_rooms ({IPK}, parent INTEGER REFERENCES rooms(id), child INTEGER REFERENCES rooms(id), UNIQUE (parent, child));
-                    {table} users ({IPK}, {name}, password TEXT NOT NULL, elevation INTEGER REFERENCES elevations(id));
+                    {table} users ({IPK}, {name}, password TEXT NOT NULL, elevation INTEGER REFERENCES elevations(id), UNIQUE (name));
                     {table} users_subservers ({IPK}, userID INTEGER REFERENCES users(id), subserverID INTEGER REFERENCES subservers(id), present {iBool}, UNIQUE (userID, subserverID));
                     {table} users_rooms ({IPK}, userID INTEGER REFERENCES users(id), roomID INTEGER REFERENCES rooms(id), present {iBool}, UNIQUE (userID, roomID));
                     {table} groups ({IPK}, {name}, password TEXT NOT NULL, owner INTEGER references users(id));
@@ -257,6 +257,31 @@ namespace Server.DBHandler
                                 INNER JOIN users ON users.name=$name AND users_{table}.userID=users.id
                                 INNER JOIN {table} ON users_{table}.{table.Substring(0, table.Length - 1)}ID={table}.id);
                         ", username);
+            }
+        }
+
+        /// <summary>
+        /// A method to get the database id of a user
+        /// </summary>
+        /// <param name="username">The user's username</param>
+        /// <returns>The user's id</returns>
+        public static int GetUserID(string username)
+        {
+            using (Cursor cursor = new Cursor(connectionString))
+                return Convert.ToInt32(cursor.Execute("SELECT id FROM users WHERE name=$name", username));
+        }
+
+        /// <summary>
+        /// A method to unset the presence of a user throughout the database
+        /// </summary>
+        /// <param name="userID">The ID of the user</param>
+        public static void Logout(int userID)
+        {
+            using (Cursor cursor = new Cursor(connectionString))
+            {
+                cursor.Execute($"UPDATE users_{_entityTables[0]} SET present=0 userID='{userID}';");
+                cursor.Execute($"UPDATE users_{_entityTables[1]} SET present=0 userID='{userID}';");
+                cursor.Execute($"UPDATE users_{_entityTables[2]} SET present=0 userID='{userID}';");
             }
         }
     }
