@@ -92,7 +92,7 @@ namespace Server
         }
 
         /// <summary>
-        /// The event handler called when the ServerChannel.Dispatch event is raised
+        /// The event handler invoked when the ServerChannel.Dispatch event is raised
         /// </summary>
         /// <param name="sender">The caller of the event</param>
         /// <param name="e">The event args</param>
@@ -263,8 +263,8 @@ namespace Server
                                             string[] toUnset = e.client.data["ETTarget"].ToString().Split(" - ");
                                             foreach (string entity in toUnset)
                                             {
-                                                DBHandler.DBHandler.SetPresent(entity, values[3], false);
-                                                logger.LogInformation($"User@{e.client.endpoint} ({values[3]}) logged out of '{entity}'");
+                                                DBHandler.DBHandler.SetPresent(entity, values[2], false);
+                                                logger.LogInformation($"User@{e.client.endpoint} ({values[2]}) logged out of '{entity}'");
                                             }
                                             e.client.data.Remove("toUnset");
                                             outPacket.Add(Communication.SUCCESS, DBHandler.DBHandler.Trace(e.client.data["ETTarget"].ToString()));
@@ -305,8 +305,8 @@ namespace Server
                                     if (state)
                                         logger.LogInformation($"User@{e.client.endpoint} logged in as '{e.client.data["username"]}'");
                                     outPacket.Add(state ? Communication.SUCCESS : Communication.FAILURE, e.client.data["username"].ToString());
-                                    e.client.data.Remove("username");
                                     e.client.data["DB_userID"] = DBHandler.DBHandler.GetUserID(e.client.data["username"].ToString());
+                                    e.client.data.Remove("username");
                                 }
                                 break;
                         }                     
@@ -321,6 +321,15 @@ namespace Server
 
         public static void FailHandler(object sender, ChannelFailEventArgs e) => logger.LogError(e.Message);
 
-        public static void RemoveClientHandler(object sender, RemoveClientEventArgs e) => DBHandler.DBHandler.Logout(e.ID);
+        /// <summary>
+        /// The event handler invoked when ServerChannel.RemoveClientEvent event is called
+        /// </summary>
+        /// <param name="sender">The caller of the event</param>
+        /// <param name="e">The event args</param>
+        public static void RemoveClientHandler(object sender, RemoveClientEventArgs e)
+        {
+            string username = DBHandler.DBHandler.Logout(e.ID);
+            logger.LogInformation($"User@{e.Client.endpoint} ({username}) logged out of CLUNKS'");
+        }
     }
 }

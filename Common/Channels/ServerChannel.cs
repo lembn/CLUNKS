@@ -435,8 +435,8 @@ namespace Common.Channels
                 if (client.Handler.ProtocolType == ProtocolType.Tcp)
                     client.Handler?.Disconnect(false);
                 clientList.Remove(client);
+                RemoveClientEvent(this, new RemoveClientEventArgs { ID = Convert.ToInt32(client.data["DB_userID"].ToString()), Client = client });
                 client.Dispose();
-                RemoveClientEvent(this, new RemoveClientEventArgs { ID = Convert.ToInt32(client.data["DB_userID"].ToString()) });
             }
         }
        
