@@ -284,7 +284,7 @@ namespace Server.DBHandler
                 cursor.Execute($"UPDATE users_{_entityTables[0]} SET present=0 userID='{userID}';");
                 cursor.Execute($"UPDATE users_{_entityTables[1]} SET present=0 userID='{userID}';");
                 cursor.Execute($"UPDATE users_{_entityTables[2]} SET present=0 userID='{userID}';");
-                username = (string)cursor.Execute($"SELECT username FROM users WHERE id='{userID}';");
+                username = (string)cursor.Execute($"SELECT name FROM users WHERE id='{userID}';");
             }
             return username;
         }

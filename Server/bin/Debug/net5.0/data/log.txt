@@ -122,3 +122,4 @@
 2021-04-12 14:16:45.543 +01:00 [INF] User@192.168.0.21:60923 logged into 'room2' with username='lem'
 2021-04-12 14:16:46.701 +01:00 [INF] User@192.168.0.21:60923 logged into 'room1' with username='lem'
 2021-04-12 14:16:46.715 +01:00 [INF] User@192.168.0.21:60923 (lem) logged out of 'room2'
+2021-04-12 22:27:00.896 +01:00 [INF] User@192.168.0.21:64502 logged in as 'lem'
