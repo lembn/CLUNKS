@@ -275,14 +275,18 @@ namespace Server.DBHandler
         /// A method to unset the presence of a user throughout the database
         /// </summary>
         /// <param name="userID">The ID of the user</param>
-        public static void Logout(int userID)
+        /// <returns>The username of the user</returns>
+        public static string Logout(int userID)
         {
+            string username;
             using (Cursor cursor = new Cursor(connectionString))
             {
                 cursor.Execute($"UPDATE users_{_entityTables[0]} SET present=0 userID='{userID}';");
                 cursor.Execute($"UPDATE users_{_entityTables[1]} SET present=0 userID='{userID}';");
                 cursor.Execute($"UPDATE users_{_entityTables[2]} SET present=0 userID='{userID}';");
+                username = (string)cursor.Execute($"SELECT username FROM users WHERE id='{userID}';");
             }
+            return username;
         }
     }
 }
