@@ -158,24 +158,35 @@ class IOManager:
                             ApplySectorsRecrusive(parent, sectors, True)
                             break
 
-        roomNames = []
+        usernames = []
         subserverNames = []
+        roomNames = []
         elevationNames = []
+        for user in self.ReadAll(self.storage['user']):
+            name = user[0].lower().strip()
+            if name not in usernames:
+                usernames.append(name)
+            else:
+                logFunc('EXPORT FAILED: Usernames must be unique.')
+                return
         for subserver in self.ReadAll(self.storage['subserver']):
-            if subserver[0].lower() not in subserverNames:
-                subserverNames.append(subserver[0].lower())
+            name = subserver[0].lower().strip()
+            if name not in subserverNames:
+                subserverNames.append(name)
             else:
                 logFunc('EXPORT FAILED: Subserver names must be unique.')
                 return
         for room in self.ReadAll(self.storage['room']):
-            if room[0].lower() not in roomNames and room[0].lower() not in subserverNames:
-                roomNames.append(room[0].lower())
+            name = room[0].lower().strip()
+            if name not in roomNames and name not in subserverNames:
+                roomNames.append(name)
             else:
                 logFunc('EXPORT FAILED: Room/subserver names must be unique.')
                 return
         for elevation in self.ReadAll(self.storage['elevation']):
-            if elevation[0].lower() not in elevationNames:
-                elevationNames.append(elevation[0].lower())
+            name = elevation[0].lower().strip()
+            if name not in elevationNames:
+                elevationNames.append(name)
             else:
                 logFunc('EXPORT FAILED: Elevation names must be unique.')
                 return
