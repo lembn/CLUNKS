@@ -30,14 +30,9 @@ namespace Server
         public override Task StartAsync(CancellationToken stoppingToken)
         {
             UriBuilder uri = new UriBuilder(Assembly.GetEntryAssembly().Location);
-            string path = String.Concat(Path.GetDirectoryName(Uri.UnescapeDataString(uri.Path)), @"\");
-            string cfgLoc = String.Concat(path, "App.config");
-            string dataLoc = String.Concat(path, "data");
-            if (!File.Exists(cfgLoc))
-                ConfigHandler.InitialiseConfig(cfgLoc);
+            string dataLoc = String.Concat(Path.GetDirectoryName(Uri.UnescapeDataString(uri.Path)), @"\data");
             if (!Directory.Exists(dataLoc))
                 Directory.CreateDirectory(dataLoc);
-            var a = ConfigurationManager.AppSettings.Get("dataPath");
             if (dataLoc != ConfigurationManager.AppSettings.Get("dataPath"))
                 ConfigHandler.ModifyConfig("dataPath", dataLoc);
             DBHandler.DBHandler.connectionString = String.Format(ConfigurationManager.ConnectionStrings["default"].ConnectionString, ConfigurationManager.AppSettings.Get("dataPath"));

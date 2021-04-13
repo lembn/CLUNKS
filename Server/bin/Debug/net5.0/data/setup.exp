@@ -1,19 +1,18 @@
 <?xml version="1.0"?>
-<!-- Passwords are all 'a' -->
 <root>
   <subservers>
-    <subserver name="ss1">
-      <room name="room1" password="$2b$12$UDLD5mtCG92l0nKC5y8Y/.kTDcoUZUGxVWYA8taBVuRVKrl4uWj5O">
-        <room name="room2" password="$2b$12$naWTnxb447ZamzU.Q6wVX.q0sqRjqt3KBbH4HnW7V8za/Ul0g.xFO">
-          <room name="room3" password="$2b$12$POEdp0kyWmUl8MlLG/GpuuzqVZqmLEIDk31zAEKMcstmbdkp4TkKC"/>
-        </room>
+    <subserver name="ss1" sectors="user">
+      <room name="room1" password="$2b$12$CTmq1wDzTjrYyaS94lCDKO2AVXxl.gOBNf9vEqEfP8ZXNq61L81eW">
+        <room name="room2" password="$2b$12$ohCrxVK81asoWOE2/mQDdO8S2jIq0luRltLaWCKHEe8EMBgMQ1GkC"/>
       </room>
+      <room name="room3" password="$2b$12$cVU12HLzKwTodcYX4PsAJuGI29LLhEqi91Z9QyKezJLJB8NHQ1gbG">
+        <room name="room4" password="$2b$12$wqLmD/TKDNvz8EXqrXkzCuE99tgFstLcnljHctjlAfA6pG/duIRJq"/>
+      </room>
+      <user username="lem" password="" sectors="user" global="False" elevation="user_elv"/>
     </subserver>
   </subservers>
-  <globalUsers>
-    <user username="lem" password="" sectors="user" global="True" elevation="user_elv"/>
-  </globalUsers>
+  <globalUsers/>
   <elevations>
-    <elevation name="user_elv" privilege="1020" sectors="user"/>
+    <elevation name="user_elv" privilege="510" sectors="user"/>
   </elevations>
 </root>
