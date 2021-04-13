@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<!-- Rooms passwords ara 'a' -->
+<!-- Room passwords ara 'a' -->
 <root>
   <subservers>
     <subserver name="ss1" sectors="user">

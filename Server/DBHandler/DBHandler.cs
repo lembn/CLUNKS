@@ -251,12 +251,11 @@ namespace Server.DBHandler
                         $@"
                             UPDATE users_{table}
                             SET present={(isPresent ? 1 : 0)}
-                            WHERE EXISTS(
-                                SELECT *
-                                FROM users_{table}
-                                INNER JOIN users ON users.name=$name AND users_{table}.userID=users.id
-                                INNER JOIN {table} ON users_{table}.{table.Substring(0, table.Length - 1)}ID={table}.id);
-                        ", username);
+                            WHERE EXISTS( SELECT *
+			                              FROM users
+			                              INNER JOIN {table} ON {table}.name=$entityname AND {table}.id=users_{table}.{table.Substring(0, table.Length - 1)}ID
+			                              WHERE users.name=$username AND users.id=users_{table}.userID);
+                        ", parentName, username);
             }
         }
 

@@ -98,6 +98,7 @@ namespace Server
             bool state;
             switch (e.packet.dataID)
             {
+                //TODO: Add to client
                 case DataID.Login:
                     values = e.packet.Get();
                     if (values[0] == ConfigurationManager.AppSettings.Get("username"))
@@ -111,6 +112,7 @@ namespace Server
                     break;
                 case DataID.Command:
                     values = e.packet.Get();
+                    //TODO: Add to client
                     if (Communication.ADMIN_CONFIG.Contains(values[0]))
                     {
                         outPacket = new Packet(DataID.Status, e.client.id);
@@ -129,6 +131,7 @@ namespace Server
                             }
                         }
                     }
+                    //TODO: Add to client
                     else if (Communication.ADMIN_COMMANDS.Contains(values[0]))
                     {
                         outPacket = new Packet(DataID.Status, e.client.id);
@@ -170,11 +173,15 @@ namespace Server
                                             string[] targetTrace = DBHandler.DBHandler.Trace(values[2]).Split(" - ");
                                             if (String.IsNullOrEmpty(values[5]))
                                                 values[5] = targetTrace[0];
-                                            targetTrace = targetTrace.SkipWhile(entity => entity != values[5]).Skip(1).ToArray();
                                             string[] currentTrace = DBHandler.DBHandler.Trace(values[5]).Split(" - "); 
-                                            e.client.data["requiresPassword"] = String.Join(" - ", targetTrace);
-                                            e.client.data["ETTarget"] = values[2];
+                                            DBHandler.DBHandler.SetPresent(targetTrace[0], values[3], targetTrace[0] == currentTrace[0]);
                                             e.client.data["toUnset"] = String.Join(" - ", currentTrace.Where(entity => !targetTrace.Contains(entity)));
+                                            if (targetTrace.Contains(values[5]))
+                                                targetTrace = targetTrace.SkipWhile(entity => entity != values[5]).Skip(1).ToArray();
+                                            e.client.data["requiresPassword"] = String.Join(" - ", targetTrace.Where(entity => !currentTrace.Contains(entity)));
+                                            e.client.data["makePresent"] = String.Join(" - ", targetTrace);
+                                            e.client.data["ETTarget"] = values[2];
+                                            e.client.data["ETTargetSubserver"] = targetTrace[0];
                                             foreach (string entity in targetTrace.Reverse())
                                             {
                                                 string pwd = DBHandler.DBHandler.GetEntityPassword(entity);
@@ -188,18 +195,25 @@ namespace Server
                                             }
                                             if (state)
                                             {
+                                                e.client.data.Remove("makePresent");
+                                                foreach (string entity in e.client.data["requiresPassword"].ToString().Split(" - ").Where(x => !String.IsNullOrEmpty(x)))
+                                                {
+                                                    DBHandler.DBHandler.SetPresent(entity, values[3]);
+                                                    logger.LogInformation($"User@{e.client.endpoint} ({values[3]}) logged into of '{entity}'");
+                                                }
                                                 e.client.data.Remove("requiresPassword");
-                                                string[] toUnset = e.client.data["ETTarget"].ToString().Split(" - ");
-                                                foreach (string entity in toUnset)
+                                                e.client.data.Remove("ETTarget");
+                                                foreach (string entity in e.client.data["toUnset"].ToString().Split(" - ").Where(x => !String.IsNullOrEmpty(x)))
                                                 {
                                                     DBHandler.DBHandler.SetPresent(entity, values[3], false);
-                                                    logger.LogInformation($"User@{e.client.endpoint} ({values[3]}) logged out of '{entity}'");
+                                                    logger.LogInformation($"User@{e.client.endpoint} ({values[3]}) logged out of '{entity}'");                                               
                                                 }
-                                                e.client.data.Remove("ETTarget");
                                                 e.client.data.Remove("toUnset");
+                                                DBHandler.DBHandler.SetPresent(e.client.data["ETTargetSubserver"].ToString(), values[3]);
+                                                e.client.data.Remove("ETTargetSubserver");
                                                 DBHandler.DBHandler.SetPresent(values[2], values[3]);
                                                 logger.LogInformation($"User@{e.client.endpoint} logged into '{values[2]}' with username='{values[3]}'");
-                                                outPacket.Add(Communication.SUCCESS, values[2], values[3]);
+                                                outPacket.Add(Communication.SUCCESS, DBHandler.DBHandler.Trace(values[2]));
                                             }
                                             else
                                                 outPacket.Add(next, Communication.INCOMPLETE);
@@ -209,7 +223,7 @@ namespace Server
                                     }
                                     else
                                     {
-                                        string[] trace = values[5].Split(" - ");
+                                        string[] trace = values[5].Split(" - ").Reverse().ToArray();
                                         int i;
                                         for (i = trace.Length - 1; i >= 0; i--)
                                         {
@@ -218,7 +232,7 @@ namespace Server
                                             DBHandler.DBHandler.SetPresent(trace[i], values[3], false);
                                             logger.LogInformation($"User@{e.client.endpoint} ({values[3]}) logged out of '{trace[i]}'");
                                         }
-                                        outPacket.Add(Communication.SUCCESS, String.Join(" - ", trace.Take(trace.Length - i)));
+                                        outPacket.Add(Communication.SUCCESS, String.Join(" - ", trace.Take(i + 1)));
                                     }
                                 }
                                 else
@@ -231,8 +245,6 @@ namespace Server
                                     for (int i = trace.Count - 1; i >= 0; i--)
                                     {
                                         currentEntity = trace[i];
-                                        if (i > 0)
-                                            next = trace[i - 1];
                                         string pwd = (string)e.client.data[currentEntity];
                                         e.client.data.Remove(currentEntity);
                                         trace.RemoveAt(i);
@@ -240,13 +252,18 @@ namespace Server
                                         {
                                             state = BCrypt.Net.BCrypt.Verify(values[1], pwd);
                                             broke = true;
+                                            if (i > 0)
+                                                for (int x = 1; i - x < 1; x++)
+                                                {
+                                                    next = trace[i - x];
+                                                    if (!String.IsNullOrEmpty((string)e.client.data[next]))
+                                                        break;
+                                                }                                   
                                             break;
                                         }                                        
                                     }
                                     if (state)
                                     {
-                                        DBHandler.DBHandler.SetPresent(currentEntity, values[2]);
-                                        logger.LogInformation($"User@{e.client.endpoint} logged into '{currentEntity}' with username='{values[2]}'");
                                         if (broke && trace.Count > 0)
                                         {
                                             e.client.data["requiresPassword"] = String.Join(" - ", trace);
@@ -255,19 +272,27 @@ namespace Server
                                         else
                                         {
                                             e.client.data.Remove("requiresPassword");
-                                            string[] toUnset = e.client.data["ETTarget"].ToString().Split(" - ");
-                                            foreach (string entity in toUnset)
+                                            foreach (string entity in e.client.data["makePresent"].ToString().Split(" - ").Where(x => !String.IsNullOrEmpty(x)))
+                                            {
+                                                DBHandler.DBHandler.SetPresent(entity, values[2]);
+                                                logger.LogInformation($"User@{e.client.endpoint} ({values[2]}) logged into of '{entity}'");
+                                            }
+                                            e.client.data.Remove("makePresent");
+                                            foreach (string entity in e.client.data["toUnset"].ToString().Split(" - ").Where(x => !String.IsNullOrEmpty(x)))
                                             {
                                                 DBHandler.DBHandler.SetPresent(entity, values[2], false);
                                                 logger.LogInformation($"User@{e.client.endpoint} ({values[2]}) logged out of '{entity}'");
                                             }
                                             e.client.data.Remove("toUnset");
+                                            DBHandler.DBHandler.SetPresent(e.client.data["ETTargetSubserver"].ToString(), values[2]);
+                                            e.client.data.Remove("ETTargetSubserver");
                                             outPacket.Add(Communication.SUCCESS, DBHandler.DBHandler.Trace(e.client.data["ETTarget"].ToString()));
                                             e.client.data.Remove("ETTarget");
                                         }
                                     }
                                     else
                                     {
+                                        e.client.data.Remove("presentChanged");
                                         e.client.data.Remove("requiresPassword");
                                         e.client.data.Remove("ETTarget");
                                         e.client.data.Remove("toUnset");
