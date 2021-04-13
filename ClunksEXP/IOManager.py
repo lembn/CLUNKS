@@ -158,39 +158,7 @@ class IOManager:
                             ApplySectorsRecrusive(parent, sectors, True)
                             break
 
-        usernames = []
         subserverNames = []
-        roomNames = []
-        elevationNames = []
-        for user in self.ReadAll(self.storage['user']):
-            name = user[0].lower().strip()
-            if name not in usernames:
-                usernames.append(name)
-            else:
-                logFunc('EXPORT FAILED: Usernames must be unique.')
-                return
-        for subserver in self.ReadAll(self.storage['subserver']):
-            name = subserver[0].lower().strip()
-            if name not in subserverNames:
-                subserverNames.append(name)
-            else:
-                logFunc('EXPORT FAILED: Subserver names must be unique.')
-                return
-        for room in self.ReadAll(self.storage['room']):
-            name = room[0].lower().strip()
-            if name not in roomNames and name not in subserverNames:
-                roomNames.append(name)
-            else:
-                logFunc('EXPORT FAILED: Room/subserver names must be unique.')
-                return
-        for elevation in self.ReadAll(self.storage['elevation']):
-            name = elevation[0].lower().strip()
-            if name not in elevationNames:
-                elevationNames.append(name)
-            else:
-                logFunc('EXPORT FAILED: Elevation names must be unique.')
-                return
-
         nameToSubserver = {}
         subserverElements = []
         entities = self.ReadAll(self.storage['subserver'])
@@ -203,6 +171,12 @@ class IOManager:
             return
 
         for x in range(len(entities)):
+            name = entities[x][0].lower().strip()
+            if name not in subserverNames:
+                subserverNames.append(name)
+            else:
+                logFunc('EXPORT FAILED: Subserver names must be unique.')
+                return
             subserverElements.append(ET.SubElement(subserverRoot, 'subserver', {'name': entities[x][0]}))
             nameToSubserver[entities[x][0]] = x
             if not entities[x][1].split(',')[0]:
@@ -215,12 +189,19 @@ class IOManager:
                         except KeyError:
                             sectorToSubserver[sector.strip()] = [x]
 
+        roomNames = []
         nameToRoom = {}
         roomElements = []
         processedRooms = []
         entities = self.ReadAll(self.storage['room'])
         #Rooms with subserver parents
         for x in range(len(entities)):
+            name = entities[x][0].lower().strip()
+            if name not in roomNames and name not in subserverNames:
+                roomNames.append(name)
+            else:
+                logFunc('EXPORT FAILED: Room/subserver names must be unique.')
+                return
             if entities[x][2] in subserverNames:
                 room = entities[x]
                 processedRooms.append(x)
@@ -273,6 +254,7 @@ class IOManager:
                             except KeyError:
                                 sectorToRoom[sector.strip()] = [len(roomElements) - 1]
 
+        elevationNames = []
         elevationElements = []
         sectorToElevation = {}
         elevationRoot = None
@@ -280,15 +262,31 @@ class IOManager:
         entities = self.ReadAll(self.storage['elevation'])
         if entities:
             elevationRoot = ET.SubElement(root, 'elevations')
+        else:
+            logFunc('EXPORT FAILED: There are no subservers.')
+            return
         for x in range(len(entities)):
+            name = entities[x][0].lower().strip()
+            if name not in elevationNames:
+                elevationNames.append(name)
+            else:
+                logFunc('EXPORT FAILED: Elevation names must be unique.')
+                return
             privilege = sum([2**i if j == 'True' else 0 for i, j in enumerate(reversed(entities[x][1:len(entities[x]) - 1]))])
             attrs = {'name': entities[x][0], 'privilege': str(privilege), 'sectors': entities[x][len(entities[x]) - 1]}
             elevationElements.append(ET.SubElement(elevationRoot, 'elevation', attrs))
             for sector in entities[x][len(entities[x]) - 1].split(','):
                 sectorToElevation[sector] = x
 
+        usernames = []
         entities = self.ReadAll(self.storage['user'])
         for user in entities:
+            name = user[0].lower().strip()
+            if name not in usernames:
+                usernames.append(name)
+            else:
+                logFunc('EXPORT FAILED: Usernames must be unique.')
+                return
             elevationName = None
             for sector in user[2].split(','):
                 if sector in sectorToElevation.keys():
@@ -312,11 +310,11 @@ class IOManager:
                         sectorToParent[sector][0] += [subserverElements[index] for index in sectorToSubserver[sector]]
                     except KeyError:
                         sectorToParent[sector] = [[subserverElements[index] for index in sectorToSubserver[sector]], []]
-                else:
+                if sector in sectorToRoom.keys():
                     try:
                         sectorToParent[sector][1] += [roomElements[index] for index in sectorToRoom[sector]]
                     except KeyError:
-                        sectorToParent[sector] = [[roomElements[index] for index in sectorToRoom[sector]], []]
+                        sectorToParent[sector] = [[], [roomElements[index] for index in sectorToRoom[sector]]]
             for sector, parents in sectorToParent.items():
                 finalParents = []
                 for parent in parents[0] + parents[1]:

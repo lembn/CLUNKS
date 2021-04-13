@@ -1,14 +1,18 @@
 <?xml version="1.0"?>
+<!-- Rooms passwords ara 'a' -->
 <root>
   <subservers>
     <subserver name="ss1" sectors="user">
       <room name="room1" password="$2b$12$CTmq1wDzTjrYyaS94lCDKO2AVXxl.gOBNf9vEqEfP8ZXNq61L81eW">
-        <room name="room2" password="$2b$12$ohCrxVK81asoWOE2/mQDdO8S2jIq0luRltLaWCKHEe8EMBgMQ1GkC"/>
+        <room name="room2" password="$2b$12$ohCrxVK81asoWOE2/mQDdO8S2jIq0luRltLaWCKHEe8EMBgMQ1GkC">
+		  <user username="lem" password="" sectors="user" global="False" elevation="user_elv"/>
+		</room>
       </room>
       <room name="room3" password="$2b$12$cVU12HLzKwTodcYX4PsAJuGI29LLhEqi91Z9QyKezJLJB8NHQ1gbG">
-        <room name="room4" password="$2b$12$wqLmD/TKDNvz8EXqrXkzCuE99tgFstLcnljHctjlAfA6pG/duIRJq"/>
-      </room>
-      <user username="lem" password="" sectors="user" global="False" elevation="user_elv"/>
+        <room name="room4" password="$2b$12$wqLmD/TKDNvz8EXqrXkzCuE99tgFstLcnljHctjlAfA6pG/duIRJq">
+		  <user username="lem" password="" sectors="user" global="False" elevation="user_elv"/>
+		</room>
+      </room>      
     </subserver>
   </subservers>
   <globalUsers/>
