@@ -142,7 +142,7 @@ namespace Server.DBHandler
                 cursor.Execute(
                 $@"
                     {table} elevations ({IPK}, {name}, canCallSubserver {iBool}, canCallRoom {iBool}, canCallGroup {iBool}, canCallUser {iBool}, canMsgSubserver {iBool},
-                                        canMsgRoom {iBool}, canMsgGroup {iBool}, canMsgUser {iBool}, canCreateRoom {iBool}, canCreateGroup {iBool});
+                                        canMsgRoom {iBool}, canMsgGroup {iBool}, canMsgUser {iBool}, canCreateGroup {iBool});
                     {table} subservers ({IPK}, {name});
                     {table} rooms ({IPK}, {name}, password TEXT NOT NULL);
                     {table} subserver_rooms ({IPK}, subserverID INTEGER REFERENCES subservers(id), roomID INTEGER REFERENCES rooms(id), UNIQUE (subserverID, roomID));
@@ -160,12 +160,12 @@ namespace Server.DBHandler
                 XDocument exp = XDocument.Load(Directory.GetFiles(Regex.Match(connectionString, "(?<=(Data Source=)).*(?=(\\\\.*db;))").Value, "*.exp")[0]);
                 foreach (XElement elevation in exp.Descendants("elevation"))
                 {
-                    int[] paramList = (from num in Convert.ToString(Convert.ToInt32(elevation.Attribute("privilege").Value), 2).PadLeft(10, '0') select (int)Char.GetNumericValue(num)).ToArray();
+                    int[] paramList = (from num in Convert.ToString(Convert.ToInt32(elevation.Attribute("privilege").Value), 2).PadLeft(9, '0') select (int)Char.GetNumericValue(num)).ToArray();
                     cursor.Execute(
                     $@" INSERT INTO elevations 
                         (name, canCallSubserver, canCallRoom, canCallGroup, canCallUser, canMsgSubserver, canMsgRoom, canMsgGroup, canMsgUser, canCreateRoom, canCreateGroup) 
                         VALUES($name, $param0, $param1, $param2, $param3, $param4, $param5, $param6, $param7, $param8, $param9);
-                    ", elevation.Attribute("name").Value, paramList[0], paramList[1], paramList[2], paramList[3], paramList[4], paramList[5], paramList[6], paramList[7], paramList[8], paramList[9]);
+                    ", elevation.Attribute("name").Value, paramList[0], paramList[1], paramList[2], paramList[3], paramList[4], paramList[5], paramList[6], paramList[7], paramList[8]);
                 }
 
                 IEnumerable<XElement> globalUsers = exp.Descendants("globalUsers").Descendants("user");
