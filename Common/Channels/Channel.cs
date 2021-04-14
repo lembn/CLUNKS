@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace Common.Channels
 {
@@ -60,7 +61,11 @@ namespace Common.Channels
         public virtual void OnDispatch(Packet packet)
         {
             if (Dispatch != null)
-                Dispatch(this, new PacketEventArgs(packet));
+            {
+                Console.WriteLine("in");
+                Task.Run(() => { Dispatch(this, new PacketEventArgs(packet)); });
+                Console.WriteLine("out");
+            }
         }
         /// <summary>
         /// A method for releasing data info to the owner of a ServerChannel
@@ -79,7 +84,7 @@ namespace Common.Channels
         public virtual void OnChannelFail(string message)
         {
             if (ChannelFail != null)
-                ChannelFail(this, new ChannelFailEventArgs() { Message = message });
+                Task.Run(() => { ChannelFail(this, new ChannelFailEventArgs(message)); });
         }
 
         private protected abstract void Dispose(bool disposing);

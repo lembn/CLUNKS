@@ -4,7 +4,13 @@ namespace Common.Channels
 {
     public class RemoveClientEventArgs : EventArgs
     {
-        public int ID { get; set; }
-        public ClientModel Client { get; set; }
+        public int ID;
+        public ClientModel Client;
+
+        public RemoveClientEventArgs(int ID, ClientModel Client)
+        {
+            this.ID = ID;
+            this.Client = Client;
+        }
     }
 }

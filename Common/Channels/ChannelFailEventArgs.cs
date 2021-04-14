@@ -1,11 +1,11 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace Common.Channels
 {
     public class ChannelFailEventArgs : EventArgs
     {
-        public string Message { get; set; }
+        public string Message;
+
+        public ChannelFailEventArgs(string message) => this.Message = message;
     }
 }

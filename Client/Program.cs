@@ -111,14 +111,14 @@ namespace Client
                                 outPacket.Add(input[0], Communication.START, input[1], username, Communication.BACKWARD, String.Join(" - ", traversalTrace));
                             else
                                 outPacket.Add(input[0], Communication.START, input[1], username, Communication.FORWARD, traversalTrace.Count == 0 ? String.Empty : traversalTrace.Peek());
-                            channel.Dispatch += new Channel.DispatchEventHandler(ConnectReponseHanlder);
+                            channel.Dispatch += ConnectReponseHanlder;
                             channel.Add(outPacket);
                             Console.WriteLine($"Requesting CONNECT to '{input[1]}'...");
                             break;
                         case Communication.LOGIN:
                             outPacket = new Packet(DataID.Command, channel.id);
                             outPacket.Add(input[0], Communication.START, input[1]);
-                            channel.Dispatch += new Channel.DispatchEventHandler(LoginResponseHandler);
+                            channel.Dispatch += LoginResponseHandler;
                             channel.Add(outPacket);
                             break;
                         case "trace":
@@ -135,7 +135,7 @@ namespace Client
                             {
                                 outPacket = new Packet(DataID.Command, channel.id);
                                 outPacket.Add(Communication.DISCONNECT, traversalTrace.Peek(), username);
-                                channel.Dispatch += new Channel.DispatchEventHandler(DisconnectResponseHandler);
+                                channel.Dispatch += DisconnectResponseHandler;
                                 channel.Add(outPacket);
                                 Console.WriteLine($"Leaving...");
                             }
