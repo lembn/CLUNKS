@@ -22,7 +22,12 @@ namespace Server.DBHandler
         public static bool UserExists(string username)
         {
             using (Cursor cursor = new Cursor(connectionString))
-                return Convert.ToInt32(cursor.Execute("SELECT COUNT(*) FROM users WHERE name=$name", username)) > 0;
+            {
+                object[] data = (object[])cursor.Execute("SELECT loggedIn, COUNT(*) FROM users WHERE name=$name", username);
+                if (Convert.ToInt32(data[0]) == 1)
+                    return false;
+                return Convert.ToInt32(data[1]) > 0;
+            }
         }
 
         /// <summary>
