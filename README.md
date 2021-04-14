@@ -436,7 +436,7 @@ if (packetAvailable)
 }
 ```
 
-The snippet above is a simplified sample of the dispatch method from the `ClientChannel` (before the problem was solved). It loops repeatedly on its own thread and is resposible for taking the incoming `Packet`s stored in `inPackets` and processing them accordingly. As you can see, if the incoming packet is identified as a heartbeat packet, a boolean flag is set to true to signify to the heartbeat system that a heartbeat has been received, otherwise, the packet is dispatched with the `OnDispatch` method. In the case that we're currently interested in, the packet will either be a `Heartbeat` or `Status`, where `Status` packets are the packets that are sent by the server in response to the entity traversal request that the client was initially trying (and failing) to do. When `OnDispatch` gets called, it triggers the `ClientChannel.Dispatch` event so that any methods subscribed to the event will be invoked. For this situation the owner of the `ClientChannel`, `Client.Program` has a method `ConnectResonseHandler` subscribed to `Dispatch`, to process the `Status` packets and perform the client side of the entity traversal process. A simplifed sample of `Client.Program.ConnectResponseHanlder` (before the problem was solved) is shown below:
+The snippet above is a simplified sample of the dispatch method from the `ClientChannel`. It loops repeatedly on its own thread and is resposible for taking the incoming `Packet`s stored in `inPackets` and processing them accordingly. As you can see, if the incoming packet is identified as a heartbeat packet, a boolean flag is set to true to signify to the heartbeat system that a heartbeat has been received, otherwise, the packet is dispatched with the `OnDispatch` method. When `OnDispatch` gets called, it triggers the `ClientChannel.Dispatch` event so that any methods subscribed to the event will be invoked. For this situation the owner of the `ClientChannel`, `Client.Program` has a method `ConnectResonseHandler` subscribed to `Dispatch`, to process the `Status` packets and perform the client side of the entity traversal process. A simplifed sample of `Client.Program.ConnectResponseHanlder` is shown below:
 
 ``` c#
 private static void ConnectReponseHanlder(Packet incomingPacket)
@@ -458,11 +458,55 @@ private static void ConnectReponseHanlder(Packet incomingPacket)
 ```
 *`Packet.Get` is a method which outputs the data stored in a packet into an array, `channel` is the `ClientChannel` object*
 
-In this method, `STATUSES` was a string array containg the values `"success"` and `"failure"`. These values were stored in constants which were sent from the server to the client in the `values[0]` position to signify the status of an entire operation. There were two other statuses, `"complete"` and `"incomplete"` which were not stored in `STATUSES` and were sent by the server to signify the status of a stage of an operation, in this case, they told the client that the `CONNECT` had or hadn't been completed, which determined if there were any more roundtrips to be done. This is way the root of the problem lay.
+The main thing to pay attention to here is the code in the `else` statement that prompts the user for input. This is way the root of the problem lay.
 
-The management of user logins used to be the responsiblity of the server while connecting to an entity. Every time the user requesting a `CONNECT`, the server would check if they are logged in and if not, tell the client program to prompt them to log in. This in theory isn't much of a problem,however there was an error in the logic of the server and the different status commands were being sent at the wrong times and places. This was causing the server to prompt the user to enter their password, when it wasnt needed. The client program would be waiting for the user to enter their password and in that time the server would send the `"complete"`, `ConnectReponseHanlder` would be invoked but the event handler was still busy waiting for input from the previous password prompt. This conflict caused the dispatch thread to get stuck on this line: `OnDispatch(packet)`, so it couldn't loop back round and execute `receivedHB = true` so the heartbeat system thought that no heartbeats had come in, causing the client to disconnect. However, when after it disconnected it would attempt to quit the program but fail because the dispatch thread was still stuck, causing the console to hang as mentioned before.
+After diving back down into the documentation for the C# event system, it was discovered that C# events (by defualt) are synchronous. On its own this isn't a problem, but when paired with the fact that the event handler waits for user input, the issue becomes clear. `ClientChannel` would trigger `Dispatch`, which would *synchronously* invoke the `ConnectReponseHanlder` which would wait for user input, causing the dispatch thread to get stuck on this line: `OnDispatch(packet)`, so it couldn't loop back round and execute `receivedHB = true` so the heartbeat system thought that no heartbeats had come in, causing the client to disconnect. However, when after it disconnected it would attempt to quit the program but fail because the dispatch thread was still stuck, causing the console to hang as mentioned before.
 
-The problem was solved my moving he resposibility of logging in the user onto the client, removing the `"complete"` status and replacing it with `"success"` where necessary to fix the erros in the algorithm. Later on, logging in was made a seperate prerequisite to the entity traversal process, which helped to decouple the different concepts from each other and cleanup the algorithms that were performing these actions.
+Now that the main problem had been identified, it could be easily solved by making the event trigger with `OnDispatch` asynchronous by wrapping it with `Task.Run`, so that the dispatch thread would be free to move on after triggering the event.
+
+### **Entity Tracing**
+
+'Entity traces' are used throughout the CLUNKS client and server sides to both display and determine the location of a user in the server's overall structure. An example of an entity trace is `subserver1 - room1 - room2`. This trace would be referred to as the trace for the room '`room2`', which is a child of the room '`room1`', which is a child of the subserver '`subserver1`'. Traces are created in the program in two ways:
+- In the client where the trace of the user's location is built up as they traverse to different entities
+- In the server's `DBHandler.DBHandler.Trace` method which finds the trace of an entity using only the name of the lowest child of the path (this would be `room2` in the previous example.)
+
+This segment will be focusing on the logic behind `DBHandler.DBHandler.Trace`. The (simplified) method is shown below:
+
+*`entityTables = ["subservers", "rooms", "groups"]`* <br>
+*`_entityTables = ["subserver", "room", "group"]`* <br>
+
+``` c#
+public static List<string> Trace(List<string> trace, Cursor cursor)
+{
+    if (Convert.ToInt32(cursor.Execute($"SELECT COUNT(*) FROM subservers WHERE name=$entityName;", trace[0])) > 0)
+    {
+        cursor.Dispose();
+        return trace;
+    }
+    int index = 1;
+    if (Convert.ToInt32(cursor.Execute($"SELECT COUNT(*) FROM groups WHERE name=$entityName;", trace[0])) > 0)
+        index = 2;
+    int id = Convert.ToInt32(cursor.Execute($"SELECT id FROM {entityTables[index]} WHERE name=$entityName;", trace[0]));
+    int parentID;
+    try
+    {
+        parentID = Convert.ToInt32(cursor.Execute($"SELECT parent FROM {_entityTables[index]}_{entityTables[index]} WHERE child='{id}';"));
+    }
+    catch (InvalidCastException)
+    {
+        parentID = $"SELECT {_entityTables[index - 1]}ID FROM {_entityTables[index - 1]}_{entityTables[index]} WHERE {_entityTables[index]}ID='{id}';");
+    }
+    trace = trace.Insert(0, cursor.Execute($"SELECT name FROM {entityTables[index]} WHERE id='{parentID}';"));
+    return Trace(trace, cursor);
+}
+```
+*Where `cursor` is the object used for interacting with the database. The explaination below will use the `subserver1 - room1 - room2` trace as an example.*
+
+`Trace` utilises a recursive algorithm to create the trace of an entity. In this fashion, the first thing checked by the algorithm is the base case. Since traces are built from the lowest child (a room or group) up to a subserver, the bottom (leftmost) item of the trace represents the highest ranking entity found so far. When the algorithm is complete, this 'bottom' value is the name of some subserver, so the base case for this recursion is if the bottom value of the trace is present in the `subservers` table of the database. This algorithm checks the prescence of an entity in the database by counting the number of entities with the specified name. If the returned value (for the base case) if greater than zero, then the bottom value indicates a subserver and the trace can be completed, so the `cursor` object is disposed (cleaning up the connection to the database and any opened caches or WAL data) and the trace is returned.
+
+Otherwise, the algorithm checks to see if the bottom entity is a room or a group. After identifying this the parent can be found and added to the trace. This is done by first finding out the parent's ID in the database from the approprate linking table, then querying the name using the ID as a search index. When the current bottom entity is a room or group, the parent entity can either be of the same type (another room/group) or of the next type up in the heirarchy (group -> room or room -> subserver). To identfy this the presence of the parent is first tested in the `room_rooms`/`group_groups` tables approraitely. If this test fails it will raise an `InvalidCastException` (due to the way that `cursor.Execute` return its values), so this exception can be caught and used to find the id of the parent in the upper ranking table (`subserver_rooms`/`room_groups`).
+
+Once the parent's ID in the database has been found, the parent's name can be found, and added to the trace, then `Trace` method will call itself with the new name in the bottom entry. 
 
 ----
 

@@ -128,15 +128,16 @@ namespace Server.DBHandler
             if (Convert.ToInt32(cursor.Execute($"SELECT COUNT(*) FROM {entityTables[2]} WHERE name=$entityName;", bottom)) > 0)
                 index = 2;
             int id = Convert.ToInt32(cursor.Execute($"SELECT id FROM {entityTables[index]} WHERE name=$entityName;", bottom));
+            int parentID;
             try
             {
-                int parentID = Convert.ToInt32(cursor.Execute($"SELECT parent from {_entityTables[index]}_{entityTables[index]} WHERE child='{id}';"));
-                return Trace($"{(string)cursor.Execute($"SELECT name from {entityTables[index]} WHERE id='{Convert.ToInt32(parentID)}';")} - {trace}", cursor);
+                parentID = Convert.ToInt32(cursor.Execute($"SELECT parent from {_entityTables[index]}_{entityTables[index]} WHERE child='{id}';"));
             }
             catch (InvalidCastException)
             {
-                return Trace($"{(string)cursor.Execute($"SELECT name from {entityTables[index - 1]} WHERE id='{Convert.ToInt32(cursor.Execute($"SELECT {_entityTables[index - 1]}ID from {_entityTables[index - 1]}_{entityTables[index]} WHERE {_entityTables[index]}ID='{id}';"))}';")} - {trace}", cursor);
+                parentID = Convert.ToInt32(cursor.Execute($"SELECT {_entityTables[index - 1]}ID from {_entityTables[index - 1]}_{entityTables[index]} WHERE {_entityTables[index]}ID='{id}';"));
             }
+            return Trace($"{(string)cursor.Execute($"SELECT name from {entityTables[index]} WHERE id='{parentID}';")} - {trace}", cursor);
         }
 
         /// <summary>
