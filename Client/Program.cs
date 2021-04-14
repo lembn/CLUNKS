@@ -102,7 +102,7 @@ namespace Client
                                 }
                             if (username == null)
                             {
-                                Console.WriteLine("You must log into a subserver before connecting to entities");
+                                Console.WriteLine("You must log into an account before connecting to entities");
                                 prompted = false;
                                 break;
                             }

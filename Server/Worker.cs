@@ -154,7 +154,7 @@ namespace Server
                                 server.Dispose();
                                 logger.LogInformation("Server STOP successful.");
                             }
-                        }                       
+                        }
                     }
                     else if (Communication.USER_COMMANDS.Contains(values[0]))
                     {

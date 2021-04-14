@@ -51,7 +51,7 @@ CLUNKS>>> changepwd [old password] [new password]
 ### **Connecting**
 To interact with other active users on the server, the user will need to enter the entities (sub-servers/rooms/groups) that the other users are in. This can be done with:
 ```
-CLUNKS>>> connect [entityname]
+CLUNKS>>> connect [targetEntityName]
 ```
 *The server may request a password for the entity if one has been set.*
 On sucessfull login, the header will update to include the user's current location:
@@ -130,7 +130,7 @@ UserIDs are unsigned integers used to identify different ClientChannels/ClientMo
 
 The 'body' of the packet is a JSON object which hold the actual data to send. When packets are being sent, the packet metadata and body are added to a new JSON object called the `payload`. A payload may look something like this:
 
-`json
+```json
 {
     "dataID": "Signature",
     "userID": 9,
@@ -139,12 +139,12 @@ The 'body' of the packet is a JSON object which hold the actual data to send. Wh
         "signautre": "&%%^rNsEZC3}1aX(gn2,:z"
     }
 }
-`
+```
 *NOTE: in reality, the salt and signautre are byte arrays encoded into Base64, so wouldn't contain some of the characters shown in the above example.*
 
 When a packet is being serialized into a byte array (so that it can be sent over the network), a the payload is constructed, then symmetrically encrypted. The symmetric key and IV then get asymmetrically with the receiver's public key. From here, the encrypted payload and encrypted symmetric data are added to a new array, preceeded by the total length of the payload. This length is used by the recipient to extract the payload bytes from the total byte array (the length of the encrypted data is a stored constant so doesn't need to be sent). The total legnth is always a 32 byte integer, so takes up the first 4 bytes of the serialization output. This new array can then be sent off across the network and the packet can be reconstruced by reversing the serialization process.
 
-## Concurrecny
+## Concurrency
 Both the client and server channels use five 'master threads' to asynchronously perform operations. These five threads perform the network operations and can spawn other threads when needed to assist with their task.
 
 One of these threads is the listening thread, used for listening for incoming data on the socket. The client only communicates with one server at a time, so the listening is quite simple but the server needs the ability to listen to multiple clients simultaneously. An adapted version of the Apache philosophy was implemented to achieve this.
@@ -164,13 +164,13 @@ This introduces some complexity for processing data sent in TCP, since a single 
 
 First, the server begins listening for incoming data on the network pipe:
 
-` c#  
+``` c#  
 client.Handler.BeginReceive(client.New(), 0, HEADER_SIZE, SocketFlags.None, new AsyncCallback((IAsyncResult ar) => 
 {
     client.receivingHeader = true;
     ReceiveTCPCallback(ar, 0);
 }), client);
-`
+```
 
 Here, `client.Handler` is the socket being used to receive data from the client. `BeginReceive()` is the method which begins listening to incoming data. Into this method, we pass:
 - `buffer`: The array to read data into, created by `client.New()`, which creates and returns a new chunk of the client's buffer.
@@ -182,7 +182,7 @@ Here, `client.Handler` is the socket being used to receive data from the client.
 
 The asynchronous callback first sets the boolean value `receivingHeader` to `true`. `receivingHeader` is a feild on the `ClientModel` class (the class that `client` is a member of) which represents if a client is currently reading the 4 byte header or the actual datastream. It then calls into `ReceiveTCPCallback()`, the method that handles the procesing of the datastream for TCP listening. Here is a simplified sample of it (*exception handling removed*):
 
-` c#
+``` c#
 private protected override void ReceiveTCPCallback(IAsyncResult ar, int bytesToRead)
 {
     ClientModel client = (ClientModel)ar.AsyncState;
@@ -203,7 +203,7 @@ private protected override void ReceiveTCPCallback(IAsyncResult ar, int bytesToR
         client.receiving = false;
     }
 }
-`
+```
 
 The parameters of `ReceiveTCPCallback()` are an `IAsyncResult` which stores information about the asynchronous callback, and an `int` (`bytesToRead`) which represnets the number of bytes left unread in the datastream. First, the client is casted out of the `AsyncState` of the `IAsyncResult`. The number of bytes read from the receive is then stored into `bytesRead`. If the client is currently reading the header, `bytesToRead` is overwritten with the value stored in the 4 byte header that was just received. If the client is not currently receiving the header, the algorithm will check to see if the original number of unread bytes (before the receive) is equal to the number of bytes that it just received, if so then all the data has been read and the data stored in the buffer can be processed . Otherwise, it begins receiving again with an new chunk of the buffer to write into, and calls itself in the asynchronous callback with `bytesToRead` set to the recalculated value of the new number of undread bytes in the datastream.
 
@@ -211,7 +211,7 @@ On first glance this algorithm may seem to work fine, but there is a flaw in the
 
 After troubleshooting the issue and identifying that this was the problem, the original solution was to re-write the current algorithm to re-use old chunks of the buffer if data didn't fill the chunk:
 
-` c#
+``` c#
 private protected override void ReceiveTCPCallback(IAsyncResult ar, int bytesToRead)
 {
     ClientModel client = (ClientModel)ar.AsyncState;
@@ -246,11 +246,11 @@ private protected override void ReceiveTCPCallback(IAsyncResult ar, int bytesToR
         client.receiving = false;
     }
 }
-`
+```
 
 However this also was scrapped since it added complexity into the logic of the algorithm and variable feilds of the `ClientModel` class, and still utilised a chunked buffer. In situations such as this, a chunked buffer is undesirable since the process of creating chunks has a large computional footprint so is quite expesive on the CPU. To solve these issue the algorithm was redesigned into this *(also simplified)*:
 
-` c#
+``` c#
 private protected override void ReceiveTCPCallback(IAsyncResult ar, int offset = 0)
 {
     ClientModel client = (ClientModel)ar.AsyncState;
@@ -281,7 +281,7 @@ private protected override void ReceiveTCPCallback(IAsyncResult ar, int offset =
         client.receiving = false;
     }
 }
-`
+```
 
 In this final version of the redesigned algorithm, the uses the header to determine how many bytes to expect (as usual), but then creates a buffer which is the size of the incoming data. This way the buffer only needs to be created once and doesn't need to be expanded, and it also allows the buffer to be implemented as an `Array` instead of a `List` (since the size is no longer variable) which much more efficient to use. This algorithm also attempts to always read as much of the incoming data in one go as is possible. This reduces the depth of recursion since less data is left behind per read. To do this, the algorithm utilises the `offset` parameter of the `BeginReceive()` method, to write continuous data into the next available space of the buffer, eliminating continuity the problems caused by the old chunked buffer algorithm.
 
@@ -389,6 +389,7 @@ The GetJsonSerializer method from Common.Helpers.ObjectConverter creates a seria
 ## Database Handling
 DB Design - https://dbdesigner.page.link/w4z9AyGuCeFoD6NdA
 
+### **Concurrency**
 The program utilises lots of asynchronous programming to make sure that operations can run smoothly without interefering with whatever the user is doing. This became a problem when trying to access the database asyncrhonously since C#'s Microsoft.Data.Sqlite libraries are not designed to be thread safe. This means that race conditions can easily be introduced into the program logic when multiple threads attempt to access the database simultaneously.
 
 Race conditions are when two threads attempt to access a shared resource and end up creating conflicts on the resource (for example if two threads attempt to remove an entry from the database at the same time). Normally, this is combatted with C#'s `lock` statement, which creates a mutex on an object being locked (prevents the object from being accessed by mutliple threads at the same time so that other threads have to wait for the first thread to finish its work), however for resource management reasons, the connection and command objects used for database browsing are not shared between threads, so cannot be locked. To make up for this, the program uses SQLite's WAL mode for concurrent processing:
@@ -396,13 +397,72 @@ Race conditions are when two threads attempt to access a shared resource and end
 WAL (Write Ahead Logging) inverts SQL's transaction-rollback system to preserve the database while it is being edited.
 > *The traditional rollback journal works by writing a copy of the original unchanged database content into a separate rollback journal file and then writing changes directly into the database file. In the event of a crash or ROLLBACK, the original content contained in the rollback journal is played back into the database file to revert the database file to its original state. The COMMIT occurs when the rollback journal is deleted. The WAL approach inverts this. The original content is preserved in the database file and the changes are appended into a separate WAL file. A COMMIT occurs when a special record indicating a commit is appended to the WAL. Thus a COMMIT can happen without ever writing to the original database, which allows readers to continue operating from the original unaltered database while changes are simultaneously being committed into the WAL. Multiple transactions can be appended to the end of a single WAL file.*
 
+*From https://www.sqlite.org/wal.html*
+
 Essentially, each thread keeps track of its own changes with the WAL file, which are then made to the database when the thread is done, and conficts are resolved by the database engine.
 
-*From https://www.sqlite.org/wal.html*
 
 While also solving the race condition issue, this also improves the performance of database operations since without a `lock` statement, it allows multiple threads perform theyre operations without being blocked.
 
 Likewise, in the same performance-oriented mindset, shared caching is used when connecting to the database from the progam which offers faster data transfer between the threads used by the program.
+
+### **Entity Traversal**
+
+Entity traversal (achieved with the `connect` command) is the action of moving between different entities on the server. Much has to be taken into consideration on the server-side of this operation to make sure that everything is executed smoothly and cleanly while keeping the process simple for the client.
+
+During development of this feature, the client seemed to have serious issues with the changes being made and would output the message 'Connection the server has died' while the user was trying to enter their password to be sent to the server. This output is triggered when the `ClientChannel` detects a failure in its socket's connection the the server endpoint, so it disconnects itself to avoid any issues with damanged connections. One of the stranger things about this failure was that in the situation that the connection to the server dies, the client is supposed to output the failure message, then quit the program automatically, but in this case, the client seemed to be failing to quit and the program would hang.
+
+To initiate the troubleshooting process, the server was investigated to see if it was crashing, since that was what the diagnositc scripts of the `ClientChannel` were reporting. After testing the issue, the problem was traced down to being caused by the server attempting read packets from its client buffer while the buffers were still empty. Processing the empty buffers caused the method which builds bytestreams into `Packets` to fail and seemed to fall in line with the reports from the `ClientChannel`.
+
+To try and understand why this was happening, the network methods on the `ServerChannel` were tested extensively and after this, it was found that the buffers were empty because the 4 byte header being sent from the client to the server were also empty. Since bytes cannot be nullified, there's no way to programmatically distinguish between a null value and the value zero so the TCP listeners of the `ServerChannel` were interpreting the empty header as a valid header, which was evaluated to `0`, when it was in fact null. This was causing the buffers to be empty becuase the listners were expecting zero bytes of incoming data.
+
+To understand why the headers were empty, the network handling methods were tested further and it was later found that the headers were empty because the `ServerChannel`'s listening callbacks had been triggered after zero bytes had been read from the network pipe. Obviously this is a problem since the callbacks should only be invoked if there is data to be processed, even if its only 1 byte, but zero should never happen. After some research on the documentation of the socket handling methods being used (`EndReceive`), the cause for this issue was found:
+
+> *'If the remote host shuts down the Socket connection with the Shutdown method, and all available data has been received, the EndReceive method will complete immediately and return zero bytes.'* 
+
+*(From https://docs.microsoft.com/en-us/dotnet/api/system.net.sockets.socket.endreceive)*
+
+This indicated that even though the server was crashing, the root of the problem not originating from the server, but infact was caused by the client disconnecting from the server some reason. Turning the investigation to the `ClientChannel` now, the heartbeat system was identified as the culprit for the disconnection. The `ClientChannel` was for some reason not registering the heartbeats that were being sent to it by the server, causing the heartbeat system to believe that the connection to the server had died (and outputting the original 'Connection the server has died' message) and disconnecting itself as its supposed to in that situation, however the connection to the server hadn't died, and the logs from the server showed that the server was sucessfully sending heartbeat packets to the client, so why did the `ClientChannel` think that there weren't any heartbeats being sent? To understand this, the threads of the `ClientChannel` need to be analysed:
+
+``` c#
+Packet packet;
+bool packetAvailable = inPackets.TryTake(out packet);
+if (packetAvailable)
+{
+    if (packet.dataID == DataID.Heartbeat)
+        receivedHB = true;
+    else
+        OnDispatch(packet);
+}
+```
+
+The snippet above is a simplified sample of the dispatch method from the `ClientChannel` (before the problem was solved). It loops repeatedly on its own thread and is resposible for taking the incoming `Packet`s stored in `inPackets` and processing them accordingly. As you can see, if the incoming packet is identified as a heartbeat packet, a boolean flag is set to true to signify to the heartbeat system that a heartbeat has been received, otherwise, the packet is dispatched with the `OnDispatch` method. In the case that we're currently interested in, the packet will either be a `Heartbeat` or `Status`, where `Status` packets are the packets that are sent by the server in response to the entity traversal request that the client was initially trying (and failing) to do. When `OnDispatch` gets called, it triggers the `ClientChannel.Dispatch` event so that any methods subscribed to the event will be invoked. For this situation the owner of the `ClientChannel`, `Client.Program` has a method `ConnectResonseHandler` subscribed to `Dispatch`, to process the `Status` packets and perform the client side of the entity traversal process. A simplifed sample of `Client.Program.ConnectResponseHanlder` (before the problem was solved) is shown below:
+
+``` c#
+private static void ConnectReponseHanlder(Packet incomingPacket)
+{
+    string[] values = incomingPacket.Get();
+    if (STATUSES.Contains(values[0]))
+    {
+        Console.WriteLine($"CONNECT completed with status {values[0]}.");
+        channel.Dispatch -= ConnectReponseHanlder;
+    }
+    else
+    {
+        Packet outPacket = new Packet(DataID.Command, channel.id);
+        Console.WriteLine($"Enter '{values[1]}' password");
+        outPacket.Add(Communication.CONNECT, Console.ReadLine(), values[2]);
+        channel.Add(outPacket);
+    }
+}
+```
+*`Packet.Get` is a method which outputs the data stored in a packet into an array, `channel` is the `ClientChannel` object*
+
+In this method, `STATUSES` was a string array containg the values `"success"` and `"failure"`. These values were stored in constants which were sent from the server to the client in the `values[0]` position to signify the status of an entire operation. There were two other statuses, `"complete"` and `"incomplete"` which were not stored in `STATUSES` and were sent by the server to signify the status of a stage of an operation, in this case, they told the client that the `CONNECT` had or hadn't been completed, which determined if there were any more roundtrips to be done. This is way the root of the problem lay.
+
+The management of user logins used to be the responsiblity of the server while connecting to an entity. Every time the user requesting a `CONNECT`, the server would check if they are logged in and if not, tell the client program to prompt them to log in. This in theory isn't much of a problem,however there was an error in the logic of the server and the different status commands were being sent at the wrong times and places. This was causing the server to prompt the user to enter their password, when it wasnt needed. The client program would be waiting for the user to enter their password and in that time the server would send the `"complete"`, `ConnectReponseHanlder` would be invoked but the event handler was still busy waiting for input from the previous password prompt. This conflict caused the dispatch thread to get stuck on this line: `OnDispatch(packet)`, so it couldn't loop back round and execute `receivedHB = true` so the heartbeat system thought that no heartbeats had come in, causing the client to disconnect. However, when after it disconnected it would attempt to quit the program but fail because the dispatch thread was still stuck, causing the console to hang as mentioned before.
+
+The problem was solved my moving he resposibility of logging in the user onto the client, removing the `"complete"` status and replacing it with `"success"` where necessary to fix the erros in the algorithm. Later on, logging in was made a seperate prerequisite to the entity traversal process, which helped to decouple the different concepts from each other and cleanup the algorithms that were performing these actions.
 
 ----
 
@@ -426,7 +486,6 @@ C# Access Webcam: https://www.google.com/search?q=c%23+access+webcam&rlz=1C1CHBF
 
 # Keep in mind
 ATM, when encryption level <= EncryptionConfig.Strength.Light, the size of the key is too small for certificates. This is because the size of the key is too small to compensate for the salt which is generated with EncryptionConfig.Strength.Strong settings (as per the Handshake protocol) <br>
-
 
 # To add
 Common.Channels.ServerChannel itereates backwards though the list when checking for heartbeats so it can remove dead clients from client list within the same iteration. This mimimises lock time.
