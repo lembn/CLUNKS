@@ -77,17 +77,24 @@ namespace Server.DBHandler
         /// <returns>True if the combination is correct, false otherwise</returns>
         public static bool LoginUser(string username, string password)
         {
+            bool Update(Cursor cursor, bool state)
+            {
+                if (state)
+                    cursor.Execute("UPDATE users SET loggedIn=1 WHERE name=$username;", username);
+                return state;
+            }
+
             using (Cursor cursor = new Cursor(connectionString))
             {
                 string hash = (string)cursor.Execute("SELECT password FROM users WHERE name=$username;", username);
                 if (String.IsNullOrEmpty(hash.Trim()))
                     if (String.IsNullOrEmpty(password.Trim()))
-                        return true;
+                        return Update(cursor, true);
                     else
                         return false;
                 try
                 {
-                    return BCrypt.Net.BCrypt.Verify(password, hash);
+                    return Update(cursor, BCrypt.Net.BCrypt.Verify(password, hash));
                 }
                 catch (BCrypt.Net.SaltParseException)
                 {
@@ -147,7 +154,7 @@ namespace Server.DBHandler
                     {table} rooms ({IPK}, {name}, password TEXT NOT NULL);
                     {table} subserver_rooms ({IPK}, subserverID INTEGER REFERENCES subservers(id), roomID INTEGER REFERENCES rooms(id), UNIQUE (subserverID, roomID));
                     {table} room_rooms ({IPK}, parent INTEGER REFERENCES rooms(id), child INTEGER REFERENCES rooms(id), UNIQUE (parent, child));
-                    {table} users ({IPK}, {name}, password TEXT NOT NULL, elevation INTEGER REFERENCES elevations(id));
+                    {table} users ({IPK}, {name}, password TEXT NOT NULL, elevation INTEGER REFERENCES elevations(id), loggedIn {iBool});
                     {table} users_subservers ({IPK}, userID INTEGER REFERENCES users(id), subserverID INTEGER REFERENCES subservers(id), present {iBool}, UNIQUE (userID, subserverID));
                     {table} users_rooms ({IPK}, userID INTEGER REFERENCES users(id), roomID INTEGER REFERENCES rooms(id), present {iBool}, UNIQUE (userID, roomID));
                     {table} groups ({IPK}, {name}, password TEXT NOT NULL, owner INTEGER references users(id));
@@ -181,7 +188,7 @@ namespace Server.DBHandler
                         if (!processed.Contains(user.ToString().GetHashCode()))
                         {
                             int elevationID = Convert.ToInt32(cursor.Execute("SELECT id FROM elevations WHERE name=$name", user.Attribute("elevation").Value));
-                            cursor.Execute("INSERT INTO users (name, password, elevation) VALUES ($name, $password, $elevationID);", user.Attribute("username").Value, user.Attribute("password").Value, elevationID);
+                            cursor.Execute("INSERT INTO users (name, password, elevation, loggedIn) VALUES ($name, $password, $elevationID, 0);", user.Attribute("username").Value, user.Attribute("password").Value, elevationID);
                             int userID = Convert.ToInt32(cursor.Execute("SELECT last_insert_rowid();"));
                             cursor.Execute($"INSERT INTO users_subservers (userID, subserverID, present) VALUES ($userID, $parentID, 0);", userID, subserverID);
                             processed.Add(user.ToString().GetHashCode());
@@ -280,6 +287,7 @@ namespace Server.DBHandler
             string username;
             using (Cursor cursor = new Cursor(connectionString))
             {
+                cursor.Execute($"UPDATE users SET loggedIn=0 WHERE id='{userID}';");
                 cursor.Execute($"UPDATE users_{_entityTables[0]} SET present=0 userID='{userID}';");
                 cursor.Execute($"UPDATE users_{_entityTables[1]} SET present=0 userID='{userID}';");
                 cursor.Execute($"UPDATE users_{_entityTables[2]} SET present=0 userID='{userID}';");
