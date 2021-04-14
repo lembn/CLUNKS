@@ -7,7 +7,7 @@
 ---
 
 ## Servers
-When the user first installs the product, they will need to create a *CLUNK server* to be able to do anything. The CLUNK server is the server-side program which manages all sub-servers and serves clients.
+When the user first installs the product, they will need to create a CLUNK server to be able to do anything. The CLUNK server is the server-side program which manages all sub-servers and serves clients.
 
 To create a CLUNK server, the user must be an admin/superuser on their system. Using ClunksExp, they can create exp files to configure the server. The server program itself is a windowless Windows Application. It only needs to be started on the server machine, from there it can be interacted with though the client scripts.
 
@@ -22,103 +22,97 @@ The ability to run commands within CLUNKS is controlled by the server admin. The
 ## Using **CLUNKS**
 As the name suggests, **CLUNKS**, is a command line application, the recommded usage is to add **CLUNKS** to the user's environment variables so they can call the program from their command prompt/terminal.
 
-To run the program, users will call ```clunks [serverIP]```, (or whatever the program is named in the user's environment variables). They can tell they're in the **CLUNKS** environment as their command promt/terminal will change to:
+To run the program, users will call `clunks [serverIP]`, (or whatever the program is named in the user's environment variables). They can tell they're in the **CLUNKS** environment as their command promt/terminal will change to:
 ```
-CLNKS>>>
+CLUNKS>>>
 ```
 ***CLUNKS** commands are not case sensitive*
 
 ### **Logging in**
-A user can enter a sub-server with:
-```
-CLNKS>>> connect [subservername] [username]
-```
-If a user with the provided username exists on on the sub-server, the sub-server will reply with:
-```
-[subservername]
-CLNKS>>> Enter your password:
-```
+Most actions require the user to be logged into their account. This can be done with:
 
+```
+CLUNKS>>> login [username]
+```
+If a user with the provided username exists within CLUNKS, the server will reply with:
+```
+CLUNKS>>> Enter your password:
+```
+On sucessfull login, the header will update to include the user's username:
+```
+'[username]'
+CLUNKS>>>
+```
 After the initial login, one of the first things a user might want to do is change their password from whatever was assinged to them by the admin, they can do this with:
 ```
+CLUNKS>>> changepwd [old password] [new password]
+```
+
+### **Connecting**
+To interact with other active users on the server, the user will need to enter the entities (sub-servers/rooms/groups) that the other users are in. This can be done with:
+```
+CLUNKS>>> connect [entityname]
+```
+*The server may request a password for the entity if one has been set.*
+On sucessfull login, the header will update to include the user's current location:
+```
+'[username]' @ [location]
+CLUNKS>>>
+```
+
+### **Groups**
+For group calls, the user can call the sub-server, or room they are currently in and any member of the entity is able to join that call, however if a user wanted to make a group call that didn't include all members of the entity, they can create a group.
+
+Groups are temporary rooms that can be created by clients on the server. They serve the purpose of allowing the user to make privatised spaces on the parent enity without needing to permanently impact the structure of the server.
+
+```
+CLUNKS>>> makeroom [roomname] [password]
+```
+*Where [password] is optional*
+
+After this, the group can be joined using the standard `connect` command. The member-list of the group is the same as the member list of the groups's parent. Privatisation is achieved with the password.
+
+After being created The group will exist until all its members quit the program. If they leave the group but still have the program open, the group will be kept alive until the last group member quits the program.
+
+### **Messaging**
+Messaging is another base feature of CLUNKS. Users can message each other directly with:
+```
+CLUNKS>>> chat [username] [message]
+```
+This will send a message to the user. Messages are stored in the database. A user can send a message to all members of the entity with:
+```
 [subservername]
-CLNKS>>> changepwd [old password] [new password]
+CLUNKS>>> !!chat [message]
 ```
 
 ### **Calling**
 After a user has entered the sub-server, they can create calls. To call another user, they can run:
 ```
-[subservername]
-CLNKS>>> call [username]
+CLUNKS>>> call [username]
 ```
 This will send a call to the desired user, which can be accepted or rejected by them. Call requests look like:
 ```
-[subservername]
-CLNKS>>> [username] is calling. Accept?
+CLUNKS>>> [username] is calling. Accept?
 ```
-The user can enter ```y``` to accept or ```n``` to decline. After two seconds with no response, the request is repeated again. Requests are repeated 10 times until they are automatically quit. The orignal user would be informed that the call was not picked up. The intended receiver would have notification added to their notificatioons if they missed the call
+The user can enter `y` to accept or `n` to decline. After three seconds with no response, the request is repeated again. Requests are repeated 5 times until they are automatically quit. The orignal user would be informed that the call was not picked up. The intended receiver would have notification added to their notifications if they missed the call.
 
-For large conference calls, the user can also create a call on the server with the ```call``` command This creates a conference call that anyone on the subserver can join into by running ```joincall```.
-
-### **Messaging**
-Messaging is another base feature of sub-servers. Users can message each other with:
-```
-[subservername]
-CLNKS>>> message [username] [message]
-```
-
-This will send a message to the user. Messages are stored in the database. To see message history a user can run:
-```
-[subservername]
-CLNKS>>> chat [username] [message]
-```
-
-This will display the message history along with a line at the bottom where users can send messages, creating a chat-room like experience. The user can configure how far back the message history should show in their settings.
-
-### **Rooms**
-For group calls, the user can call the sub-server, and any member of the sub-server is able to join that call, however if a user wanted to make a group call that didn't include all members of the sub-server, they can create a room.
-
-Rooms are logical partitions of a sub-server. Unlike sub-servers, they do not have their own database (hence logical), but are entities within the sub-server's database. This allows for partial separation within sub-servers for organisational purposes.
-
-Unlike sub-servers, rooms can be created from the client-side. This can be done with:
-```
-[subservername]
-CLNKS>>> makeroom [roomname] [password]
-```
-*Where [password] is optional*
-
-To join a room, the user would run:
-```
-[subservername]
-CLNKS>>> joinroom [roomname] [password]
-```
-Rooms have the same behaviour as sub-servers, but rooms can be infinitely created within each other. When in a room, a user can only call other members of the room.
-
-### **Groups**
-Groups are similar to rooms, except they are temporary. They serve the purpose of allowing the user to make privatised group calls without needing to impact the structure of the sub-server.
-
-A user can create a group with ```makegroup``` or join a group with ```joingroup```.
-
-The group will exist until all its members quit the program. If they leave the group but still have the program open, the group will be kept alive until the last group member quits the program (in case anyone wants to rejoin).
+For large conference calls, the user can also create a call on their current entity server with the `!!call` command This creates a conference call that anyone on the subserver can join into by running `joincall`. There can only be one call running in a given entity at a time.
 
 ### **Call actions**
+When in large group calls, the screen may become crowded by camera feeds of all the other users. To manage this, the user can user use `hide [username]` and `show [username]` to toggle which user's are shown. When a user is hidden, you can only hear them, but not see. A user in a call can be silenced with `mute [username]`. `mute` can be undone with `unmute`. These commands only apply to the user that runs them Running `mute` or `unmute` with no argument will perfrom the action on the user. This will be applied to everyone.
 
-When in large group calls, the screen may become crowded by camera feeds of all the other users. To manage this, the user can user use ```hide [username]``` and ```show [username]``` to toggle which user's are shown. When a user is hidden, you can only hear them, but not see. A user in a call can be completely ignored with ```mute [username]```. ```mute``` can be undone with ```unmute```. Passing ```self``` into the ```[username]``` argument will perfrom the action on the user.
-
-### **User commands**
+### **Info commands**
 There are commands that users can run to obtain information about the subserver. 
 
-*Contacts:* ```contacts``` will show all the contacts of whatever space the user is in. If the user runs ```contacts``` from a sub-server, they will see a list of all the sub-server's members, but running ```contacts``` from a room will show the contact list of the current room.
+*Self:* `self` will show the information of the user who calls it, it can show things like: granted permissions, joined rooms, number of calls, etc. Running `self` during a call will show whether the user is muted and camera is showing.
 
-*Self:* ```self``` will show the information of the user who calls it, it can show things like: granted permissions, joined rooms, number of calls, etc. Running ```self``` during a call will show wether the user is muted and camera is showing.
+*Structure:* `stucture` will show the structure of the current sub-server, in a tree-type view. This includes any rooms and groups that haven't been marked as hidden.
 
-*Structure:* ```stucture``` will show the structure of the current sub-server, in a tree-type view. This includes any rooms and groups that haven't been marked as hidden.
+*Notifications:* `notifications` will show the any notifications the user has from the server, such as missed calls. The user can clear their notifications, otherwise all uncleared notifications will be loaded when the command is run.
 
-*Notifications:* ```notifications``` will show the any notifications the user has from the server, such as missed calls. The user can clear their notifications, otherwise all uncleared notifications will be loaded when the command is run. (Add limit per user to prevent inifite database expansion?)
+*Stats:* `stats` will show logged statistics to the user. This can include information such as processed packets per second; how many UDP datagrams are too large for the buffer size as a percentage, etc. The user can use these statistics to make informed decisions on which settings to set in `settings`.
 
-*Stats:* ```stats``` will show logged statistics to the user. This can include information such as processed packets per second; how many UDP datagrams are too large for the buffer size as a percentage, etc. The user can use these statistics to make informed decisions on which settings to set in ```settings```
-
-*Settings:* ```settings``` will allow the user to configure the program to run differently to optimise efficiency and improve the user experience for them personally.
+*Settings:* `settings` will allow the user to configure the program to run differently to optimise efficiency and improve the user experience for them personally.
 
 ----
 # Technical Notes
@@ -136,7 +130,7 @@ UserIDs are unsigned integers used to identify different ClientChannels/ClientMo
 
 The 'body' of the packet is a JSON object which hold the actual data to send. When packets are being sent, the packet metadata and body are added to a new JSON object called the `payload`. A payload may look something like this:
 
-```json
+`json
 {
     "dataID": "Signature",
     "userID": 9,
@@ -145,7 +139,7 @@ The 'body' of the packet is a JSON object which hold the actual data to send. Wh
         "signautre": "&%%^rNsEZC3}1aX(gn2,:z"
     }
 }
-```
+`
 *NOTE: in reality, the salt and signautre are byte arrays encoded into Base64, so wouldn't contain some of the characters shown in the above example.*
 
 When a packet is being serialized into a byte array (so that it can be sent over the network), a the payload is constructed, then symmetrically encrypted. The symmetric key and IV then get asymmetrically with the receiver's public key. From here, the encrypted payload and encrypted symmetric data are added to a new array, preceeded by the total length of the payload. This length is used by the recipient to extract the payload bytes from the total byte array (the length of the encrypted data is a stored constant so doesn't need to be sent). The total legnth is always a 32 byte integer, so takes up the first 4 bytes of the serialization output. This new array can then be sent off across the network and the packet can be reconstruced by reversing the serialization process.
@@ -170,13 +164,13 @@ This introduces some complexity for processing data sent in TCP, since a single 
 
 First, the server begins listening for incoming data on the network pipe:
 
-``` c#  
+` c#  
 client.Handler.BeginReceive(client.New(), 0, HEADER_SIZE, SocketFlags.None, new AsyncCallback((IAsyncResult ar) => 
 {
     client.receivingHeader = true;
     ReceiveTCPCallback(ar, 0);
 }), client);
-```
+`
 
 Here, `client.Handler` is the socket being used to receive data from the client. `BeginReceive()` is the method which begins listening to incoming data. Into this method, we pass:
 - `buffer`: The array to read data into, created by `client.New()`, which creates and returns a new chunk of the client's buffer.
@@ -188,7 +182,7 @@ Here, `client.Handler` is the socket being used to receive data from the client.
 
 The asynchronous callback first sets the boolean value `receivingHeader` to `true`. `receivingHeader` is a feild on the `ClientModel` class (the class that `client` is a member of) which represents if a client is currently reading the 4 byte header or the actual datastream. It then calls into `ReceiveTCPCallback()`, the method that handles the procesing of the datastream for TCP listening. Here is a simplified sample of it (*exception handling removed*):
 
-``` c#
+` c#
 private protected override void ReceiveTCPCallback(IAsyncResult ar, int bytesToRead)
 {
     ClientModel client = (ClientModel)ar.AsyncState;
@@ -209,7 +203,7 @@ private protected override void ReceiveTCPCallback(IAsyncResult ar, int bytesToR
         client.receiving = false;
     }
 }
-```
+`
 
 The parameters of `ReceiveTCPCallback()` are an `IAsyncResult` which stores information about the asynchronous callback, and an `int` (`bytesToRead`) which represnets the number of bytes left unread in the datastream. First, the client is casted out of the `AsyncState` of the `IAsyncResult`. The number of bytes read from the receive is then stored into `bytesRead`. If the client is currently reading the header, `bytesToRead` is overwritten with the value stored in the 4 byte header that was just received. If the client is not currently receiving the header, the algorithm will check to see if the original number of unread bytes (before the receive) is equal to the number of bytes that it just received, if so then all the data has been read and the data stored in the buffer can be processed . Otherwise, it begins receiving again with an new chunk of the buffer to write into, and calls itself in the asynchronous callback with `bytesToRead` set to the recalculated value of the new number of undread bytes in the datastream.
 
@@ -217,7 +211,7 @@ On first glance this algorithm may seem to work fine, but there is a flaw in the
 
 After troubleshooting the issue and identifying that this was the problem, the original solution was to re-write the current algorithm to re-use old chunks of the buffer if data didn't fill the chunk:
 
-``` c#
+` c#
 private protected override void ReceiveTCPCallback(IAsyncResult ar, int bytesToRead)
 {
     ClientModel client = (ClientModel)ar.AsyncState;
@@ -252,11 +246,11 @@ private protected override void ReceiveTCPCallback(IAsyncResult ar, int bytesToR
         client.receiving = false;
     }
 }
-```
+`
 
 However this also was scrapped since it added complexity into the logic of the algorithm and variable feilds of the `ClientModel` class, and still utilised a chunked buffer. In situations such as this, a chunked buffer is undesirable since the process of creating chunks has a large computional footprint so is quite expesive on the CPU. To solve these issue the algorithm was redesigned into this *(also simplified)*:
 
-``` c#
+` c#
 private protected override void ReceiveTCPCallback(IAsyncResult ar, int offset = 0)
 {
     ClientModel client = (ClientModel)ar.AsyncState;
@@ -287,7 +281,7 @@ private protected override void ReceiveTCPCallback(IAsyncResult ar, int offset =
         client.receiving = false;
     }
 }
-```
+`
 
 In this final version of the redesigned algorithm, the uses the header to determine how many bytes to expect (as usual), but then creates a buffer which is the size of the incoming data. This way the buffer only needs to be created once and doesn't need to be expanded, and it also allows the buffer to be implemented as an `Array` instead of a `List` (since the size is no longer variable) which much more efficient to use. This algorithm also attempts to always read as much of the incoming data in one go as is possible. This reduces the depth of recursion since less data is left behind per read. To do this, the algorithm utilises the `offset` parameter of the `BeginReceive()` method, to write continuous data into the next available space of the buffer, eliminating continuity the problems caused by the old chunked buffer algorithm.
 
@@ -365,7 +359,7 @@ When the Common.Channels.ClientChannel class was first created, it would use Com
 ![image](README_img/ClientChannelNoThreadRest.jpg)
 ![image](README_img/ClientChannelNoThreadRest2.jpg)
 
-After some debugging the problem was identified to be caused by the ClientChannels threads constantly iterating millions of times per second. To solve this issue, the threads were paused for 10 milliseconds (per iteration) with ```Thread.Sleep(10)```. This decreased the rate at which these threads were running by pasuing the execution, and also allowint the OS's Task Scheduler to perform other work during this time. The reason the threads were using so much CPU prior to the change was because the Task Scheduler had no opportunity to switch between executing different threads, so they all had to be run at full power to make sure they're job would be done. Now, with the threads now resting for 10 milliseconds each, the Task Scheduler can be more efficient with its resource allocation. These are the results of the change:
+After some debugging the problem was identified to be caused by the ClientChannels threads constantly iterating millions of times per second. To solve this issue, the threads were paused for 10 milliseconds (per iteration) with `Thread.Sleep(10)`. This decreased the rate at which these threads were running by pasuing the execution, and also allowint the OS's Task Scheduler to perform other work during this time. The reason the threads were using so much CPU prior to the change was because the Task Scheduler had no opportunity to switch between executing different threads, so they all had to be run at full power to make sure they're job would be done. Now, with the threads now resting for 10 milliseconds each, the Task Scheduler can be more efficient with its resource allocation. These are the results of the change:
 
 ![image](README_img/ClientChannelWithThreadRest.jpg)
 ![image](README_img/ClientChannelWithThreadRest2.jpg)
