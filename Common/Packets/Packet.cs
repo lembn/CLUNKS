@@ -28,12 +28,13 @@ namespace Common.Packets
         public DataID dataID;
         public uint userID;
         public JObject body;
-        public int dataCounter = 0;
 
         public const string DATA = "data-{0}";
 
         #endregion
 
+        private int dataCounter = 0;
+        
         #region Methods
 
         /// <summary>

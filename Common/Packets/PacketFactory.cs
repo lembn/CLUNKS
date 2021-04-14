@@ -20,9 +20,7 @@ namespace Common.Packets
         Heartbeat, //The packet is a heartbeat
         AV, //The packet conatains AudioVisual frames
         Hello, //The packet is the first packet of a handshake
-        Status, //The packet contains a status value
-        Login, //The packet contains an admin login request
-        Null
+        Status //The packet contains a status value
     }
    
     /// <summary>

@@ -12,19 +12,6 @@ namespace Common.Helpers
         public const string FALSE = "false";
         public const string USER = "user";
 
-        #region Admin
-
-        public const string CHANGE_USER = "changeuser"; //Change admin username
-        public const string PASSWORD = "changepassword"; //Change admin password
-        public const string IP = "ipaddress";  //Server IP
-        public const string TCP = "tcpport"; //Server TCP port
-        public const string UDP = "udpport"; //Server UDP port
-        public const string DATA = "datapath"; //Path to data folder on the server machine
-        public const string RESTART = "restart"; //Restart the server
-        public const string STOP = "stop"; //Stop the server
-
-        #endregion
-
         #region Statuses
 
         public const string SUCCESS = "success"; //Operation was successful
@@ -43,9 +30,6 @@ namespace Common.Helpers
 
         #region Collections
 
-        public static ImmutableArray<string> ADMIN_CONFIG = ImmutableArray.Create(new string[] { CHANGE_USER, PASSWORD, IP, TCP, UDP, DATA });
-        public static ImmutableArray<string> ADMIN_COMMANDS = ImmutableArray.Create(new string[]  { RESTART, STOP });
-        public static ImmutableArray<string> USER_COMMANDS = ImmutableArray.Create(new string[]  { CONNECT, DISCONNECT, LOGIN });
         public static ImmutableArray<string> STATUSES = ImmutableArray.Create(new string[]  { SUCCESS, FAILURE, INCOMPLETE });
         public static ImmutableArray<string> FINAL_STATUSES = ImmutableArray.Create(new string[]  { SUCCESS, FAILURE });
 
