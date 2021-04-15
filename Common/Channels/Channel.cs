@@ -23,8 +23,7 @@ namespace Common.Channels
 
         #region Public Members
 
-        public delegate void DispatchEventHandler(object sender, PacketEventArgs e); //A delegate to represent the event handler used for handling the Dispatch event
-        public event DispatchEventHandler Dispatch; //An event to represent a packet that should be processed by the owner of a channel
+        public delegate void DispatchEventHandler(object sender, PacketEventArgs e);
         public delegate void ChannelFailEventHanlder(object sender, ChannelFailEventArgs e); //A delegate to represent the event handler used for hadling the ChannelFail event
         public event ChannelFailEventHanlder ChannelFail; //An event to represent when something has gone wrong in the channel
         public CancellationTokenSource cts; //An object used to obtain Cancellation Tokens (when cancelling threaded operations)
@@ -53,25 +52,6 @@ namespace Common.Channels
         public abstract void Start();
         private protected abstract void ReceiveUDPCallback(IAsyncResult ar);
         private protected abstract void ReceiveTCPCallback(IAsyncResult ar, int bytesToRead);
-
-        /// <summary>
-        /// A method for releasing packets to the owner of a ClientChannel
-        /// </summary>
-        /// <param name="packet">The packet to dispatch</param>
-        public virtual void OnDispatch(Packet packet)
-        {
-            if (Dispatch != null)
-                Task.Run(() => { Dispatch(this, new PacketEventArgs(packet)); });
-        }
-        /// <summary>
-        /// A method for releasing data info to the owner of a ServerChannel
-        /// </summary>
-        /// <param name="data">The data to dispatch</param>
-        public virtual void OnDispatch((Packet, ClientModel) data)
-        {
-            if (Dispatch != null)
-                Dispatch(this, new PacketEventArgs(data.Item1, data.Item2));
-        }
 
         /// <summary>
         /// A method for alerting Channel owners of problems occuring within the channel

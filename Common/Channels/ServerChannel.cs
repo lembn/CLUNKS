@@ -8,6 +8,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace Common.Channels
 {
@@ -29,6 +30,8 @@ namespace Common.Channels
         #region Public Members
 
         public List<ClientModel> clientList;
+        public event DispatchEventHandler CommandDispatch;
+        public event DispatchEventHandler AVDispatch;
         public delegate void RemoveClientEventHandler(object sender, RemoveClientEventArgs e);
         public event RemoveClientEventHandler RemoveClientEvent;
 
@@ -137,16 +140,25 @@ namespace Common.Channels
 
             threads.Add(ThreadHelper.GetECThread(ctoken, () => 
             {
-                Packet packet = null;
-                ClientModel client = null;
-                (Packet, ClientModel) output = (packet, client);
+                (Packet, ClientModel) output;
                 bool packetAvailable;
                 lock (inPackets)
                     packetAvailable = inPackets.TryTake(out output);
                 if (packetAvailable)
-                    if (output.Item1.dataID == DataID.Heartbeat)
-                        output.Item2.receivedHB = true;
-                    else OnDispatch(output);
+                    switch (output.Item1.dataID)
+                    {
+                        case DataID.Heartbeat:
+                            output.Item2.receivedHB = true;
+                            break;
+                        case DataID.Command:
+                            if (CommandDispatch != null)
+                                Task.Run(() => CommandDispatch(this, new PacketEventArgs(output.Item1, output.Item2)));
+                            break;
+                        case DataID.AV:
+                            if (AVDispatch != null)
+                                Task.Run(() => AVDispatch(this, new PacketEventArgs(output.Item1, output.Item2)));
+                            break;
+                    }
             })); //Dispatch
 
             foreach (var thread in threads)

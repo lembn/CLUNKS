@@ -8,6 +8,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace Common.Channels
 {
@@ -42,6 +43,9 @@ namespace Common.Channels
         #endregion
         
         public uint id = NULL_ID;
+        public event DispatchEventHandler StatusDispatch;
+        public event DispatchEventHandler MessageDispatch;
+        public event DispatchEventHandler AVDispatch;
 
         #region Methods
 
@@ -168,12 +172,24 @@ namespace Common.Channels
                 lock (inPackets)
                     packetAvailable = inPackets.TryTake(out packet);
                 if (packetAvailable)
-                {
-                    if (packet.dataID == DataID.Heartbeat)
-                        receivedHB = true;
-                    else
-                        OnDispatch(packet);
-                }
+                    switch (packet.dataID)
+                    {
+                        case DataID.Heartbeat:
+                            receivedHB = true;
+                            break;
+                        case DataID.Status:
+                            if (StatusDispatch != null)
+                                Task.Run(() => StatusDispatch(this, new PacketEventArgs(packet)));
+                            break;
+                        case DataID.Message:
+                            if (MessageDispatch != null)
+                                Task.Run(() => MessageDispatch(this, new PacketEventArgs(packet)));
+                            break;
+                        case DataID.AV:
+                            if (AVDispatch != null)
+                                Task.Run(() => AVDispatch(this, new PacketEventArgs(packet)));
+                            break;
+                    }
             })); //Dispatch
 
             int attempts = 0;

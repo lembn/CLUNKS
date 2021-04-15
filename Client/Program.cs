@@ -111,14 +111,14 @@ namespace Client
                                 outPacket.Add(input[0], Communication.START, input[1], username, Communication.BACKWARD, String.Join(" - ", traversalTrace));
                             else
                                 outPacket.Add(input[0], Communication.START, input[1], username, Communication.FORWARD, traversalTrace.Count == 0 ? String.Empty : traversalTrace.Peek());
-                            channel.Dispatch += ConnectReponseHanlder;
+                            channel.StatusDispatch += ConnectReponseHanlder;
                             channel.Add(outPacket);
                             Console.WriteLine($"Requesting CONNECT to '{input[1]}'...");
                             break;
                         case Communication.LOGIN:
                             outPacket = new Packet(DataID.Command, channel.id);
                             outPacket.Add(input[0], Communication.START, input[1]);
-                            channel.Dispatch += LoginResponseHandler;
+                            channel.StatusDispatch += LoginResponseHandler;
                             channel.Add(outPacket);
                             break;
                         case Communication.MAKE_GROUP:
@@ -136,7 +136,7 @@ namespace Client
                             }
                             outPacket = new Packet(DataID.Command, channel.id);
                             outPacket.Add(input[0], input[1], input.Length > 2 ? input[2] : String.Empty, traversalTrace.Peek());
-                            channel.Dispatch += MGResponseHandler;
+                            channel.StatusDispatch += MGResponseHandler;
                             channel.Add(outPacket);
                             break;
                         case "cls":
@@ -150,7 +150,7 @@ namespace Client
                             {
                                 outPacket = new Packet(DataID.Command, channel.id);
                                 outPacket.Add(Communication.DISCONNECT, traversalTrace.Peek(), username);
-                                channel.Dispatch += DisconnectResponseHandler;
+                                channel.StatusDispatch += DisconnectResponseHandler;
                                 channel.Add(outPacket);
                                 Console.WriteLine($"Leaving...");
                             }
@@ -178,7 +178,7 @@ namespace Client
                 Console.WriteLine($"CONNECT completed with status '{values[0].ToUpper()}'.");
                 if (values[0] != Communication.FAILURE)
                     traversalTrace = new Stack<string>(values[1].Split(" - "));
-                channel.Dispatch -= ConnectReponseHanlder;
+                channel.StatusDispatch -= ConnectReponseHanlder;
                 prompted = false;
                 pass = true;             
             }
@@ -197,7 +197,7 @@ namespace Client
             Console.WriteLine($"DISCONNECT completed with status '{values[0].ToUpper()}'.");
             if (values[0] != Communication.FAILURE)
                 traversalTrace.Pop();
-            channel.Dispatch -= DisconnectResponseHandler;
+            channel.StatusDispatch -= DisconnectResponseHandler;
             prompted = false;
         }
 
@@ -209,7 +209,7 @@ namespace Client
                 Console.WriteLine($"LOGIN completed with status '{values[0].ToUpper()}'.");
                 if (values[0] != Communication.FAILURE)
                     username = values[1];
-                channel.Dispatch -= LoginResponseHandler;
+                channel.StatusDispatch -= LoginResponseHandler;
                 prompted = false;
                 pass = true;
             }
@@ -225,7 +225,7 @@ namespace Client
         private static void MGResponseHandler(object sender, PacketEventArgs e)
         {
             Console.WriteLine($"MAKE GROUP completed with status '{e.packet.Get()[0].ToUpper()}'.");
-            channel.Dispatch -= MGResponseHandler;
+            channel.StatusDispatch -= MGResponseHandler;
             prompted = false;
         }
 
