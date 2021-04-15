@@ -8,7 +8,6 @@ using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Threading;
-using System.Threading.Tasks;
 
 namespace Common.Channels
 {
@@ -437,7 +436,7 @@ namespace Common.Channels
                     client.Handler?.Disconnect(false);
                 clientList.Remove(client);
                 if (client.data.ContainsKey("DB_userID"))
-                    Task.Run(() => { RemoveClientEvent(this, new RemoveClientEventArgs(Convert.ToInt32(client.data["DB_userID"].ToString()), client)); });
+                    RemoveClientEvent(this, new RemoveClientEventArgs(Convert.ToInt32(client.data["DB_userID"].ToString()), client));
                 client.Dispose();
             }
         }

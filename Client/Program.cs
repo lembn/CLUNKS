@@ -121,8 +121,23 @@ namespace Client
                             channel.Dispatch += LoginResponseHandler;
                             channel.Add(outPacket);
                             break;
-                        case "trace":
-                            Console.WriteLine(String.Join(" - ", traversalTrace));
+                        case Communication.MAKE_GROUP:
+                            if (traversalTrace.Count == 0)
+                            {
+                                Console.WriteLine("You are not connected to any entities");
+                                prompted = false;
+                                break;
+                            }
+                            if (traversalTrace.Count == 1)
+                            {
+                                Console.WriteLine("You can't create groups directly on a subserver");
+                                prompted = false;
+                                break;
+                            }
+                            outPacket = new Packet(DataID.Command, channel.id);
+                            outPacket.Add(input[0], input[1], input.Length > 2 ? input[2] : String.Empty, traversalTrace.Peek());
+                            channel.Dispatch += MGResponseHandler;
+                            channel.Add(outPacket);
                             break;
                         case "cls":
                             Console.Clear();
@@ -205,6 +220,13 @@ namespace Client
                 outPacket.Add(Communication.LOGIN, ConsoleTools.HideInput($"Enter your password"));
                 channel.Add(outPacket);
             }
+        }
+
+        private static void MGResponseHandler(object sender, PacketEventArgs e)
+        {
+            Console.WriteLine($"MAKE GROUP completed with status '{e.packet.Get()[0].ToUpper()}'.");
+            channel.Dispatch -= MGResponseHandler;
+            prompted = false;
         }
 
         private static void Quit(object sender, ConsoleCancelEventArgs e)

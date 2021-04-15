@@ -17,6 +17,6 @@
   </subservers>
   <globalUsers/>
   <elevations>
-    <elevation name="user_elv" privilege="510" sectors="user"/>
+    <elevation name="user_elv" privilege="511" sectors="user"/>
   </elevations>
 </root>

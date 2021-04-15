@@ -25,6 +25,7 @@ namespace Common.Helpers
         public const string CONNECT = "connect"; //Connect to an entity
         public const string DISCONNECT = "disconnect"; //Disconnect from an entity
         public const string LOGIN = "login"; //Login to user account
+        public const string MAKE_GROUP = "makegrp"; //Login to user account
 
         #endregion
 

@@ -66,7 +66,7 @@ For group calls, the user can call the sub-server, or room they are currently in
 Groups are temporary rooms that can be created by clients on the server. They serve the purpose of allowing the user to make privatised spaces on the parent enity without needing to permanently impact the structure of the server.
 
 ```
-CLUNKS>>> makeroom [roomname] [password]
+CLUNKS>>> makegrp [roomname] [password]
 ```
 *Where [password] is optional*
 

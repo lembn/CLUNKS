@@ -8,6 +8,7 @@ using System.Xml.Linq;
 namespace Server.DBHandler
 {
     //TODO: Summarise
+    //TODO: Get rid of entityTables where we can
     internal static class DBHandler
     {
         public static string connectionString; //The connection string to use when connecting to the database
@@ -129,6 +130,7 @@ namespace Server.DBHandler
                 index = 2;
             int id = Convert.ToInt32(cursor.Execute($"SELECT id FROM {entityTables[index]} WHERE name=$entityName;", bottom));
             int parentID;
+            int offset = 0;
             try
             {
                 parentID = Convert.ToInt32(cursor.Execute($"SELECT parent from {_entityTables[index]}_{entityTables[index]} WHERE child='{id}';"));
@@ -136,8 +138,9 @@ namespace Server.DBHandler
             catch (InvalidCastException)
             {
                 parentID = Convert.ToInt32(cursor.Execute($"SELECT {_entityTables[index - 1]}ID from {_entityTables[index - 1]}_{entityTables[index]} WHERE {_entityTables[index]}ID='{id}';"));
+                offset++;
             }
-            return Trace($"{(string)cursor.Execute($"SELECT name from {entityTables[index]} WHERE id='{parentID}';")} - {trace}", cursor);
+            return Trace($"{(string)cursor.Execute($"SELECT name from {entityTables[index - offset]} WHERE id='{parentID}';")} - {trace}", cursor);
         }
 
         /// <summary>
@@ -297,9 +300,91 @@ namespace Server.DBHandler
                 cursor.Execute($"UPDATE users_{_entityTables[0]} SET present=0 userID='{userID}';");
                 cursor.Execute($"UPDATE users_{_entityTables[1]} SET present=0 userID='{userID}';");
                 cursor.Execute($"UPDATE users_{_entityTables[2]} SET present=0 userID='{userID}';");
+                object[] groups;
+                try
+                {
+                    groups = (object[])cursor.Execute($"SELECT id FROM groups WHERE owner='{userID}';");
+                }
+                catch (InvalidCastException)
+                {
+                    groups = new object[] { cursor.Execute($"SELECT id FROM groups WHERE owner='{userID}';") };
+                }
+                int newOwner;
+                foreach (object groupID in groups)
+                {
+                    try
+                    {
+                        newOwner = Convert.ToInt32(cursor.Execute($"SELECT userID FROM users_groups WHERE groupID='{groupID}' LIMIT 1;"));
+                        cursor.Execute($"UPDATE groups SET owner={newOwner} WHERE id={groupID};");
+                    }
+                    catch (InvalidCastException)
+                    {
+                        cursor.Execute($"DELETE FROM groups WHERE groupID={groupID}");
+                        cursor.Execute($"DELETE FROM room_groups WHERE groupID={groupID}");
+                        cursor.Execute($"DELETE FROM group_groups WHERE groupID={groupID}");
+                    }
+                }
                 username = (string)cursor.Execute($"SELECT name FROM users WHERE id='{userID}';");
             }
             return username;
+        }
+
+        /// <summary>
+        /// A method to create a group in the database
+        /// </summary>
+        /// <param name="name">The name of the group</param>
+        /// <param name="password">The password to apply to the group</param>
+        /// <param name="userID">The database ID of the user creating the group</param>
+        /// <returns>True if the group was successfully created, false otherwise</returns>
+        public static bool MakeGroup(string name, string password, string parentName, int userID)
+        {
+            using (Cursor cursor = new Cursor(connectionString))
+            {
+                if (Convert.ToInt32(cursor.Execute($"SELECT COUNT(*) FROM groups WHERE name=$name;", name)) > 0)
+                    return false;
+                int elevationID = Convert.ToInt32(cursor.Execute($"SELECT elevation FROM users WHERE id='{userID}';"));
+                if (Convert.ToInt32(cursor.Execute($"SELECT canCreateGroup FROM elevations WHERE id='{elevationID}';")) == 0)
+                    return false;
+                cursor.Execute($"INSERT INTO groups (name, password, owner) VALUES ($name, $password, {userID});", name, password);
+                int groupID = Convert.ToInt32(cursor.Execute($"SELECT last_insert_rowid();"));
+                int parentID;
+                int index = 1;
+                try
+                {
+                    parentID = Convert.ToInt32(cursor.Execute($"SELECT id FROM rooms WHERE name=$parentName;", parentName));
+                }
+                catch (InvalidCastException)
+                {
+                    parentID = Convert.ToInt32(cursor.Execute($"SELECT id FROM groups WHERE name=$parentName;", parentName));
+                    index = 2;
+                }
+                cursor.Execute($"INSERT INTO {(index == 1 ? "room_groups (roomID, groupID)" : "group_groups (parent, child)")} VALUES ({parentID}, {groupID});");
+                object[] users;
+                try
+                {
+                    users = (object[])cursor.Execute($"SELECT userID FROM users_{entityTables[index]} WHERE {_entityTables[index]}ID='{parentID}';");
+
+                }
+                catch (InvalidCastException)
+                {
+                    users = new object[] { Convert.ToInt32(cursor.Execute($"SELECT userID FROM users_{entityTables[index]} WHERE {_entityTables[index]}ID='{parentID}';")) };
+                }
+                foreach (object user in users)
+                    cursor.Execute($"INSERT INTO users_groups (userID, groupID, present) VALUES ({user}, {groupID}, 0);");
+                return true;
+            }
+        }
+
+        /// <summary>
+        /// A method to clear all group data from the database
+        /// </summary>
+        public static void DestroyGroups()
+        {
+            using (Cursor cursor = new Cursor(connectionString))
+            {
+                cursor.Execute("DELETE FROM groups");
+                cursor.Execute("DELETE FROM users_groups");
+            }
         }
     }
 }

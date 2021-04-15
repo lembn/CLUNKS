@@ -61,11 +61,7 @@ namespace Common.Channels
         public virtual void OnDispatch(Packet packet)
         {
             if (Dispatch != null)
-            {
-                Console.WriteLine("in");
                 Task.Run(() => { Dispatch(this, new PacketEventArgs(packet)); });
-                Console.WriteLine("out");
-            }
         }
         /// <summary>
         /// A method for releasing data info to the owner of a ServerChannel
