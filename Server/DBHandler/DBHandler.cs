@@ -8,7 +8,6 @@ using System.Xml.Linq;
 namespace Server.DBHandler
 {
     //TODO: Summarise
-    //TODO: Get rid of entityTables where we can
     internal static class DBHandler
     {
         public static string connectionString; //The connection string to use when connecting to the database
@@ -130,13 +129,13 @@ namespace Server.DBHandler
             if (cursor == null)
                 cursor = new Cursor(connectionString);
             string bottom = trace.Split(" - ")[0];
-            if (Convert.ToInt32(cursor.Execute($"SELECT COUNT(*) FROM {entityTables[0]} WHERE name=$entityName;", bottom)) > 0)
+            if (Convert.ToInt32(cursor.Execute("SELECT COUNT(*) FROM subservers WHERE name=$entityName;", bottom)) > 0)
             {
                 cursor.Dispose();
                 return trace;
             }
             int index = 1;
-            if (Convert.ToInt32(cursor.Execute($"SELECT COUNT(*) FROM {entityTables[2]} WHERE name=$entityName;", bottom)) > 0)
+            if (Convert.ToInt32(cursor.Execute("SELECT COUNT(*) FROM groups WHERE name=$entityName;", bottom)) > 0)
                 index = 2;
             int id = Convert.ToInt32(cursor.Execute($"SELECT id FROM {entityTables[index]} WHERE name=$entityName;", bottom));
             int parentID;
@@ -238,7 +237,7 @@ namespace Server.DBHandler
         {
             cursor.Execute("INSERT INTO rooms (name, password) VALUES ($name, $password)", room.Attribute("name").Value, room.Attribute("password").Value);
             int roomID = Convert.ToInt32(cursor.Execute("SELECT last_insert_rowid();"));
-            cursor.Execute($"INSERT INTO {(parentIsRoom ? _entityTables[1] : _entityTables[0])}_{entityTables[1]} ({(parentIsRoom ? "parent, child" : "subserverID, roomID")}) VALUES ($parent, $roomID);", parentID, roomID);
+            cursor.Execute($"INSERT INTO {(parentIsRoom ? "room" : "group")}_rooms ({(parentIsRoom ? "parent, child" : "subserverID, roomID")}) VALUES ($parent, $roomID);", parentID, roomID);
 
             List<int> processed = new List<int>();
             foreach (XElement user in room.Descendants("user").Concat(globalUsers))
@@ -306,9 +305,9 @@ namespace Server.DBHandler
             using (Cursor cursor = new Cursor(connectionString))
             {
                 cursor.Execute($"UPDATE users SET loggedIn=0 WHERE id='{userID}';");
-                cursor.Execute($"UPDATE users_{_entityTables[0]} SET present=0 userID='{userID}';");
-                cursor.Execute($"UPDATE users_{_entityTables[1]} SET present=0 userID='{userID}';");
-                cursor.Execute($"UPDATE users_{_entityTables[2]} SET present=0 userID='{userID}';");
+                cursor.Execute($"UPDATE users_subservers SET present=0 userID='{userID}';");
+                cursor.Execute($"UPDATE users_rooms SET present=0 userID='{userID}';");
+                cursor.Execute($"UPDATE users_groups SET present=0 userID='{userID}';");
                 object[] groups;
                 try
                 {
