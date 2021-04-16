@@ -18,6 +18,7 @@ namespace Client
         private static string username = null;
         private static Stack<string> traversalTrace;
 
+        //TODO: write notification command
         static void Main(string[] args)
         {
             Console.CancelKeyPress += new ConsoleCancelEventHandler(Quit);
@@ -28,6 +29,7 @@ namespace Client
             channel.ChannelFail += FailHandler;
             if (!quit)
                 channel.Start();
+            channel.MessageDispatch += MessageHandler;
             Packet outPacket;
             traversalTrace = new Stack<string>();
             while (!quit)
@@ -139,6 +141,23 @@ namespace Client
                             channel.StatusDispatch += MGResponseHandler;
                             channel.Add(outPacket);
                             break;
+                        case Communication.CHAT:
+                            if (username == null)
+                            {
+                                Console.WriteLine("You must log into an account before sending chats");
+                                prompted = false;
+                                break;
+                            }
+                            outPacket = new Packet(DataID.Command, channel.id);
+                            state = input.Length < 3;
+                            if (!state)
+                                state = String.IsNullOrEmpty(input[2]);
+                            outPacket.Add(input[0], state ? Communication.TRUE : Communication.FALSE, username, traversalTrace.Peek(), input[1]);
+                            if (!state)
+                                outPacket.Add(input[2]);
+                            channel.StatusDispatch += ChatHandler;
+                            channel.Add(outPacket);
+                            break;
                         case "cls":
                             Console.Clear();
                             prompted = false;
@@ -212,6 +231,7 @@ namespace Client
                 channel.StatusDispatch -= LoginResponseHandler;
                 prompted = false;
                 pass = true;
+                //TODO: 'You have 2 new notifications' on login
             }
             else
             {
@@ -222,11 +242,33 @@ namespace Client
             }
         }
 
+        private static void ChatHandler(object sender, PacketEventArgs e)
+        {
+            Console.WriteLine(e.packet.Get()[0] == Communication.SUCCESS ? "CHAT sent." : "Failed to send.");
+            channel.StatusDispatch -= ChatHandler;
+            prompted = false;
+        }
+
         private static void MGResponseHandler(object sender, PacketEventArgs e)
         {
             Console.WriteLine($"MAKE GROUP completed with status '{e.packet.Get()[0].ToUpper()}'.");
             channel.StatusDispatch -= MGResponseHandler;
             prompted = false;
+        }
+
+        private static void MessageHandler(object sender, PacketEventArgs e)
+        {
+            //TODO: write message handler
+            string[] values = e.packet.Get();
+            //values[0] is sender username, values[1] is msg
+            if (values[2] == Communication.TRUE)
+            {
+                //msg is global
+            }
+            else
+            {
+                //msg is private
+            }
         }
 
         private static void Quit(object sender, ConsoleCancelEventArgs e)

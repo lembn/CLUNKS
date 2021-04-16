@@ -384,3 +384,4 @@
 2021-04-15 19:34:00.201 +01:00 [INF] User@192.168.0.21:55442 (lem) logged into of 'a'
 2021-04-15 19:34:00.206 +01:00 [INF] User@192.168.0.21:55442 logged into 'a' with username='lem'
 2021-04-15 19:34:01.605 +01:00 [INF] User@192.168.0.21:55442 (lem) logged out of CLUNKS'
+2021-04-15 21:39:36.960 +01:00 [INF] User@192.168.0.21:57459 logged in as 'lem'

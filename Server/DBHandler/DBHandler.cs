@@ -12,7 +12,7 @@ namespace Server.DBHandler
     internal static class DBHandler
     {
         public static string connectionString; //The connection string to use when connecting to the database
-        private static string[] entityTables = { "subservers", "rooms", "groups" };
+        public static string[] entityTables = { "subservers", "rooms", "groups" };
         private static string[] _entityTables = { "subserver", "room", "group" };
 
         /// <summary>
@@ -49,15 +49,24 @@ namespace Server.DBHandler
                 WHERE users.name=$username
                 AND {{0}}s.name=$parentName;
             ";
+            string table = GetTable(entity);
+            object[] results;
             using (Cursor cursor = new Cursor(connectionString))
-                foreach (string table in entityTables)
-                    if (Convert.ToInt32(cursor.Execute($"SELECT COUNT(*) FROM {table} WHERE name=$parentName;", entity)) > 0)
-                    {
-                        object[] results = (object[])cursor.Execute(String.Format(checkStmt, table.Substring(0, table.Length - 1)), username, entity);
-                        if (results != null && results.Length > 0)
-                            return true;
-                    }
+                results = (object[])cursor.Execute(String.Format(checkStmt, table.Substring(0, table.Length - 1)), username, entity);
+            if (results != null && results.Length > 0)
+                return true;
             return false;
+        }
+
+        /// <summary>
+        /// A method to check if a user is currently active
+        /// </summary>
+        /// <param name="username">The name of the user to check</param>
+        /// <returns>True if the user is logged in on the database, false otherwise</returns>
+        public static bool UserLoggedIn(string username)
+        {
+            using (Cursor cursor = new Cursor(connectionString))
+                return Convert.ToInt32(cursor.Execute("SELECT loggedIn FROM users WHERE name=$username", username)) == 1;
         }
 
         /// <summary>
@@ -68,10 +77,11 @@ namespace Server.DBHandler
         public static string GetEntityPassword(string entityName)
         {
             using (Cursor cursor = new Cursor(connectionString))
-                foreach (string table in entityTables)
-                    if (Convert.ToInt32(cursor.Execute($"SELECT COUNT(*) FROM {table} WHERE name=$entityName;", entityName)) > 0)
-                        if ((from info in (object[][])cursor.Execute($"PRAGMA table_info({table})") select (string)info[1]).Contains("password"))
-                            return (string)cursor.Execute($"SELECT password FROM {table} WHERE name=$entityName;", entityName);                    
+            {
+                string table = GetTable(entityName);
+                if ((from info in (object[][])cursor.Execute($"PRAGMA table_info({table})") select (string)info[1]).Contains("password"))
+                    return (string)cursor.Execute($"SELECT password FROM {table} WHERE name=$entityName;", entityName);
+            }                                        
             return String.Empty;
         }
 
@@ -151,7 +161,7 @@ namespace Server.DBHandler
             string table = "CREATE TABLE IF NOT EXISTS";
             string name = "name TEXT UNIQUE NOT NULL";
             string iBool = "INTEGER NOT NULL";
-            string IPK = $"id INTEGER PRIMARY KEY";
+            string IPK = "id INTEGER PRIMARY KEY";
             File.WriteAllBytes(Regex.Match(connectionString, "(?<=(Data Source=)).*(?=;)").Value, new byte[0]);
             using (Cursor cursor = new Cursor(connectionString))
             {
@@ -170,7 +180,7 @@ namespace Server.DBHandler
                     {table} room_groups ({IPK}, roomID INTEGER REFERENCES rooms(id), groupID INTEGER REFERENCES groups(id), UNIQUE (roomID, groupID));
                     {table} group_groups ({IPK}, parent INTEGER REFERENCES groups(id), child INTEGER REFERENCES groups(id), UNIQUE (parent, child));
                     {table} users_groups ({IPK}, userID INTEGER REFERENCES users(id), groupID INTEGER REFERENCES groups(id), present {iBool}, UNIQUE (userID, groupID));
-                    {table} notifications ({IPK}, sender INTEGER REFERENCES users(id), receiver INTEGER REFERENCES users(id), time INTEGER, msg TEXT, type TEXT, UNIQUE (sender, receiver, time));
+                    {table} notifications ({IPK}, sender INTEGER REFERENCES users(id), receiver INTEGER REFERENCES users(id), time TEXT, msg TEXT, isMsg {iBool}, isGlobal {iBool}, UNIQUE (sender, receiver, time));
                 ");
 
                 XDocument exp = XDocument.Load(Directory.GetFiles(Regex.Match(connectionString, "(?<=(Data Source=)).*(?=(\\\\.*db;))").Value, "*.exp")[0]);
@@ -178,7 +188,7 @@ namespace Server.DBHandler
                 {
                     int[] paramList = (from num in Convert.ToString(Convert.ToInt32(elevation.Attribute("privilege").Value), 2).PadLeft(9, '0') select (int)Char.GetNumericValue(num)).ToArray();
                     cursor.Execute(
-                    $@" INSERT INTO elevations 
+                    @" INSERT INTO elevations 
                         (name, canCallSubserver, canCallRoom, canCallGroup, canCallUser, canMsgSubserver, canMsgRoom, canMsgGroup, canMsgUser, canCreateGroup) 
                         VALUES($name, $param0, $param1, $param2, $param3, $param4, $param5, $param6, $param7, $param8);
                     ", elevation.Attribute("name").Value, paramList[0], paramList[1], paramList[2], paramList[3], paramList[4], paramList[5], paramList[6], paramList[7], paramList[8]);
@@ -199,7 +209,7 @@ namespace Server.DBHandler
                             int elevationID = Convert.ToInt32(cursor.Execute("SELECT id FROM elevations WHERE name=$name", user.Attribute("elevation").Value));
                             cursor.Execute("INSERT INTO users (name, password, elevation, loggedIn) VALUES ($name, $password, $elevationID, 0);", user.Attribute("username").Value, user.Attribute("password").Value, elevationID);
                             int userID = Convert.ToInt32(cursor.Execute("SELECT last_insert_rowid();"));
-                            cursor.Execute($"INSERT INTO users_subservers (userID, subserverID, present) VALUES ($userID, $parentID, 0);", userID, subserverID);
+                            cursor.Execute("INSERT INTO users_subservers (userID, subserverID, present) VALUES ($userID, $parentID, 0);", userID, subserverID);
                             processed.Add(user.ToString().GetHashCode());
                         }
                     }
@@ -236,7 +246,7 @@ namespace Server.DBHandler
                 if (!processed.Contains(user.ToString().GetHashCode()))
                 {
                     int userID = Convert.ToInt32(cursor.Execute("SELECT id FROM users WHERE name=$name;", user.Attribute("username").Value));
-                    cursor.Execute($"INSERT INTO users_rooms (userID, roomID, present) VALUES ($userID, $parentID, 0);", userID, roomID);
+                    cursor.Execute("INSERT INTO users_rooms (userID, roomID, present) VALUES ($userID, $parentID, 0);", userID, roomID);
                     processed.Add(user.ToString().GetHashCode());
                 }
             }
@@ -261,17 +271,16 @@ namespace Server.DBHandler
         {
             using (Cursor cursor = new Cursor(connectionString))
             {
-                foreach (string table in entityTables)
-                    if (Convert.ToInt32(cursor.Execute($"SELECT COUNT(*) FROM {table} WHERE name=$parentName;", parentName)) > 0)
-                        cursor.Execute(
-                        $@"
-                            UPDATE users_{table}
-                            SET present={(isPresent ? 1 : 0)}
-                            WHERE EXISTS( SELECT *
-			                              FROM users
-			                              INNER JOIN {table} ON {table}.name=$entityname AND {table}.id=users_{table}.{table.Substring(0, table.Length - 1)}ID
-			                              WHERE users.name=$username AND users.id=users_{table}.userID);
-                        ", parentName, username);
+                string table = GetTable(parentName);
+                cursor.Execute(
+                $@"
+                    UPDATE users_{table}
+                    SET present={(isPresent ? 1 : 0)}
+                    WHERE EXISTS( SELECT *
+			                        FROM users
+			                        INNER JOIN {table} ON {table}.name=$entityname AND {table}.id=users_{table}.{table.Substring(0, table.Length - 1)}ID
+			                        WHERE users.name=$username AND users.id=users_{table}.userID);
+                ", parentName, username);
             }
         }
 
@@ -385,6 +394,74 @@ namespace Server.DBHandler
                 cursor.Execute("DELETE FROM groups");
                 cursor.Execute("DELETE FROM users_groups");
             }
+        }
+
+        /// <summary>
+        /// A method to get an array of ids of users currently logged into an entity. Only users who 
+        /// have the given entity at the top of their trace are returned
+        /// </summary>
+        /// <param name="entityName">The name of the entity</param>
+        /// <param name="inactive">A boolean representing if logged in or logged out users should be checked</param>
+        /// <param name="ignore">A userID to ignore</param>
+        /// <returns>The desired user list and an array</returns>
+        public static int[] GetActiveUsers(string entityName, bool inactive = false, int ignore = -1)
+        {
+            int[] users = null;
+            using (Cursor cursor = new Cursor(connectionString))
+            {
+                string table = GetTable(entityName);
+                try
+                {
+                    users = (int[])cursor.Execute(@$"SELECT id FROM users_{table}
+                                                             INNER JOIN {table} ON {table}.name='{entityName}'
+                                                             INNER JOIN users ON users.id=users_{table}.userID
+                                                             WHERE loggedIn={(inactive ? 0 : 1)}{(ignore > -1 ? ";" : $" AND id!='{ignore}';")}");
+                }
+                catch (InvalidCastException)
+                {
+                    users = new int[] { Convert.ToInt32(cursor.LastResult) };
+                }
+            }                           
+            return users;
+        }
+
+        /// <summary>
+        /// A method to create a notification on the database
+        /// </summary>
+        /// <param name="sender">The username of the sender of the notification</param>
+        /// <param name="recipientID">The ID of the recipient user</param>
+        /// <param name="message">The notification message</param>
+        /// <param name="isMsg">A bool to represent if the notification is for a missed message or not</param>
+        /// <param name="isGlobal">A bool to represent if the notification is for a global event or not</param>
+        public static void CreateNotification(string sender, int recipientID, string message, bool isMsg, bool isGlobal = false)
+        {
+            using (Cursor cursor = new Cursor(connectionString))
+                cursor.Execute($@"INSERT INTO notificatons (sender, receiver, time, msg, isMsg, isGlobal)
+                                  VALUES ({GetUserID(sender)}, {recipientID}, {DateTime.UtcNow}, {message}, {(isMsg ? 1 : 0)}, {(isGlobal ? 1 : 0)});");
+        }
+
+        /// <summary>
+        /// A method to check if a user has the privelleges to message a certain type of entity
+        /// </summary>
+        /// <param name="userID">The ID of the user to check</param>
+        /// <param name="type">The type of entity to check against</param>
+        /// <returns>True if the user can message, false otherwise</returns>
+        public static bool CanMessage(int userID, string type)
+        {
+            using (Cursor cursor = new Cursor(connectionString))
+            {
+                int elevationID = Convert.ToInt32(cursor.Execute($"SELECT elevation FROM users WHERE id='{userID}';"));
+                return Convert.ToInt32(cursor.Execute($"SELECT canMessage{type} FROM elevations WHERE id='{elevationID}';")) == 0;
+            }
+        }
+
+        public static string GetTable(string entityName)
+        {
+            using (Cursor cursor = new Cursor(connectionString))
+                foreach (string table in entityTables)
+                    if (Convert.ToInt32(cursor.Execute($"SELECT COUNT(*) FROM {table} WHERE name=$parentName;", entityName)) > 0)
+                        return table;
+            return null;
         }
     }
 }

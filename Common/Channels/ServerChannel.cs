@@ -24,12 +24,13 @@ namespace Common.Channels
         private BlockingCollection<(Packet, ClientModel)> outPackets; //A queue to hold outgoing packets
         private Socket TCPSocket;
         private Socket UDPSocket;
+        private List<ClientModel> clientList;
+        private Dictionary<int, ClientModel> idToClient;
 
         #endregion
 
         #region Public Members
 
-        public List<ClientModel> clientList;
         public event DispatchEventHandler CommandDispatch;
         public event DispatchEventHandler AVDispatch;
         public delegate void RemoveClientEventHandler(object sender, RemoveClientEventArgs e);
@@ -47,6 +48,7 @@ namespace Common.Channels
         {
             valid = true;
             clientList = new List<ClientModel>();
+            idToClient = new Dictionary<int, ClientModel>();
             inPackets = new BlockingCollection<(Packet, ClientModel)>();
             outPackets = new BlockingCollection<(Packet, ClientModel)>();
             TCPSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
@@ -171,6 +173,10 @@ namespace Common.Channels
         /// <param name="packet">The packet to send</param>
         /// <param name="client">The recipient</param>
         public void Add(Packet packet, ClientModel client) => outPackets.Add((packet, client));
+        /// <summary>
+        /// A method to send a packet to be sent (by the recipient's database ID)
+        /// </summary>
+        public void Add(Packet packet, int id) => outPackets.Add((packet, idToClient[id]));
 
         /// <summary>
         /// A method to perform a handshake with a connecting client
@@ -433,6 +439,8 @@ namespace Common.Channels
                 catch (ObjectDisposedException) { }
             }
         }
+        
+        public void Register(ClientModel client, int id) => idToClient[id] = client;
 
         /// <summary>
         /// A method to remove and dispose of clients from the client list
@@ -448,7 +456,11 @@ namespace Common.Channels
                     client.Handler?.Disconnect(false);
                 clientList.Remove(client);
                 if (client.data.ContainsKey("DB_userID"))
-                    RemoveClientEvent(this, new RemoveClientEventArgs(Convert.ToInt32(client.data["DB_userID"].ToString()), client));
+                {
+                    int id = Convert.ToInt32(client.data["DB_userID"].ToString());
+                    idToClient.Remove(id);
+                    RemoveClientEvent(this, new RemoveClientEventArgs(id, client));
+                }
                 client.Dispose();
             }
         }

@@ -20,8 +20,11 @@ namespace Server.DBHandler
 
         #endregion
 
+        public object LastResult;
+
         public Cursor(string connectionString)
         {
+            LastResult = new object();
             connection = new SqliteConnection(connectionString);
             connection.Open();
             command = new SqliteCommand("PRAGMA journal_mode='wal';", connection);

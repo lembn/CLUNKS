@@ -102,11 +102,11 @@ namespace Server
             Packet outPacket = null;
             string[] values;
             bool state;
-            values = e.packet.Get();
-            outPacket = new Packet(DataID.Status, e.client.id);
+            values = e.packet.Get();            
             switch (values[0])
             {
                 case Communication.CONNECT:
+                    outPacket = new Packet(DataID.Status, e.client.id);
                     if (values[1] == Communication.START)
                     {
                         if (values[4] == Communication.FORWARD)
@@ -255,6 +255,7 @@ namespace Server
                     }
                     break;
                 case Communication.DISCONNECT:
+                    outPacket = new Packet(DataID.Status, e.client.id);
                     state = DBHandler.DBHandler.UserInEntity(values[1], values[2]);
                     if (state)
                     {
@@ -264,6 +265,7 @@ namespace Server
                     outPacket.Add(state ? Communication.SUCCESS : Communication.FAILURE);
                     break;
                 case Communication.LOGIN:
+                    outPacket = new Packet(DataID.Status, e.client.id);
                     if (values[1] == Communication.START)
                     {
                         state = DBHandler.DBHandler.UserExists(values[2]);
@@ -277,14 +279,79 @@ namespace Server
                             logger.LogInformation($"User@{e.client.endpoint} logged in as '{e.client.data["username"]}'");
                         outPacket.Add(state ? Communication.SUCCESS : Communication.FAILURE, e.client.data["username"].ToString());
                         e.client.data["DB_userID"] = DBHandler.DBHandler.GetUserID(e.client.data["username"].ToString());
+                        server.Register(e.client, Convert.ToInt32(e.client.data["DB_userID"]));
                         e.client.data.Remove("username");
+                    }
+                    break;
+                case Communication.CHAT:
+                    if (values[1] == Communication.TRUE)
+                    {
+                        if (!DBHandler.DBHandler.CanMessage(Convert.ToInt32(e.client.data["DB_userID"]), DBHandler.DBHandler.GetTable(values[3])))
+                        {
+                            outPacket = new Packet(DataID.Status, e.client.id);
+                            outPacket.Add(Communication.FAILURE);
+                            break;
+                        }
+                        outPacket = new Packet(DataID.Message, e.client.id);
+                        outPacket.Add(values[2],values[4], Communication.TRUE);
+                        int[] users = DBHandler.DBHandler.GetActiveUsers(values[3], ignore: Convert.ToInt32(e.client.data["DB_userID"]));
+                        if (users == null)
+                        {
+                            outPacket = new Packet(DataID.Status, e.client.id);
+                            outPacket.Add(Communication.FAILURE);
+                            break;
+                        }
+                        foreach (int id in users)
+                            server.Add(outPacket, id);
+                        users = DBHandler.DBHandler.GetActiveUsers(values[3], inactive: true);
+                        if (users == null)
+                        {
+                            outPacket = new Packet(DataID.Status, e.client.id);
+                            outPacket.Add(Communication.FAILURE);
+                            break;
+                        }
+                        foreach (int id in users)
+                            DBHandler.DBHandler.CreateNotification(values[2], id, values[4], true, true);
+                        outPacket = new Packet(DataID.Status, e.client.id);
+                        outPacket.Add(Communication.SUCCESS);
+                        server.Add(outPacket, e.client);
+                    }
+                    else
+                    {
+                        if (!DBHandler.DBHandler.CanMessage(Convert.ToInt32(e.client.data["DB_userID"]), "Users"))
+                        {
+                            outPacket = new Packet(DataID.Status, e.client.id);
+                            outPacket.Add(Communication.FAILURE);
+                            break;
+                        }
+                        if (!DBHandler.DBHandler.UserExists(values[4]))
+                        {
+                            outPacket = new Packet(DataID.Status, e.client.id);
+                            outPacket.Add(Communication.FAILURE);
+                        }
+                        else if (DBHandler.DBHandler.UserLoggedIn(values[4]))
+                        {
+                            outPacket = new Packet(DataID.Message, e.client.id);
+                            outPacket.Add(values[2], values[5], Communication.FALSE);
+                            server.Add(outPacket, DBHandler.DBHandler.GetUserID(values[4]));
+                            outPacket = new Packet(DataID.Status, e.client.id);
+                            outPacket.Add(Communication.SUCCESS);
+                            server.Add(outPacket, e.client);
+                        }
+                        else
+                        {
+                            DBHandler.DBHandler.CreateNotification(values[2], DBHandler.DBHandler.GetUserID(values[4]), values[5], true);
+                            outPacket = new Packet(DataID.Status, e.client.id);
+                            outPacket.Add(Communication.SUCCESS);
+                            server.Add(outPacket, e.client);
+                        }                            
                     }
                     break;
                 case Communication.MAKE_GROUP:
                     outPacket.Add(DBHandler.DBHandler.MakeGroup(values[1], values[2], values[3], Convert.ToInt32(e.client.data["DB_userID"])) ? Communication.SUCCESS : Communication.FAILURE);
+                    server.Add(outPacket, e.client);
                     break;
-            }    
-            server.Add(outPacket, e.client);
+            }
         }
 
         //TODO: use DB to figure out which users need to be sent the AV packet

@@ -82,7 +82,7 @@ CLUNKS>>> chat [username] [message]
 This will send a message to the user. Messages are stored in the database. A user can send a message to all members of the entity with:
 ```
 [subservername]
-CLUNKS>>> !!chat [message]
+CLUNKS>>> chat [message]
 ```
 
 ### **Calling**
@@ -96,7 +96,7 @@ CLUNKS>>> [username] is calling. Accept?
 ```
 The user can enter `y` to accept or `n` to decline. After three seconds with no response, the request is repeated again. Requests are repeated 5 times until they are automatically quit. The orignal user would be informed that the call was not picked up. The intended receiver would have notification added to their notifications if they missed the call.
 
-For large conference calls, the user can also create a call on their current entity server with the `!!call` command This creates a conference call that anyone on the subserver can join into by running `joincall`. There can only be one call running in a given entity at a time.
+For large conference calls, the user can also create a call on their current entity server by running the `call` command with no username. This creates a conference call that anyone on the subserver can join into by running `joincall`. There can only be one call running in a given entity at a time.
 
 ### **Call actions**
 When in large group calls, the screen may become crowded by camera feeds of all the other users. To manage this, the user can user use `hide [username]` and `show [username]` to toggle which user's are shown. When a user is hidden, you can only hear them, but not see. A user in a call can be silenced with `mute [username]`. `mute` can be undone with `unmute`. These commands only apply to the user that runs them Running `mute` or `unmute` with no argument will perfrom the action on the user. This will be applied to everyone.
@@ -530,6 +530,7 @@ C# Access Webcam: https://www.google.com/search?q=c%23+access+webcam&rlz=1C1CHBF
 
 # Keep in mind
 ATM, when encryption level <= EncryptionConfig.Strength.Light, the size of the key is too small for certificates. This is because the size of the key is too small to compensate for the salt which is generated with EncryptionConfig.Strength.Strong settings (as per the Handshake protocol) <br>
+Dates/Time is in UTC <br>
 
 # To add
 Common.Channels.ServerChannel itereates backwards though the list when checking for heartbeats so it can remove dead clients from client list within the same iteration. This mimimises lock time.
