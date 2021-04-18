@@ -145,19 +145,19 @@ namespace Server
                                 {
                                     if (!currentTrace.SequenceEqual(targetTrace))
                                     {
-                                        foreach (string entity in e.client.data["requiresPassword"].ToString().Split(" - ").Where(x => !String.IsNullOrEmpty(x)))
+                                        foreach (string entity in e.client.data["requiresPassword"].Split(" - ").Where(x => !String.IsNullOrEmpty(x)))
                                         {
                                             DBHandler.DBHandler.SetPresent(entity, values[3]);
                                             logger.LogInformation($"User@{e.client.endpoint} ({values[3]}) logged into of '{entity}'");
                                         }
                                         e.client.data.Remove("requiresPassword");
-                                        foreach (string entity in e.client.data["toUnset"].ToString().Split(" - ").Where(x => !String.IsNullOrEmpty(x)))
+                                        foreach (string entity in e.client.data["toUnset"].Split(" - ").Where(x => !String.IsNullOrEmpty(x)))
                                         {
                                             DBHandler.DBHandler.SetPresent(entity, values[3], false);
                                             logger.LogInformation($"User@{e.client.endpoint} ({values[3]}) logged out of '{entity}'");                                               
                                         }
                                         e.client.data.Remove("toUnset");
-                                        DBHandler.DBHandler.SetPresent(e.client.data["ETTargetSubserver"].ToString(), values[3]);
+                                        DBHandler.DBHandler.SetPresent(e.client.data["ETTargetSubserver"], values[3]);
                                         e.client.data.Remove("ETTargetSubserver");
                                         e.client.data.Remove("makePresent");
                                         e.client.data.Remove("ETTarget");
@@ -189,7 +189,7 @@ namespace Server
                     else
                     {
                         state = true;
-                        List<string> trace = e.client.data["requiresPassword"].ToString().Split(" - ").ToList();
+                        List<string> trace = e.client.data["requiresPassword"].Split(" - ").ToList();
                         bool broke = false;
                         string currentEntity = String.Empty;
                         string next = String.Empty;
@@ -223,21 +223,21 @@ namespace Server
                             else
                             {
                                 e.client.data.Remove("requiresPassword");
-                                foreach (string entity in e.client.data["makePresent"].ToString().Split(" - ").Where(x => !String.IsNullOrEmpty(x)))
+                                foreach (string entity in e.client.data["makePresent"].Split(" - ").Where(x => !String.IsNullOrEmpty(x)))
                                 {
                                     DBHandler.DBHandler.SetPresent(entity, values[2]);
                                     logger.LogInformation($"User@{e.client.endpoint} ({values[2]}) logged into of '{entity}'");
                                 }
                                 e.client.data.Remove("makePresent");
-                                foreach (string entity in e.client.data["toUnset"].ToString().Split(" - ").Where(x => !String.IsNullOrEmpty(x)))
+                                foreach (string entity in e.client.data["toUnset"].Split(" - ").Where(x => !String.IsNullOrEmpty(x)))
                                 {
                                     DBHandler.DBHandler.SetPresent(entity, values[2], false);
                                     logger.LogInformation($"User@{e.client.endpoint} ({values[2]}) logged out of '{entity}'");
                                 }
                                 e.client.data.Remove("toUnset");
-                                DBHandler.DBHandler.SetPresent(e.client.data["ETTargetSubserver"].ToString(), values[2]);
+                                DBHandler.DBHandler.SetPresent(e.client.data["ETTargetSubserver"], values[2]);
                                 e.client.data.Remove("ETTargetSubserver");
-                                outPacket.Add(Communication.SUCCESS, DBHandler.DBHandler.Trace(e.client.data["ETTarget"].ToString()));
+                                outPacket.Add(Communication.SUCCESS, DBHandler.DBHandler.Trace(e.client.data["ETTarget"]));
                                 e.client.data.Remove("ETTarget");
                             }
                         }
@@ -268,17 +268,17 @@ namespace Server
                     outPacket = new Packet(DataID.Status, e.client.id);
                     if (values[1] == Communication.START)
                     {
-                        state = DBHandler.DBHandler.UserExists(values[2]);
+                        state = DBHandler.DBHandler.UserExists(values[2]) && !DBHandler.DBHandler.UserLoggedIn(values[2]);
                         e.client.data["username"] = values[2];
                         outPacket.Add(state ? Communication.INCOMPLETE : Communication.FAILURE);
                     }
                     else
                     {
-                        state = DBHandler.DBHandler.LoginUser(e.client.data["username"].ToString(), values[1]);
+                        state = DBHandler.DBHandler.LoginUser(e.client.data["username"], values[1]);
                         if (state)
                             logger.LogInformation($"User@{e.client.endpoint} logged in as '{e.client.data["username"]}'");
-                        outPacket.Add(state ? Communication.SUCCESS : Communication.FAILURE, e.client.data["username"].ToString());
-                        e.client.data["DB_userID"] = DBHandler.DBHandler.GetUserID(e.client.data["username"].ToString());
+                        outPacket.Add(state ? Communication.SUCCESS : Communication.FAILURE, e.client.data["username"]);
+                        e.client.data["DB_userID"] = DBHandler.DBHandler.GetUserID(e.client.data["username"]).ToString();
                         server.Register(e.client, Convert.ToInt32(e.client.data["DB_userID"]));
                         e.client.data.Remove("username");
                     }
@@ -286,14 +286,14 @@ namespace Server
                 case Communication.CHAT:
                     if (values[1] == Communication.TRUE)
                     {
-                        if (!DBHandler.DBHandler.CanMessage(Convert.ToInt32(e.client.data["DB_userID"]), DBHandler.DBHandler.GetTable(values[3])))
+                        if (!DBHandler.DBHandler.CanMessage(Convert.ToInt32(e.client.data["DB_userID"]), DBHandler.DBHandler.GetTable(values[3], true)))
                         {
                             outPacket = new Packet(DataID.Status, e.client.id);
                             outPacket.Add(Communication.FAILURE);
                             break;
                         }
                         outPacket = new Packet(DataID.Message, e.client.id);
-                        outPacket.Add(values[2],values[4], Communication.TRUE);
+                        outPacket.Add(Communication.TRUE, values[2], values[4]);
                         int[] users = DBHandler.DBHandler.GetActiveUsers(values[3], ignore: Convert.ToInt32(e.client.data["DB_userID"]));
                         if (users == null)
                         {
@@ -314,44 +314,36 @@ namespace Server
                             DBHandler.DBHandler.CreateNotification(values[2], id, values[4], true, true);
                         outPacket = new Packet(DataID.Status, e.client.id);
                         outPacket.Add(Communication.SUCCESS);
-                        server.Add(outPacket, e.client);
                     }
                     else
                     {
-                        if (!DBHandler.DBHandler.CanMessage(Convert.ToInt32(e.client.data["DB_userID"]), "Users"))
-                        {
-                            outPacket = new Packet(DataID.Status, e.client.id);
-                            outPacket.Add(Communication.FAILURE);
-                            break;
-                        }
-                        if (!DBHandler.DBHandler.UserExists(values[4]))
+                        if (!DBHandler.DBHandler.CanMessage(Convert.ToInt32(e.client.data["DB_userID"]), "Users") || !DBHandler.DBHandler.UserExists(values[3]))
                         {
                             outPacket = new Packet(DataID.Status, e.client.id);
                             outPacket.Add(Communication.FAILURE);
                         }
-                        else if (DBHandler.DBHandler.UserLoggedIn(values[4]))
+                        else if (DBHandler.DBHandler.UserLoggedIn(values[3]))
                         {
                             outPacket = new Packet(DataID.Message, e.client.id);
-                            outPacket.Add(values[2], values[5], Communication.FALSE);
-                            server.Add(outPacket, DBHandler.DBHandler.GetUserID(values[4]));
+                            outPacket.Add(values[2], values[4], Communication.FALSE);
+                            server.Add(outPacket, DBHandler.DBHandler.GetUserID(values[3]));
                             outPacket = new Packet(DataID.Status, e.client.id);
                             outPacket.Add(Communication.SUCCESS);
-                            server.Add(outPacket, e.client);
                         }
                         else
                         {
-                            DBHandler.DBHandler.CreateNotification(values[2], DBHandler.DBHandler.GetUserID(values[4]), values[5], true);
+                            DBHandler.DBHandler.CreateNotification(values[2], DBHandler.DBHandler.GetUserID(values[3]), values[4], true);
                             outPacket = new Packet(DataID.Status, e.client.id);
                             outPacket.Add(Communication.SUCCESS);
-                            server.Add(outPacket, e.client);
-                        }                            
+                        }
                     }
                     break;
                 case Communication.MAKE_GROUP:
                     outPacket.Add(DBHandler.DBHandler.MakeGroup(values[1], values[2], values[3], Convert.ToInt32(e.client.data["DB_userID"])) ? Communication.SUCCESS : Communication.FAILURE);
-                    server.Add(outPacket, e.client);
                     break;
             }
+            if (outPacket != null)
+                    server.Add(outPacket, e.client);
         }
 
         //TODO: use DB to figure out which users need to be sent the AV packet

@@ -152,9 +152,22 @@ namespace Client
                             state = input.Length < 3;
                             if (!state)
                                 state = String.IsNullOrEmpty(input[2]);
-                            outPacket.Add(input[0], state ? Communication.TRUE : Communication.FALSE, username, traversalTrace.Peek(), input[1]);
-                            if (!state)
-                                outPacket.Add(input[2]);
+                            if (!state && (input[1] == username || String.IsNullOrEmpty(input[2].Trim())))
+                            {
+                                Console.WriteLine("You cannot message yourself");
+                                prompted = false;
+                                break;
+                            }                                
+                            if (state && traversalTrace.Count == 0)
+                            {
+                                Console.WriteLine("You need to be connected to an entity to send global chats");
+                                prompted = false;
+                                break;
+                            }
+                            if (state)
+                                outPacket.Add(input[0],Communication.TRUE, username, traversalTrace.Peek(), input[1]);
+                            else
+                                outPacket.Add(input[0], Communication.FALSE, username, input[1], input[2]);
                             channel.StatusDispatch += ChatHandler;
                             channel.Add(outPacket);
                             break;
