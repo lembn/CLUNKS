@@ -61,78 +61,59 @@ namespace TestEnv
     }
 
     /// <summary>
-    /// A class to represent a line of a feed
+    /// A class to hold the Event Arguments for the event trigger by an event being removed
+    /// from the Circular Queue
     /// </summary>
-    public class FeedItem
+    /// <typeparam name="T"></typeparam>
+    public class CQRemoveEventArgs<T> : EventArgs
     {
-        private readonly List<List<KeyValuePair<string, ConsoleColor>>> lines;
+        public T item;
 
+        public CQRemoveEventArgs(T item) => this.item = item;
+    }
+
+    /// <summary>
+    /// An implementation of a circuar queue that can be used to hold FeedItems and
+    /// alert its owner when an item in the queue is renoved
+    /// </summary>
+    public class CircularQueue<T>
+    {
         #region Public Members
 
-        public readonly int length;
-        public Pointer offset;
+        public delegate void RemoveHandler(object sender, CQRemoveEventArgs<T> e);
+        public event RemoveHandler Remove;
 
         #endregion
 
-        public FeedItem(string username, string message, string you, string entity = null, ConsoleColor @default = ConsoleColor.Gray)
+        #region Private Members
+
+        private int size;
+        private T[] buffer;
+        private int front;
+
+        #endregion
+
+        public CircularQueue(int capacity)
         {
-            List<string> text = new List<string>();
-            List<ConsoleColor> colours = new List<ConsoleColor>();
-
-            Action<string, ConsoleColor> Add = (textToAdd, colourToAdd) => { text.Add(textToAdd); colours.Add(colourToAdd); };
-
-            bool isGlobal = entity != null;
-            Add(username == you ? "YOU" : username, ConsoleColor.Blue);
-            if (isGlobal)
-            {
-                Add("@", @default);
-                Add(entity, ConsoleColor.DarkGreen);
-            }
-            Add(" - ", @default);
-            Add(message, @default);
-            int counter = 0;
-            int index = 0;
-            int width = Console.WindowWidth;
-            lines = new List<List<KeyValuePair<string, ConsoleColor>>>();
-            for (int i = 0; i < text.Count; i++)
-            {
-                if (lines.Count == 0)
-                    lines.Add(new List<KeyValuePair<string, ConsoleColor>>());
-                if (counter + text[i].Length > width)
-                {
-                    int overflow = counter + text[i].Length - width;
-                    lines[index].Add(new KeyValuePair<string, ConsoleColor>(text[i].Substring(0, text[i].Length - overflow), colours[i]));
-                    index++;
-                    counter = 0;
-                    lines.Add(new List<KeyValuePair<string, ConsoleColor>>());
-                    text.Insert(i + 1, text[i].Substring(text[i].Length - overflow, overflow));
-                    colours.Insert(i + 1, colours[i]);
-                }
-                else
-                {
-                    lines[index].Add(new KeyValuePair<string, ConsoleColor>(text[i], colours[i]));
-                    counter += text[i].Length;
-                }
-            }
-            length = lines.Count;
-            offset = new Pointer(-(length - 1), length - 1);
+            front = 0;
+            size = 0;
+            buffer = new T[capacity];
         }
 
-        public List<List<KeyValuePair<string, ConsoleColor>>> Get(int num)
+        /// <summary>
+        /// A method to add a new FeedItem into the queue
+        /// </summary>
+        /// <param name="item">THe FeedItem to add</param>
+        public void Enqueue(T item)
         {
-            if (offset >= 0)
-                return lines.Skip(offset).Take(num).ToList();
-            else
+            front = (front + 1) % size;
+            if (buffer[front] != null)
             {
-                lines.Reverse();
-                List<List<KeyValuePair<string, ConsoleColor>>> output = lines.Skip(0 - offset).Take(num).ToList();
-                lines.Reverse();
-                output.Reverse();
-                return output;
+                Remove?.Invoke(this, new CQRemoveEventArgs<T>(buffer[front]));
             }
+            buffer[front] = item;
+            size++;
         }
-
-        public bool IsSingle() => length == 1;
     }
 
     /// <summary>
@@ -142,16 +123,15 @@ namespace TestEnv
     {
         #region Private Members
 
-        private static FeedItem[] feed;
-        private static Pointer pointer; //points to the bottom visible line
+        private static CircularQueue<int> buffer;
+        private static List<List<KeyValuePair<string, ConsoleColor>>> lines;
+        private static int pointer; //points to the bottom visible line
         private static int size;
         private static bool canScroll;
         private static int capacity;
-        private static int counter;
         private static int top;
         private static int bottom;
         private static int width;
-        private static object lockHolder;
         private static string active = "[INCOMING FEED]";
         private static string inactive = "[FEED - (DEACTIVATED)]";
         private static bool alive;
@@ -160,19 +140,21 @@ namespace TestEnv
 
         #endregion
 
+        public static string YOU;
+
         /// <summary>
         /// A method to setup the Feed class
         /// </summary>
         /// <param name="size">The number of lines the feed should display</param>
         /// <param name="capacity">The number of lines the feed should store</param>
         /// <param name="you">The user's username</param>
-        public static void Initialise(int size, int capacity, string you)
+        public static void Initialise(int size, int capacity)
         {
             Feed.size = size;
             Feed.capacity = capacity;
-            pointer = new Pointer(0, capacity - 1);
-            feed = new FeedItem[capacity];
-            lockHolder = new object();
+            buffer = new CircularQueue<int>(capacity);
+            buffer.Remove += RemoveLines;
+            lines = new List<List<KeyValuePair<string, ConsoleColor>>>();
             sleeper = new CancellationTokenSource();
         }
 
@@ -205,37 +187,51 @@ namespace TestEnv
             }).Start();
         }
 
-        /// <summary>
-        /// A method to add a Feedline to the Feed
-        /// </summary>
-        /// <param name="line">The line to add</param>
-        public static void Append(FeedItem line)
+        public static void Add(string username, string message, string entity = null, ConsoleColor @default = ConsoleColor.Gray)
         {
-            lock (lockHolder)
+            List<string> text = new List<string>();
+            List<ConsoleColor> colours = new List<ConsoleColor>();
+
+            Action<string, ConsoleColor> Add = (textToAdd, colourToAdd) => { text.Add(textToAdd); colours.Add(colourToAdd); };
+
+            bool isGlobal = entity != null;
+            Add(username == YOU ? "YOU" : username, ConsoleColor.Blue);
+            if (isGlobal)
             {
-                int lines = 0;
-                for (int i = counter; i >= 0; i--)
-                {
-                    if (i == 0)
-                    {
-                        feed[0] = line;
-                        if (counter > 0)
-                            if (feed[1].length > 1)
-                                feed[1].offset.SetMax();
-                    }
-                    else if (i == capacity)
-                        continue;
-                    else
-                        feed[i] = feed[i - 1];
-                    lines += feed[i].length;
-                    if (lines > size)
-                        canScroll = true;
-                }
-                if (counter != capacity)
-                    counter++;
-                pointer.SetMin();
-                Update((Console.CursorLeft, Console.CursorTop));
+                Add("@", @default);
+                Add(entity, ConsoleColor.DarkGreen);
             }
+            Add(" - ", @default);
+            Add(message, @default);
+            lock (buffer)
+                buffer.Enqueue(lines.Count - 1);
+            int counter = 0;
+            int index = 0;
+            int width = Console.WindowWidth;
+            lock (lines)
+            {
+                for (int i = 0; i < text.Count; i++)
+                {
+                    if (lines.Count == 0)
+                        lines.Add(new List<KeyValuePair<string, ConsoleColor>>());
+                    if (counter + text[i].Length > width)
+                    {
+                        int overflow = counter + text[i].Length - width;
+                        lines[index].Add(new KeyValuePair<string, ConsoleColor>(text[i].Substring(0, text[i].Length - overflow), colours[i]));
+                        index++;
+                        counter = 0;
+                        lines.Add(new List<KeyValuePair<string, ConsoleColor>>());
+                        text.Insert(i + 1, text[i].Substring(text[i].Length - overflow, overflow));
+                        colours.Insert(i + 1, colours[i]);
+                    }
+                    else
+                    {
+                        lines[index].Add(new KeyValuePair<string, ConsoleColor>(text[i], colours[i]));
+                        counter += text[i].Length;
+                    }
+                }
+            }
+            Update((Console.CursorLeft, Console.CursorTop));
         }
 
         /// <summary>
@@ -245,54 +241,23 @@ namespace TestEnv
         /// scroll up) or decremented (to scroll down)</param>
         public static void Scroll(bool scrollUp)
         {
-            lock (lockHolder)
+            lock (lines)
             {
-                if (!canScroll)
-                    return;       
-                /// scrolling does opposite operations to pointer and offset because pointer is backwards and offset is not
-                /// as pointer approaches 0, messages get newer but as offset approaches 0, lines get closer to the first 
-                /// line (older)
+                if (lines.Count < size)
+                    return;
                 if (scrollUp)
                 {
-                    /// The pointer should only be moved if it currently points to a FeedItem that only holds
-                    /// one line or a FeedItem that holds multiple lines, but has been scrolled up so far that only
-                    /// one line is showing
-                    if (feed[pointer].IsSingle() || (!feed[pointer].IsSingle() && feed[pointer].offset.IsMin()))
-                    {
-                        pointer++;
-                        if (!feed[pointer].IsSingle())
-                            feed[pointer].offset.Reset();
-                    }
-                    /// If feed[pointer] is a FeedItem that holds multiple lines and is displaying more than one of
-                    /// them in the feed, to sucesfully scroll up, the offset for this FeedItem needs to be manipulated
-                    /// such that when Update() is called, this FeedItem will display 1 less line than it is currently displaying
-                    else
-                    {
-                        /// To achieve this, if the FeedItem's offset is negative then it is either displaying
-                        /// `feed[pointer].length + feed[pointer].offset` lines or `size` lines if
-                        /// `feed[pointer].length + feed[pointer].offset` > size so the offset can be decremented
-                        /// to achieve the target offset. 
-                        if (feed[pointer].offset < 0)
-                        {
-                            feed[pointer].offset.SetMin();
-                            feed[pointer].offset -= Math.Max(size, (feed[pointer].length + feed[pointer].offset) - 2);
-                        }
-                        /// Otherwise the FeedItem's offset is positive so it must be displaying `size` lines
-                        /// and filling the screen since if the pointer is on this FeedItem then it is being
-                        /// treated as the 'bottom' item so must have enough lines on display to fill from the
-                        /// bottom of the feed to the top.
-                        else
-                        {
-                            feed[pointer].offset.SetMin();
-                            feed[pointer].offset += size - 2;
-                        }
-                    }
+                    if (pointer + size == capacity - 1)
+                        return;
+                    else pointer++;
                 }
                 else
                 {
-
+                    if (!scrollUp && pointer == 0)
+                        return;
+                    else pointer--;
                 }
-                Update((Console.CursorLeft, Console.CursorTop));
+            Update((Console.CursorLeft, Console.CursorTop));
             }
         }
 
@@ -312,41 +277,31 @@ namespace TestEnv
         }
 
         /// <summary>
+        /// A method invoked by an event to act as an event handler used to remove a range
+        /// of elements from lines.
+        /// </summary>
+        /// <param name="sender">The object who triggered the event</param>
+        /// <param name="e">The event args</param>
+        private static void RemoveLines(object sender, CQRemoveEventArgs<int> e) => lines.RemoveRange(e.item, lines.Count - 1);
+
+        /// <summary>
         /// A method to update the display of the feed
         /// </summary>
         /// <param name="original">The X-Y coordinates of the Console's cursor before Update was called</param>
         private static void Update((int, int) original)
         {
-            if (counter < 1)
-                return;
-            List<List<KeyValuePair<string, ConsoleColor>>> lines = new List<List<KeyValuePair<string, ConsoleColor>>>();
-            int i = pointer;
-            List<int> empty = new List<int>();
-            while (lines.Count < size && i < capacity)
+            int counter = 0;
+            foreach (List<KeyValuePair<string, ConsoleColor>> line in lines.Skip(pointer))
             {
-                if (feed[i] != null)
-                    lines.InsertRange(0, feed[i].Get(size - lines.Count));
-                else
-                    empty.Add(i);
-                i++;
-            }
-            Console.CursorTop = top + 1;
-            for (i = 0; i < size; i++)
-                Console.Write(new string(' ', Console.WindowWidth));
-            Console.CursorTop = top + 1 + (size - lines.Count);
-            i = pointer;
-            foreach (List<KeyValuePair<string, ConsoleColor>> line in lines)
-            {
-                int before = Console.CursorTop;                
-                if (!empty.Contains(i))
-                    foreach (KeyValuePair<string, ConsoleColor> entry in line)
-                    {
-                        Console.ForegroundColor = entry.Value;
-                        Console.Write(entry.Key);
-                    }
-                if (Console.CursorTop == before)
-                    Console.SetCursorPosition(0, ++Console.CursorTop);
-                i++;
+                if (counter == size)
+                    break;
+                foreach (KeyValuePair<string, ConsoleColor> entry in line)
+                {
+                    Console.ForegroundColor = entry.Value;
+                    Console.Write(entry.Key);
+                }
+                Console.SetCursorPosition(0, ++Console.CursorTop);
+                counter++;
             }
             Console.ResetColor();
             Console.SetCursorPosition(original.Item1, original.Item2);
@@ -384,11 +339,12 @@ namespace TestEnv
 
         static void Main(string[] args)
         {
-            Feed.Initialise(3, 5, username);
+            Feed.YOU = username;
+            Feed.Initialise(3, 5);
             Feed.Show();
             //Feed.Append(new FeedItem(username, "msg1", username, "test"));
-            Feed.Append(new FeedItem(username, new string('b', 680) + "end", username, "test"));
-            Feed.Append(new FeedItem(username, new string('b', 120) + "end", username, "test"));
+            //Feed.Append(new FeedItem(username, new string('b', 680) + "end", username, "test"));
+            //Feed.Append(new FeedItem(username, new string('b', 120) + "end", username, "test"));
             //Feed.Append(new FeedItem(username, "msg2", username));
             //Feed.Append(new FeedItem(username, "msg3", username));
             //Feed.Append(new FeedItem(username, "msg4", username));
