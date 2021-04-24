@@ -3,63 +3,12 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace TestEnv
 {
-    public struct Pointer
-    {
-        #region Private Members
-
-        private readonly int min;
-        private readonly int max;
-        private int value;
-
-        #endregion
-
-        public Pointer(int min, int max)
-        {
-            value = 0;
-            this.min = min;
-            this.max = max;
-        }
-
-        public void SetMax() => value = max;
-        public void SetMin() => value = min;
-        public bool IsMax() => value == max;
-        public bool IsMin() => value == min;
-        public void Reset() => value = 0;
-
-        public static int operator -(int a, Pointer b) => a - b.value;
-        public static Pointer operator -(Pointer a, int b)
-        {
-            a.value = Math.Max(a.min, a.value - b);
-            return a;
-        }
-        public static Pointer operator +(Pointer a, int b)
-        {
-            a.value = Math.Min(a.max, a.value +b);
-            return a;
-        }
-        public static Pointer operator ++(Pointer a)
-        {
-            a.value = Math.Min(a.max, a.value + 1);
-            return a;
-        }
-        public static Pointer operator --(Pointer a)
-        {
-            a.value = Math.Max(a.min, a.value - 1);
-            return a;
-        }
-        public static bool operator ==(Pointer a, int b) => a.value == b;
-        public static bool operator !=(Pointer a, int b) => a.value != b;
-        public static bool operator <=(Pointer a, int b) => a.value <= b;
-        public static bool operator >=(Pointer a, int b) => a.value >= b;
-
-        public static implicit operator int(Pointer a) => a.value;
-    }
-
     /// <summary>
     /// A class to hold the Event Arguments for the event trigger by an event being removed
     /// from the Circular Queue
@@ -90,14 +39,16 @@ namespace TestEnv
         private int size;
         private T[] buffer;
         private int front;
+        private T empty;
 
         #endregion
 
-        public CircularQueue(int capacity)
+        public CircularQueue(T empty, int capacity)
         {
-            front = 0;
+            front = -1;
             size = 0;
-            buffer = new T[capacity];
+            this.empty = empty;
+            buffer = Enumerable.Repeat(empty, capacity).ToArray();;
         }
 
         /// <summary>
@@ -106,11 +57,14 @@ namespace TestEnv
         /// <param name="item">THe FeedItem to add</param>
         public void Enqueue(T item)
         {
-            front = (front + 1) % size;
-            if (buffer[front] != null)
-            {
+            if (Comparer<T>.Default.Compare(item, empty) == 0)
+                return;
+            if (size == 0)
+                front = 0;
+            else
+                front = (front + 1) % buffer.Length;
+            if (Comparer<T>.Default.Compare(buffer[front], empty) != 0)
                 Remove?.Invoke(this, new CQRemoveEventArgs<T>(buffer[front]));
-            }
             buffer[front] = item;
             size++;
         }
@@ -127,7 +81,6 @@ namespace TestEnv
         private static List<List<KeyValuePair<string, ConsoleColor>>> lines;
         private static int pointer; //points to the bottom visible line
         private static int size;
-        private static bool canScroll;
         private static int capacity;
         private static int top;
         private static int bottom;
@@ -152,7 +105,7 @@ namespace TestEnv
         {
             Feed.size = size;
             Feed.capacity = capacity;
-            buffer = new CircularQueue<int>(capacity);
+            buffer = new CircularQueue<int>(-1, capacity);
             buffer.Remove += RemoveLines;
             lines = new List<List<KeyValuePair<string, ConsoleColor>>>();
             sleeper = new CancellationTokenSource();
@@ -171,9 +124,8 @@ namespace TestEnv
             width = Console.WindowWidth;
             PrintHeader(active);
             Console.Write(new string('\n', size) + new string('=', Console.WindowWidth));
+            bottom = Console.CursorTop - 1;
             Update((Console.CursorLeft, Console.CursorTop));            
-            Console.ResetColor();
-            bottom = Console.CursorTop;
             alive = true;
             sleeper.Dispose();
             sleeper = new CancellationTokenSource();
@@ -204,29 +156,27 @@ namespace TestEnv
             Add(" - ", @default);
             Add(message, @default);
             lock (buffer)
-                buffer.Enqueue(lines.Count - 1);
+                buffer.Enqueue(lines.Count);
+            pointer = 0;
             int counter = 0;
-            int index = 0;
-            int width = Console.WindowWidth;
+            lines.Insert(0, new List<KeyValuePair<string, ConsoleColor>>());
             lock (lines)
             {
                 for (int i = 0; i < text.Count; i++)
                 {
-                    if (lines.Count == 0)
-                        lines.Add(new List<KeyValuePair<string, ConsoleColor>>());
                     if (counter + text[i].Length > width)
                     {
                         int overflow = counter + text[i].Length - width;
-                        lines[index].Add(new KeyValuePair<string, ConsoleColor>(text[i].Substring(0, text[i].Length - overflow), colours[i]));
-                        index++;
+                        lines[0].Add(new KeyValuePair<string, ConsoleColor>(text[i].Substring(0, text[i].Length - overflow), colours[i]));
+                        lines.Insert(0, new List<KeyValuePair<string, ConsoleColor>>());
+                        pointer++;
                         counter = 0;
-                        lines.Add(new List<KeyValuePair<string, ConsoleColor>>());
                         text.Insert(i + 1, text[i].Substring(text[i].Length - overflow, overflow));
                         colours.Insert(i + 1, colours[i]);
                     }
                     else
                     {
-                        lines[index].Add(new KeyValuePair<string, ConsoleColor>(text[i], colours[i]));
+                        lines[0].Add(new KeyValuePair<string, ConsoleColor>(text[i], colours[i]));
                         counter += text[i].Length;
                     }
                 }
@@ -247,13 +197,13 @@ namespace TestEnv
                     return;
                 if (scrollUp)
                 {
-                    if (pointer + size == capacity - 1)
+                    if (pointer + size == lines.Count)
                         return;
                     else pointer++;
                 }
                 else
                 {
-                    if (!scrollUp && pointer == 0)
+                    if (pointer == 0)
                         return;
                     else pointer--;
                 }
@@ -291,16 +241,22 @@ namespace TestEnv
         private static void Update((int, int) original)
         {
             int counter = 0;
-            foreach (List<KeyValuePair<string, ConsoleColor>> line in lines.Skip(pointer))
+            if (size > lines.Count - pointer)
+                Console.CursorTop = bottom - (lines.Count - pointer);
+            else
+                Console.CursorTop = top + 1;
+            foreach (List<KeyValuePair<string, ConsoleColor>> line in lines.Skip(pointer).Take(size).ToArray().Reverse())
             {
                 if (counter == size)
                     break;
+                Console.Write(new string(' ', Console.WindowWidth));
+                Console.CursorTop--;
                 foreach (KeyValuePair<string, ConsoleColor> entry in line)
                 {
                     Console.ForegroundColor = entry.Value;
                     Console.Write(entry.Key);
                 }
-                Console.SetCursorPosition(0, ++Console.CursorTop);
+                Console.SetCursorPosition(0, Console.CursorLeft == 0 ? Console.CursorTop : Console.CursorTop + 1);
                 counter++;
             }
             Console.ResetColor();
@@ -342,15 +298,15 @@ namespace TestEnv
             Feed.YOU = username;
             Feed.Initialise(3, 5);
             Feed.Show();
-            //Feed.Append(new FeedItem(username, "msg1", username, "test"));
-            //Feed.Append(new FeedItem(username, new string('b', 680) + "end", username, "test"));
-            //Feed.Append(new FeedItem(username, new string('b', 120) + "end", username, "test"));
-            //Feed.Append(new FeedItem(username, "msg2", username));
-            //Feed.Append(new FeedItem(username, "msg3", username));
-            //Feed.Append(new FeedItem(username, "msg4", username));
-            //Feed.Append(new FeedItem(username, "msg5", username));
-            //Feed.Append(new FeedItem(username, "msg6", username));
-            //Feed.Append(new FeedItem(username, "msg7", username));
+            Feed.Add(username, new string('b', 680) + "end", "test");
+            Feed.Add(username, "msg1", "test");
+            //Feed.Add(username, new string('b', 120) + "end", "test");
+            //Feed.Add(username, "msg2");
+            //Feed.Add(username, "msg3");
+            //Feed.Add(username, "msg4");
+            //Feed.Add(username, "msg5");
+            //Feed.Add(username, "msg6");
+            //Feed.Add(username, "msg7");
             Console.Write("test>>> ");
             Task.Run(() =>
             {
