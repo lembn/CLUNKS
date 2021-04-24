@@ -257,7 +257,7 @@ namespace Client
 
         private static void ChatHandler(object sender, PacketEventArgs e)
         {
-            Console.WriteLine(e.packet.Get()[0] == Communication.SUCCESS ? "CHAT sent." : "Failed to send.");
+            Console.WriteLine(e.packet.Get()[0] == Communication.SUCCESS ? "CHAT sent" : "Failed to send");
             channel.StatusDispatch -= ChatHandler;
             prompted = false;
         }
@@ -273,13 +273,13 @@ namespace Client
         {
             //TODO: write message handler
             string[] values = e.packet.Get();
-            //values[0] is sender username, values[1] is msg
-            if (values[2] == Communication.TRUE)
+            if (values[0] == Communication.TRUE)
             {
-                //msg is global
+                Console.WriteLine($"{(values[1] == username ? "YOU" : values[1])}@{traversalTrace.Peek()} - {values[2]}");
             }
             else
             {
+                Console.WriteLine($"{values[1]} - {values[2]}");
                 //msg is private
             }
         }
@@ -296,7 +296,7 @@ namespace Client
         {
             void Output(string s)
             {
-                Console.Write(new string(' ', (Console.WindowWidth - s.Length) / 2)); ;
+                Console.Write(new string(' ', (Console.WindowWidth - s.Length) / 2));
                 Console.WriteLine(s);
             }
 

@@ -41,11 +41,15 @@ namespace Common.Channels
         private BlockingCollection<Packet> inPackets; //A queue to hold incomging packets
 
         #endregion
-        
+
+        #region Public Members
+
         public uint id = NULL_ID;
         public event DispatchEventHandler StatusDispatch;
         public event DispatchEventHandler MessageDispatch;
         public event DispatchEventHandler AVDispatch;
+
+        #endregion
 
         #region Methods
 
@@ -110,8 +114,8 @@ namespace Common.Channels
                 else
                 {
                     missedHBs += 1;
-                    if (missedHBs == 2)
-                        Close();
+                    if (missedHBs == 2) { } //TODO: replace
+                        //Close();
                 }
             })); //Heartbeat
 

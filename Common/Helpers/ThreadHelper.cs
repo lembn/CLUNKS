@@ -20,7 +20,7 @@ namespace Common.Helpers
         public static Thread GetECThread(CancellationToken ctoken, Action method)
         {
             var thread = new Thread(() => { 
-                while (true && !ctoken.IsCancellationRequested)
+                while (!ctoken.IsCancellationRequested)
                 {
                     method();
                     Thread.Sleep(10);

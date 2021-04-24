@@ -294,7 +294,7 @@ namespace Server
                         }
                         outPacket = new Packet(DataID.Message, e.client.id);
                         outPacket.Add(Communication.TRUE, values[2], values[4]);
-                        int[] users = DBHandler.DBHandler.GetActiveUsers(values[3], ignore: Convert.ToInt32(e.client.data["DB_userID"]));
+                        int[] users = DBHandler.DBHandler.GetActiveUsers(values[3]);
                         if (users == null)
                         {
                             outPacket = new Packet(DataID.Status, e.client.id);

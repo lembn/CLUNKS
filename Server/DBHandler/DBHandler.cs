@@ -398,7 +398,7 @@ namespace Server.DBHandler
         /// <param name="inactive">A boolean representing if logged in or logged out users should be checked</param>
         /// <param name="ignore">A userID to ignore</param>
         /// <returns>The desired user list and an array</returns>
-        public static int[] GetActiveUsers(string entityName, bool inactive = false, int ignore = -1)
+        public static int[] GetActiveUsers(string entityName, bool inactive = false)
         {
             int[] users = null;
             using (Cursor cursor = new Cursor(connectionString))
@@ -409,14 +409,14 @@ namespace Server.DBHandler
                     users = (int[])cursor.Execute(@$"SELECT userID FROM users_{table}
                                                      INNER JOIN {table} ON {table}.name='{entityName}'
                                                      INNER JOIN users ON users.id=users_{table}.userID
-                                                     WHERE loggedIn={(inactive ? 0 : 1)}{(ignore > -1 ? ";" : $" AND userID!={ignore};")}");
+                                                     WHERE loggedIn={(inactive ? 0 : 1)};");
                 }
                 catch (InvalidCastException)
                 {
                     users = new int[] { Convert.ToInt32(cursor.Execute(@$"SELECT userID FROM users_{table}
                                                                           INNER JOIN {table} ON {table}.name='{entityName}'
                                                                           INNER JOIN users ON users.id=users_{table}.userID
-                                                                          WHERE loggedIn={(inactive ? 0 : 1)}{(ignore > -1 ? ";" : $" AND userID!={ignore};")}")) };
+                                                                          WHERE loggedIn={(inactive ? 0 : 1)};")) };
                 }
             }                           
             return users;
