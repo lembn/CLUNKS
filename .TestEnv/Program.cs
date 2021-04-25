@@ -1,9 +1,7 @@
 ﻿using Common.Helpers;
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Linq.Expressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -81,12 +79,12 @@ namespace TestEnv
         private static List<List<KeyValuePair<string, ConsoleColor>>> lines;
         private static int pointer; //points to the bottom visible line
         private static int size;
-        private static int capacity;
         private static int top;
         private static int bottom;
         private static int width;
         private static string active = "[INCOMING FEED]";
         private static string inactive = "[FEED - (DEACTIVATED)]";
+        private static bool notification;
         private static bool alive;
         private static bool deactivating;
         private static CancellationTokenSource sleeper;
@@ -99,12 +97,10 @@ namespace TestEnv
         /// A method to setup the Feed class
         /// </summary>
         /// <param name="size">The number of lines the feed should display</param>
-        /// <param name="capacity">The number of lines the feed should store</param>
-        /// <param name="you">The user's username</param>
+        /// <param name="capacity">The number of messages the feed should store</param>
         public static void Initialise(int size, int capacity)
         {
             Feed.size = size;
-            Feed.capacity = capacity;
             buffer = new CircularQueue<int>(-1, capacity);
             buffer.Remove += RemoveLines;
             lines = new List<List<KeyValuePair<string, ConsoleColor>>>();
@@ -117,12 +113,13 @@ namespace TestEnv
         public static void Show()
         {
             sleeper.Cancel();
-            if (alive && !deactivating)
+            if (alive && !deactivating) // get rid of old one if show is being recalled
                 Deactivate();
             Console.WriteLine();
             top = Console.CursorTop;
             width = Console.WindowWidth;
             PrintHeader(active);
+            Console.CursorTop++;
             Console.Write(new string('\n', size) + new string('=', Console.WindowWidth));
             bottom = Console.CursorTop - 1;
             Update((Console.CursorLeft, Console.CursorTop));            
@@ -139,6 +136,13 @@ namespace TestEnv
             }).Start();
         }
 
+        /// <summary>
+        /// A method to add new messages to the feed
+        /// </summary>
+        /// <param name="username">The username of the sender of the message</param>
+        /// <param name="message">The message content</param>
+        /// <param name="entity">The entity that the message was sent to (for global chat)</param>
+        /// <param name="default">The default console colour</param>
         public static void Add(string username, string message, string entity = null, ConsoleColor @default = ConsoleColor.Gray)
         {
             List<string> text = new List<string>();
@@ -155,9 +159,13 @@ namespace TestEnv
             }
             Add(" - ", @default);
             Add(message, @default);
-            lock (buffer)
-                buffer.Enqueue(lines.Count);
-            pointer = 0;
+            if (pointer > 0)
+            {   
+                PrintHeader($"[{active} - (NEW)]");
+                notification = true;
+                pointer++;
+            }
+            int linesAdded = 1;
             int counter = 0;
             lines.Insert(0, new List<KeyValuePair<string, ConsoleColor>>());
             lock (lines)
@@ -170,6 +178,7 @@ namespace TestEnv
                         lines[0].Add(new KeyValuePair<string, ConsoleColor>(text[i].Substring(0, text[i].Length - overflow), colours[i]));
                         lines.Insert(0, new List<KeyValuePair<string, ConsoleColor>>());
                         pointer++;
+                        linesAdded++;
                         counter = 0;
                         text.Insert(i + 1, text[i].Substring(text[i].Length - overflow, overflow));
                         colours.Insert(i + 1, colours[i]);
@@ -181,7 +190,10 @@ namespace TestEnv
                     }
                 }
             }
-            Update((Console.CursorLeft, Console.CursorTop));
+            lock (buffer)
+                buffer.Enqueue(linesAdded);
+            if (alive)
+                Update((Console.CursorLeft, Console.CursorTop));
         }
 
         /// <summary>
@@ -205,7 +217,15 @@ namespace TestEnv
                 {
                     if (pointer == 0)
                         return;
-                    else pointer--;
+                    else
+                    {
+                        pointer--;
+                        if (pointer == 0 && notification)
+                        {
+                            PrintHeader(active);
+                            notification = false;
+                        }
+                    }
                 }
             Update((Console.CursorLeft, Console.CursorTop));
             }
@@ -217,12 +237,9 @@ namespace TestEnv
         public static void Deactivate()
         {
             deactivating = true;
-            (int, int) original = (Console.CursorLeft, Console.CursorTop);
-            Console.CursorTop = top;
             PrintHeader(inactive);
-            Console.CursorTop = top;
-            Console.SetCursorPosition(original.Item1, original.Item2);
             alive = false;
+            pointer = 0;
             deactivating = false;
         }
 
@@ -232,7 +249,11 @@ namespace TestEnv
         /// </summary>
         /// <param name="sender">The object who triggered the event</param>
         /// <param name="e">The event args</param>
-        private static void RemoveLines(object sender, CQRemoveEventArgs<int> e) => lines.RemoveRange(e.item, lines.Count - 1);
+        private static void RemoveLines(object sender, CQRemoveEventArgs<int> e)
+        {
+            lock (lines)
+                lines.RemoveRange(lines.Count - (e.item + 1), e.item);
+        }
 
         /// <summary>
         /// A method to update the display of the feed
@@ -245,6 +266,7 @@ namespace TestEnv
                 Console.CursorTop = bottom - (lines.Count - pointer);
             else
                 Console.CursorTop = top + 1;
+            Console.CursorLeft = 0;
             foreach (List<KeyValuePair<string, ConsoleColor>> line in lines.Skip(pointer).Take(size).ToArray().Reverse())
             {
                 if (counter == size)
@@ -269,10 +291,14 @@ namespace TestEnv
         /// <param name="header">The title of the feed</param>
         private static void PrintHeader(string header)
         {
+            int orignalTop = Console.CursorTop;
+            int orignalLeft = Console.CursorLeft;
+            Console.SetCursorPosition(0, top);
             header = Balance(header);
             string dashes = new string('-', (width - header.Length) / 2);
             Console.ForegroundColor = ConsoleColor.White;
             Console.Write(dashes + header + dashes);
+            Console.SetCursorPosition(orignalLeft, orignalTop);
         }
 
         /// <summary>
@@ -298,25 +324,39 @@ namespace TestEnv
             Feed.YOU = username;
             Feed.Initialise(3, 5);
             Feed.Show();
-            Feed.Add(username, new string('b', 680) + "end", "test");
-            Feed.Add(username, "msg1", "test");
+            //Feed.Add(username, new string('b', 680) + "end", "test");
+            //Feed.Add(username, "msg1", "test");
             //Feed.Add(username, new string('b', 120) + "end", "test");
             //Feed.Add(username, "msg2");
             //Feed.Add(username, "msg3");
             //Feed.Add(username, "msg4");
+            //Feed.Scroll(true);
             //Feed.Add(username, "msg5");
             //Feed.Add(username, "msg6");
             //Feed.Add(username, "msg7");
-            //new change
-            Console.Write("test>>> ");
+            //Task.Run(() =>
+            //{
+            //    while (true)
+            //    {
+            //        var a = Console.Read();
+            //        Feed.Scroll(false);
+            //        Thread.Sleep(10);
+            //    }
+            //});
             Task.Run(() =>
             {
+                int counter = 0;
                 while (true)
-                {
-                    var a = Console.Read();
-                    Feed.Scroll(true);
+                {                    
+                    if (counter == 7)
+                        Feed.Deactivate();
+                    if (counter == 9)
+                        Feed.Show();
+                    Feed.Add(username, $"msg{++counter}", "test");
+                    Thread.Sleep(1500);
                 }
             });
+            Console.Write("test>>> ");
         }
     }
 }
