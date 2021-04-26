@@ -21,7 +21,8 @@ namespace TestEnv
 
     /// <summary>
     /// An implementation of a circuar queue that can be used to hold FeedItems and
-    /// alert its owner when an item in the queue is renoved
+    /// alert its owner when an item in the queue is renoved. Items are added to the back
+    /// of the queue and removed from the back, creating a reverse LIFO structure
     /// </summary>
     public class CircularQueue<T>
     {
@@ -69,7 +70,7 @@ namespace TestEnv
     }
 
     /// <summary>
-    /// A Thread safe class to represent the incoming feed of a user
+    /// A Thread safe class to represent the incoming message feed of a user
     /// </summary>
     public static class Feed
     {
@@ -82,8 +83,9 @@ namespace TestEnv
         private static int top;
         private static int bottom;
         private static int width;
-        private static string active = "[INCOMING FEED]";
-        private static string inactive = "[FEED - (DEACTIVATED)]";
+        private static string LIVEFEED = "[INCOMING FEED - (LIVE)]";
+        private static string OLDFEED = "[INCOMING FEED - (▼)]";
+        private static string DEADFEED = "[FEED - (DEACTIVATED)]";
         private static bool notification;
         private static bool alive;
         private static bool deactivating;
@@ -113,12 +115,16 @@ namespace TestEnv
         public static void Show()
         {
             sleeper.Cancel();
-            if (alive && !deactivating) // get rid of old one if show is being recalled
+            ///if Show has been called and alive is already true then 
+            ///it means the user is trying to get a new feed while one
+            ///is already present so the old one should be decactivated
+            ///if the deacitivation process hasn't already started
+            if (alive && !deactivating)
                 Deactivate();
             Console.WriteLine();
             top = Console.CursorTop;
             width = Console.WindowWidth;
-            PrintHeader(active);
+            PrintHeader(LIVEFEED);
             Console.CursorTop++;
             Console.Write(new string('\n', size) + new string('=', Console.WindowWidth));
             bottom = Console.CursorTop - 1;
@@ -128,8 +134,11 @@ namespace TestEnv
             sleeper = new CancellationTokenSource();
             ThreadHelper.GetECThread(sleeper.Token, () =>
             {
-                //if cursor is at top of console and the offset > size of feed
-                if ((Console.CursorTop > Console.WindowHeight - 1) && (Console.CursorTop - (Console.WindowHeight - 1) >= (bottom - top)))
+                ///deactivate if...
+                /// - cursor is at the bottom of the console
+                /// - console been scrolled far enough for the feed to be off screen
+                /// - feed is still alive
+                if ((Console.CursorTop > Console.WindowHeight - 1) && (Console.CursorTop >= size + 2 + (Console.WindowHeight - 1)) && alive)
                     Deactivate();
                 else
                     sleeper.Token.WaitHandle.WaitOne(3000);
@@ -161,7 +170,7 @@ namespace TestEnv
             Add(message, @default);
             if (pointer > 0)
             {   
-                PrintHeader($"[{active} - (NEW)]");
+                PrintHeader(OLDFEED);
                 notification = true;
                 pointer++;
             }
@@ -222,7 +231,7 @@ namespace TestEnv
                         pointer--;
                         if (pointer == 0 && notification)
                         {
-                            PrintHeader(active);
+                            PrintHeader(LIVEFEED);
                             notification = false;
                         }
                     }
@@ -234,10 +243,10 @@ namespace TestEnv
         /// <summary>
         /// A method to set the feed to inactive
         /// </summary>
-        public static void Deactivate()
+        private static void Deactivate()
         {
             deactivating = true;
-            PrintHeader(inactive);
+            PrintHeader(DEADFEED);
             alive = false;
             pointer = 0;
             deactivating = false;
@@ -294,24 +303,15 @@ namespace TestEnv
             int orignalTop = Console.CursorTop;
             int orignalLeft = Console.CursorLeft;
             Console.SetCursorPosition(0, top);
-            header = Balance(header);
+            /// If window width and header length are both odd or both even
+            /// then they are fine, if one is even and the other is even then
+            /// the header needs to be padded to match the window width
+            if ((Console.WindowWidth % 2 == 0) != (header.Length % 2 == 0))
+                header = $"{header}-";
             string dashes = new string('-', (width - header.Length) / 2);
             Console.ForegroundColor = ConsoleColor.White;
             Console.Write(dashes + header + dashes);
             Console.SetCursorPosition(orignalLeft, orignalTop);
-        }
-
-        /// <summary>
-        /// A method to pad strings with the '-' character so they can be centered on screen
-        /// </summary>
-        /// <param name="input">The input string</param>
-        /// <returns>The padded string</returns>
-        private static string Balance(string input)
-        {
-            if ((Console.WindowWidth % 2 == 0) == (input.Length % 2 == 0))
-                return input;
-            else
-                return $"{input}-";
         }
     }
 
@@ -334,29 +334,22 @@ namespace TestEnv
             //Feed.Add(username, "msg5");
             //Feed.Add(username, "msg6");
             //Feed.Add(username, "msg7");
-            //Task.Run(() =>
-            //{
-            //    while (true)
-            //    {
-            //        var a = Console.Read();
-            //        Feed.Scroll(false);
-            //        Thread.Sleep(10);
-            //    }
-            //});
             Task.Run(() =>
             {
                 int counter = 0;
                 while (true)
-                {                    
-                    if (counter == 7)
-                        Feed.Deactivate();
-                    if (counter == 9)
-                        Feed.Show();
+                {
+                    //if (counter == 7)
+                    //    Feed.Show();
                     Feed.Add(username, $"msg{++counter}", "test");
                     Thread.Sleep(1500);
                 }
             });
-            Console.Write("test>>> ");
+            Task.Run(() =>
+            {
+                while (true)
+                    Console.Read();
+            });
         }
     }
 }
