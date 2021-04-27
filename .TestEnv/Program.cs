@@ -1,72 +1,25 @@
 ﻿using Common.Helpers;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 
 namespace TestEnv
 {
     /// <summary>
-    /// A class to hold the Event Arguments for the event trigger by an event being removed
-    /// from the Circular Queue
+    /// A reference type wrapper for the bool class
     /// </summary>
-    /// <typeparam name="T"></typeparam>
-    public class CQRemoveEventArgs<T> : EventArgs
+    public class State
     {
-        public T item;
+        private bool state;
 
-        public CQRemoveEventArgs(T item) => this.item = item;
-    }
+        public State(bool initial) => state = initial;
 
-    /// <summary>
-    /// An implementation of a circuar queue that can be used to hold FeedItems and
-    /// alert its owner when an item in the queue is renoved. Items are added to the back
-    /// of the queue and removed from the back, creating a reverse LIFO structure
-    /// </summary>
-    public class CircularQueue<T>
-    {
-        #region Public Members
-
-        public delegate void RemoveHandler(object sender, CQRemoveEventArgs<T> e);
-        public event RemoveHandler Remove;
-
-        #endregion
-
-        #region Private Members
-
-        private int size;
-        private T[] buffer;
-        private int front;
-        private T empty;
-
-        #endregion
-
-        public CircularQueue(T empty, int capacity)
-        {
-            front = -1;
-            size = 0;
-            this.empty = empty;
-            buffer = Enumerable.Repeat(empty, capacity).ToArray();;
-        }
-
-        /// <summary>
-        /// A method to add a new FeedItem into the queue
-        /// </summary>
-        /// <param name="item">THe FeedItem to add</param>
-        public void Enqueue(T item)
-        {
-            if (Comparer<T>.Default.Compare(item, empty) == 0)
-                return;
-            if (size == 0)
-                front = 0;
-            else
-                front = (front + 1) % buffer.Length;
-            if (Comparer<T>.Default.Compare(buffer[front], empty) != 0)
-                Remove?.Invoke(this, new CQRemoveEventArgs<T>(buffer[front]));
-            buffer[front] = item;
-            size++;
-        }
+        public static implicit operator bool(State a) => a.state;
+        public static implicit operator State(bool a) => new State(a);
     }
 
     /// <summary>
@@ -76,7 +29,6 @@ namespace TestEnv
     {
         #region Private Members
 
-        private static CircularQueue<int> buffer;
         private static List<List<KeyValuePair<string, ConsoleColor>>> lines;
         private static int pointer; //points to the bottom visible line
         private static int size;
@@ -86,10 +38,13 @@ namespace TestEnv
         private static string LIVEFEED = "[INCOMING FEED - (LIVE)]";
         private static string OLDFEED = "[INCOMING FEED - (▼)]";
         private static string DEADFEED = "[FEED - (DEACTIVATED)]";
-        private static bool notification;
-        private static bool alive;
+        private static bool updated = true;
+        private static bool saved = false;
+        private static State alive;
         private static bool deactivating;
         private static CancellationTokenSource sleeper;
+        private static int saveCount;
+        private static FileInfo tempFile;
 
         #endregion
 
@@ -99,14 +54,14 @@ namespace TestEnv
         /// A method to setup the Feed class
         /// </summary>
         /// <param name="size">The number of lines the feed should display</param>
-        /// <param name="capacity">The number of messages the feed should store</param>
-        public static void Initialise(int size, int capacity)
+        public static void Initialise(int size)
         {
             Feed.size = size;
-            buffer = new CircularQueue<int>(-1, capacity);
-            buffer.Remove += RemoveLines;
+            alive = new State(false);
             lines = new List<List<KeyValuePair<string, ConsoleColor>>>();
             sleeper = new CancellationTokenSource();
+            tempFile = new FileInfo(Path.GetTempFileName());
+            tempFile.Attributes = FileAttributes.Temporary;
         }
 
         /// <summary>
@@ -119,8 +74,8 @@ namespace TestEnv
             ///it means the user is trying to get a new feed while one
             ///is already present so the old one should be decactivated
             ///if the deacitivation process hasn't already started
-            if (alive && !deactivating)
-                Deactivate();
+            if (alive)
+                Deactivate(false);
             Console.WriteLine();
             top = Console.CursorTop;
             width = Console.WindowWidth;
@@ -128,6 +83,17 @@ namespace TestEnv
             Console.CursorTop++;
             Console.Write(new string('\n', size) + new string('=', Console.WindowWidth));
             bottom = Console.CursorTop - 1;
+            if (saved)
+            {
+                XDocument saveData = XDocument.Load(tempFile.FullName);
+                lines = new List<List<KeyValuePair<string, ConsoleColor>>>();
+                foreach (XElement line in saveData.Elements("line"))
+                {
+                    lines.Add(new List<KeyValuePair<string, ConsoleColor>>());
+                    foreach (XElement entry in line.Elements("entry"))
+                        lines[lines.Count - 1].Add(new KeyValuePair<string, ConsoleColor>(entry.Attribute("text").ToString(), (ConsoleColor)Convert.ToInt32(entry.Attribute("colour"))));
+                }
+            }
             Update((Console.CursorLeft, Console.CursorTop));            
             alive = true;
             sleeper.Dispose();
@@ -139,10 +105,26 @@ namespace TestEnv
                 /// - console been scrolled far enough for the feed to be off screen
                 /// - feed is still alive
                 if ((Console.CursorTop > Console.WindowHeight - 1) && (Console.CursorTop >= size + 2 + (Console.WindowHeight - 1)) && alive)
-                    Deactivate();
+                    Deactivate(true);
                 else
                     sleeper.Token.WaitHandle.WaitOne(3000);
             }).Start();
+            Task.Run(() => 
+            { 
+                while (alive)
+                {
+                    ConsoleKeyInfo keyInfo = Console.ReadKey();
+                    Console.CursorLeft--;
+                    if (keyInfo.Modifiers.HasFlag(ConsoleModifiers.Control))
+                    {
+                        if (keyInfo.Key == ConsoleKey.OemPlus)
+                            Scroll(true);
+                        else if (keyInfo.Key == ConsoleKey.OemMinus)
+                            Scroll(false);
+                    }
+                    Thread.Sleep(10);
+                }
+            });
         }
 
         /// <summary>
@@ -168,41 +150,49 @@ namespace TestEnv
             }
             Add(" - ", @default);
             Add(message, @default);
-            if (pointer > 0)
+            if (pointer > 0 && updated)
             {   
                 PrintHeader(OLDFEED);
-                notification = true;
+                updated = false;
                 pointer++;
             }
             int linesAdded = 1;
             int counter = 0;
-            lines.Insert(0, new List<KeyValuePair<string, ConsoleColor>>());
-            lock (lines)
+            List<List<KeyValuePair<string, ConsoleColor>>> insertList;
+            lock (alive)
             {
-                for (int i = 0; i < text.Count; i++)
+                if (alive)
+                    insertList = lines;
+                else
+                    insertList = new List<List<KeyValuePair<string, ConsoleColor>>>();
+                insertList.Insert(0, new List<KeyValuePair<string, ConsoleColor>>());
+                lock (insertList)
                 {
-                    if (counter + text[i].Length > width)
+                    for (int i = 0; i < text.Count; i++)
                     {
-                        int overflow = counter + text[i].Length - width;
-                        lines[0].Add(new KeyValuePair<string, ConsoleColor>(text[i].Substring(0, text[i].Length - overflow), colours[i]));
-                        lines.Insert(0, new List<KeyValuePair<string, ConsoleColor>>());
-                        pointer++;
-                        linesAdded++;
-                        counter = 0;
-                        text.Insert(i + 1, text[i].Substring(text[i].Length - overflow, overflow));
-                        colours.Insert(i + 1, colours[i]);
-                    }
-                    else
-                    {
-                        lines[0].Add(new KeyValuePair<string, ConsoleColor>(text[i], colours[i]));
-                        counter += text[i].Length;
+                        if (counter + text[i].Length > width)
+                        {
+                            int overflow = counter + text[i].Length - width;
+                            insertList[0].Add(new KeyValuePair<string, ConsoleColor>(text[i].Substring(0, text[i].Length - overflow), colours[i]));
+                            insertList.Insert(0, new List<KeyValuePair<string, ConsoleColor>>());
+                            pointer++;
+                            linesAdded++;
+                            counter = 0;
+                            text.Insert(i + 1, text[i].Substring(text[i].Length - overflow, overflow));
+                            colours.Insert(i + 1, colours[i]);
+                        }
+                        else
+                        {
+                            insertList[0].Add(new KeyValuePair<string, ConsoleColor>(text[i], colours[i]));
+                            counter += text[i].Length;
+                        }
                     }
                 }
+                if (alive && updated)
+                    Update((Console.CursorLeft, Console.CursorTop));
+                if (!alive)
+                    Save(insertList);
             }
-            lock (buffer)
-                buffer.Enqueue(linesAdded);
-            if (alive)
-                Update((Console.CursorLeft, Console.CursorTop));
         }
 
         /// <summary>
@@ -229,10 +219,10 @@ namespace TestEnv
                     else
                     {
                         pointer--;
-                        if (pointer == 0 && notification)
+                        if (pointer == 0 && !updated)
                         {
                             PrintHeader(LIVEFEED);
-                            notification = false;
+                            updated = true;
                         }
                     }
                 }
@@ -241,27 +231,57 @@ namespace TestEnv
         }
 
         /// <summary>
+        /// Cleanup the resources held by the Feed class
+        /// </summary>
+        public static void Cleanup() => File.Delete(tempFile.FullName);
+
+        /// <summary>
         /// A method to set the feed to inactive
         /// </summary>
-        private static void Deactivate()
+        private static void Deactivate(bool save)
         {
-            deactivating = true;
-            PrintHeader(DEADFEED);
-            alive = false;
-            pointer = 0;
+            lock (alive)
+            {
+                if (!alive)
+                    return;
+                if (deactivating)
+                    return;
+                deactivating = true;
+                if (!sleeper.IsCancellationRequested)
+                    sleeper.Cancel();
+                PrintHeader(DEADFEED);
+                alive = false;
+            }            
+            lock (lines)
+            {
+                if (save)
+                    saveCount = Save(lines, saveCount);
+                pointer = 0;
+            }
             deactivating = false;
         }
 
         /// <summary>
-        /// A method invoked by an event to act as an event handler used to remove a range
-        /// of elements from lines.
+        /// A method to save lines to the temporary file
         /// </summary>
-        /// <param name="sender">The object who triggered the event</param>
-        /// <param name="e">The event args</param>
-        private static void RemoveLines(object sender, CQRemoveEventArgs<int> e)
+        /// <param name="linesToSave">A list of lines to save</param>
+        /// <param name="offset">The number of elements of 'linesToSave' to skip</param>
+        /// <returns>The number of saved lines</returns>
+        private static int Save(List<List<KeyValuePair<string, ConsoleColor>>> linesToSave, int offset = 0)
         {
-            lock (lines)
-                lines.RemoveRange(lines.Count - (e.item + 1), e.item);
+            XDocument saveData = XDocument.Load(tempFile.FullName);
+            foreach (List<KeyValuePair<string, ConsoleColor>> lineData in linesToSave.Skip(offset))
+            {
+                XElement current = new XElement("line");
+                foreach (KeyValuePair<string, ConsoleColor> data in lineData)
+                    current.Add(new XElement("entry", new XAttribute("text", data.Key), new XAttribute("colour", (int)data.Value)));
+                saveData.Add(current);
+            }
+            saveData.Save(tempFile.FullName);
+            int savedLines = lines.Count;
+            linesToSave.Clear();
+            saved = true;
+            return savedLines;
         }
 
         /// <summary>
@@ -271,27 +291,30 @@ namespace TestEnv
         private static void Update((int, int) original)
         {
             int counter = 0;
-            if (size > lines.Count - pointer)
-                Console.CursorTop = bottom - (lines.Count - pointer);
-            else
-                Console.CursorTop = top + 1;
-            Console.CursorLeft = 0;
-            foreach (List<KeyValuePair<string, ConsoleColor>> line in lines.Skip(pointer).Take(size).ToArray().Reverse())
+            lock (lines)
             {
-                if (counter == size)
-                    break;
-                Console.Write(new string(' ', Console.WindowWidth));
-                Console.CursorTop--;
-                foreach (KeyValuePair<string, ConsoleColor> entry in line)
+                if (size > lines.Count - pointer)
+                    Console.CursorTop = bottom - (lines.Count - pointer);
+                else
+                    Console.CursorTop = top + 1;
+                Console.CursorLeft = 0;
+                foreach (List<KeyValuePair<string, ConsoleColor>> line in lines.Skip(pointer).Take(size).ToArray().Reverse())
                 {
-                    Console.ForegroundColor = entry.Value;
-                    Console.Write(entry.Key);
+                    if (counter == size)
+                        break;
+                    Console.Write(new string(' ', Console.WindowWidth));
+                    Console.CursorTop--;
+                    foreach (KeyValuePair<string, ConsoleColor> entry in line)
+                    {
+                        Console.ForegroundColor = entry.Value;
+                        Console.Write(entry.Key);
+                    }
+                    Console.SetCursorPosition(0, Console.CursorLeft == 0 ? Console.CursorTop : Console.CursorTop + 1);
+                    counter++;
                 }
-                Console.SetCursorPosition(0, Console.CursorLeft == 0 ? Console.CursorTop : Console.CursorTop + 1);
-                counter++;
+                Console.ResetColor();
+                Console.SetCursorPosition(original.Item1, original.Item2);
             }
-            Console.ResetColor();
-            Console.SetCursorPosition(original.Item1, original.Item2);
         }
 
         /// <summary>
@@ -322,7 +345,7 @@ namespace TestEnv
         static void Main(string[] args)
         {
             Feed.YOU = username;
-            Feed.Initialise(3, 5);
+            Feed.Initialise(3);
             Feed.Show();
             //Feed.Add(username, new string('b', 680) + "end", "test");
             //Feed.Add(username, "msg1", "test");
@@ -344,11 +367,6 @@ namespace TestEnv
                     Feed.Add(username, $"msg{++counter}", "test");
                     Thread.Sleep(1500);
                 }
-            });
-            Task.Run(() =>
-            {
-                while (true)
-                    Console.Read();
             });
         }
     }
