@@ -39,12 +39,12 @@ namespace TestEnv
         private static string OLDFEED = "[INCOMING FEED - (▼)]";
         private static string DEADFEED = "[FEED - (DEACTIVATED)]";
         private static bool updated = true;
-        private static bool saved = false;
         private static State alive;
         private static bool deactivating;
         private static CancellationTokenSource sleeper;
         private static int saveCount;
-        private static FileInfo tempFile;
+        private static object saveLock;
+        private static string tempLoc;
 
         #endregion
 
@@ -60,8 +60,10 @@ namespace TestEnv
             alive = new State(false);
             lines = new List<List<KeyValuePair<string, ConsoleColor>>>();
             sleeper = new CancellationTokenSource();
-            tempFile = new FileInfo(Path.GetTempFileName());
-            tempFile.Attributes = FileAttributes.Temporary;
+            saveLock = new object();
+            string commonPath = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+            tempLoc = Path.Combine($@"{commonPath}\CLUNKS\temp");
+            Directory.CreateDirectory(tempLoc);
         }
 
         /// <summary>
@@ -83,9 +85,9 @@ namespace TestEnv
             Console.CursorTop++;
             Console.Write(new string('\n', size) + new string('=', Console.WindowWidth));
             bottom = Console.CursorTop - 1;
-            if (saved)
+            if (File.Exists(Path.Combine(tempLoc, "msgs.xml")))
             {
-                XDocument saveData = XDocument.Load(tempFile.FullName);
+                XDocument saveData = XDocument.Load(Path.Combine(tempLoc, "msgs.xml"));
                 lines = new List<List<KeyValuePair<string, ConsoleColor>>>();
                 foreach (XElement line in saveData.Elements("line"))
                 {
@@ -94,6 +96,7 @@ namespace TestEnv
                         lines[lines.Count - 1].Add(new KeyValuePair<string, ConsoleColor>(entry.Attribute("text").ToString(), (ConsoleColor)Convert.ToInt32(entry.Attribute("colour"))));
                 }
             }
+            pointer = 0;
             Update((Console.CursorLeft, Console.CursorTop));            
             alive = true;
             sleeper.Dispose();
@@ -109,12 +112,11 @@ namespace TestEnv
                 else
                     sleeper.Token.WaitHandle.WaitOne(3000);
             }).Start();
-            Task.Run(() => 
-            { 
+            Task.Run(() =>
+            {
                 while (alive)
                 {
                     ConsoleKeyInfo keyInfo = Console.ReadKey();
-                    Console.CursorLeft--;
                     if (keyInfo.Modifiers.HasFlag(ConsoleModifiers.Control))
                     {
                         if (keyInfo.Key == ConsoleKey.OemPlus)
@@ -122,6 +124,8 @@ namespace TestEnv
                         else if (keyInfo.Key == ConsoleKey.OemMinus)
                             Scroll(false);
                     }
+                    if (keyInfo.Key == ConsoleKey.Enter)
+                        Console.CursorTop++;
                     Thread.Sleep(10);
                 }
             });
@@ -188,10 +192,12 @@ namespace TestEnv
                         }
                     }
                 }
-                if (alive && updated)
-                    Update((Console.CursorLeft, Console.CursorTop));
-                if (!alive)
-                    Save(insertList);
+                lock (saveLock)
+                    if (!alive)
+                        Save(insertList);
+                lock (lines)
+                    if (alive && updated)
+                        Update((Console.CursorLeft, Console.CursorTop));
             }
         }
 
@@ -233,7 +239,7 @@ namespace TestEnv
         /// <summary>
         /// Cleanup the resources held by the Feed class
         /// </summary>
-        public static void Cleanup() => File.Delete(tempFile.FullName);
+        public static void Cleanup() => Directory.Delete(tempLoc);
 
         /// <summary>
         /// A method to set the feed to inactive
@@ -251,15 +257,17 @@ namespace TestEnv
                     sleeper.Cancel();
                 PrintHeader(DEADFEED);
                 alive = false;
-            }            
-            lock (lines)
-            {
+            }
+            lock (saveLock)
                 if (save)
                     saveCount = Save(lines, saveCount);
-                pointer = 0;
-            }
             deactivating = false;
         }
+
+        /// <summary>
+        /// TESTING METHOD ONLY - This shoud be deleted
+        /// </summary>
+        public static void Deactivate() => Deactivate(true);
 
         /// <summary>
         /// A method to save lines to the temporary file
@@ -269,18 +277,31 @@ namespace TestEnv
         /// <returns>The number of saved lines</returns>
         private static int Save(List<List<KeyValuePair<string, ConsoleColor>>> linesToSave, int offset = 0)
         {
-            XDocument saveData = XDocument.Load(tempFile.FullName);
+            XDocument saveData;
+            XElement root;
+            string path = Path.Combine(tempLoc, "msgs.xml");
+            if (File.Exists(path))
+            {
+                saveData = XDocument.Load(path);
+                root = saveData.Root;
+            }
+            else
+            {
+                File.Create(path);
+                saveData = new XDocument();
+                root = new XElement("root");
+                saveData.Add(root);
+            }
             foreach (List<KeyValuePair<string, ConsoleColor>> lineData in linesToSave.Skip(offset))
             {
                 XElement current = new XElement("line");
                 foreach (KeyValuePair<string, ConsoleColor> data in lineData)
                     current.Add(new XElement("entry", new XAttribute("text", data.Key), new XAttribute("colour", (int)data.Value)));
-                saveData.Add(current);
+                root.Add(current);
             }
-            saveData.Save(tempFile.FullName);
+            saveData.Save(path);
             int savedLines = lines.Count;
             linesToSave.Clear();
-            saved = true;
             return savedLines;
         }
 
@@ -362,10 +383,14 @@ namespace TestEnv
                 int counter = 0;
                 while (true)
                 {
-                    //if (counter == 7)
-                    //    Feed.Show();
+                    Console.WriteLine("adder");
+                    if (counter == 3)
+                        Feed.Deactivate();
+                    if (counter == 7)
+                        Feed.Show();
                     Feed.Add(username, $"msg{++counter}", "test");
                     Thread.Sleep(1500);
+                    Console.WriteLine("adder out");
                 }
             });
         }
