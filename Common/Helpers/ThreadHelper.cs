@@ -19,8 +19,9 @@ namespace Common.Helpers
         /// <returns>The ECThread created from the CancellationToken and wrapped method.</returns>
         public static Thread GetECThread(CancellationToken ctoken, Action method)
         {
-            var thread = new Thread(() => { 
-                while (true && !ctoken.IsCancellationRequested)
+            var thread = new Thread(() => 
+            {
+                while (!ctoken.IsCancellationRequested)
                 {
                     method();
                     Thread.Sleep(10);

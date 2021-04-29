@@ -18,16 +18,19 @@ namespace Client
         private static string username = null;
         private static Stack<string> traversalTrace;
 
+        //TODO: write notification command
         static void Main(string[] args)
         {
             Console.CancelKeyPress += new ConsoleCancelEventHandler(Quit);
             Title();
+            Helpers.Feed.Initialise(3);
             bool state = true;
             channel = new ClientChannel(1024, IPAddress.Parse(args[0]), Convert.ToInt32(args[1]), Convert.ToInt32(args[2]), EncryptionConfig.Strength.Strong, ref state);
             quit = !state;
             channel.ChannelFail += FailHandler;
             if (!quit)
                 channel.Start();
+            channel.MessageDispatch += MessageHandler;
             Packet outPacket;
             traversalTrace = new Stack<string>();
             while (!quit)
@@ -111,14 +114,14 @@ namespace Client
                                 outPacket.Add(input[0], Communication.START, input[1], username, Communication.BACKWARD, String.Join(" - ", traversalTrace));
                             else
                                 outPacket.Add(input[0], Communication.START, input[1], username, Communication.FORWARD, traversalTrace.Count == 0 ? String.Empty : traversalTrace.Peek());
-                            channel.Dispatch += ConnectReponseHanlder;
+                            channel.StatusDispatch += ConnectReponseHanlder;
                             channel.Add(outPacket);
                             Console.WriteLine($"Requesting CONNECT to '{input[1]}'...");
                             break;
                         case Communication.LOGIN:
                             outPacket = new Packet(DataID.Command, channel.id);
                             outPacket.Add(input[0], Communication.START, input[1]);
-                            channel.Dispatch += LoginResponseHandler;
+                            channel.StatusDispatch += LoginResponseHandler;
                             channel.Add(outPacket);
                             break;
                         case Communication.MAKE_GROUP:
@@ -136,8 +139,41 @@ namespace Client
                             }
                             outPacket = new Packet(DataID.Command, channel.id);
                             outPacket.Add(input[0], input[1], input.Length > 2 ? input[2] : String.Empty, traversalTrace.Peek());
-                            channel.Dispatch += MGResponseHandler;
+                            channel.StatusDispatch += MGResponseHandler;
                             channel.Add(outPacket);
+                            break;
+                        case Communication.CHAT:
+                            if (username == null)
+                            {
+                                Console.WriteLine("You must log into an account before sending chats");
+                                prompted = false;
+                                break;
+                            }
+                            outPacket = new Packet(DataID.Command, channel.id);
+                            state = input.Length < 3;
+                            if (!state)
+                                state = String.IsNullOrEmpty(input[2]);
+                            if (!state && (input[1] == username || String.IsNullOrEmpty(input[2].Trim())))
+                            {
+                                Console.WriteLine("You cannot message yourself");
+                                prompted = false;
+                                break;
+                            }                                
+                            if (state && traversalTrace.Count == 0)
+                            {
+                                Console.WriteLine("You need to be connected to an entity to send global chats");
+                                prompted = false;
+                                break;
+                            }
+                            if (state)
+                                outPacket.Add(input[0],Communication.TRUE, username, traversalTrace.Peek(), input[1]);
+                            else
+                                outPacket.Add(input[0], Communication.FALSE, username, input[1], input[2]);
+                            channel.StatusDispatch += ChatHandler;
+                            channel.Add(outPacket);
+                            break;
+                        case Communication.FEED:
+                            Helpers.Feed.Show();
                             break;
                         case "cls":
                             Console.Clear();
@@ -150,7 +186,7 @@ namespace Client
                             {
                                 outPacket = new Packet(DataID.Command, channel.id);
                                 outPacket.Add(Communication.DISCONNECT, traversalTrace.Peek(), username);
-                                channel.Dispatch += DisconnectResponseHandler;
+                                channel.StatusDispatch += DisconnectResponseHandler;
                                 channel.Add(outPacket);
                                 Console.WriteLine($"Leaving...");
                             }
@@ -178,7 +214,7 @@ namespace Client
                 Console.WriteLine($"CONNECT completed with status '{values[0].ToUpper()}'.");
                 if (values[0] != Communication.FAILURE)
                     traversalTrace = new Stack<string>(values[1].Split(" - "));
-                channel.Dispatch -= ConnectReponseHanlder;
+                channel.StatusDispatch -= ConnectReponseHanlder;
                 prompted = false;
                 pass = true;             
             }
@@ -197,7 +233,7 @@ namespace Client
             Console.WriteLine($"DISCONNECT completed with status '{values[0].ToUpper()}'.");
             if (values[0] != Communication.FAILURE)
                 traversalTrace.Pop();
-            channel.Dispatch -= DisconnectResponseHandler;
+            channel.StatusDispatch -= DisconnectResponseHandler;
             prompted = false;
         }
 
@@ -208,10 +244,14 @@ namespace Client
             {
                 Console.WriteLine($"LOGIN completed with status '{values[0].ToUpper()}'.");
                 if (values[0] != Communication.FAILURE)
+                {
                     username = values[1];
-                channel.Dispatch -= LoginResponseHandler;
+                    Helpers.Feed.YOU = username;
+                }
+                channel.StatusDispatch -= LoginResponseHandler;
                 prompted = false;
                 pass = true;
+                //TODO: 'You have 2 new notifications' on login
             }
             else
             {
@@ -222,11 +262,24 @@ namespace Client
             }
         }
 
+        private static void ChatHandler(object sender, PacketEventArgs e)
+        {
+            Console.WriteLine(e.packet.Get()[0] == Communication.SUCCESS ? "CHAT sent" : "Failed to send");
+            channel.StatusDispatch -= ChatHandler;
+            prompted = false;
+        }
+
         private static void MGResponseHandler(object sender, PacketEventArgs e)
         {
             Console.WriteLine($"MAKE GROUP completed with status '{e.packet.Get()[0].ToUpper()}'.");
-            channel.Dispatch -= MGResponseHandler;
+            channel.StatusDispatch -= MGResponseHandler;
             prompted = false;
+        }
+
+        private static void MessageHandler(object sender, PacketEventArgs e)
+        {
+            string[] values = e.packet.Get();
+            Helpers.Feed.Add(values[1], values[2], values[0] == Communication.TRUE ? traversalTrace.Peek() : null);
         }
 
         private static void Quit(object sender, ConsoleCancelEventArgs e)
@@ -241,7 +294,7 @@ namespace Client
         {
             void Output(string s)
             {
-                Console.Write(new string(' ', (Console.WindowWidth - s.Length) / 2)); ;
+                Console.Write(new string(' ', (Console.WindowWidth - s.Length) / 2));
                 Console.WriteLine(s);
             }
 

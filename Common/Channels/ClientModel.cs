@@ -26,7 +26,7 @@ namespace Common.Channels
         public bool receivedHB;
         public int missedHBs;
         public bool isAdmin = false;
-        public Dictionary<string, object> data;
+        public Dictionary<string, string> data;
 
         public Socket Handler
         {
@@ -47,7 +47,7 @@ namespace Common.Channels
             packetFactory.encCfg.useCrypto = false;
             packetFactory.encCfg.captureSalts = true;
             protocol = ProtocolType.Tcp;
-            data = new Dictionary<string, object>();
+            data = new Dictionary<string, string>();
         }
 
         #region IDisposable Implementation

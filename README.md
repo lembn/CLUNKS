@@ -1,10 +1,27 @@
-# CLUNKS
+# **CLUNKS** - A Brief Overview
 
 ***C**ommand* ***L**ine* ***U**nification* ***N***etwor***k*** ***S**ystem*
 
-**CLUNKS** is a system to provide simple LAN video conferencing for large businesses and establishments. Users only need to create a **CLUNK** server on their network, and they will be able to host and join video calls with anyone on that network.
+**CLUNKS** is a system to provide simple LAN video conferencing for large businesses and establishments. Users only need to create a **CLUNK** server on their network, and they will be able to host and join logical entities on the server to communicate with any users added to it. **CLUNKS** currently runs with messaged based communication but has the underlying framework in place to be compatible with video and audio comminucation aswell.
+
+While other similar programs may exist, they are usually bespoke softwares made pricately for specific environments and aren't desinged to be public and widely accesible like **CLUNKS** is. This means that they may not have the same security and performance benefits that comes built into **CLUNKS**, and the ones which do are often private or proprietary.
+
+**CLUNKS** is created with inclusion in mind, and aims to create a satisfying user experience for all machines, regardless of the power of the machine running the client. While this approach applies to the server also, the operation of **CLUNKS** can benifit largely from having the server running on a more powerful machine. Other services may not share this philoosphy, making **CLUNKS** great for quickly getting a system up and running for fast and secure communication in any environment.
+
+**CLUNKS** aims to:
+- Contain functionality that will allow users to communicate with each other via messages
+- Provide a smooth user experience by utilising threads to distribute the workload across multiple asynchrounous paths of exeuction
+- Provide secure communcation by encrypting all network traffic sent through it
+- Provide abosulte confidence of integrity of data
+- Provide fast communication services
+- Be a service that can run smoothly on any machine, regardless of its performance grade (within reason)
+- Provide a flexible underlying codebase that can be expanded for more features in the future such as audio and video calling
+- Proivde unique user accounts used to perform actions within the program
+- Provide an application allowing users to easily create and configure their server to their specific needs
 
 ---
+
+# **CLUNKS** - The Design 
 
 ## Servers
 When the user first installs the product, they will need to create a CLUNK server to be able to do anything. The CLUNK server is the server-side program which manages all sub-servers and serves clients.
@@ -82,7 +99,7 @@ CLUNKS>>> chat [username] [message]
 This will send a message to the user. Messages are stored in the database. A user can send a message to all members of the entity with:
 ```
 [subservername]
-CLUNKS>>> !!chat [message]
+CLUNKS>>> chat [message]
 ```
 
 ### **Calling**
@@ -96,7 +113,7 @@ CLUNKS>>> [username] is calling. Accept?
 ```
 The user can enter `y` to accept or `n` to decline. After three seconds with no response, the request is repeated again. Requests are repeated 5 times until they are automatically quit. The orignal user would be informed that the call was not picked up. The intended receiver would have notification added to their notifications if they missed the call.
 
-For large conference calls, the user can also create a call on their current entity server with the `!!call` command This creates a conference call that anyone on the subserver can join into by running `joincall`. There can only be one call running in a given entity at a time.
+For large conference calls, the user can also create a call on their current entity server by running the `call` command with no username. This creates a conference call that anyone on the subserver can join into by running `joincall`. There can only be one call running in a given entity at a time.
 
 ### **Call actions**
 When in large group calls, the screen may become crowded by camera feeds of all the other users. To manage this, the user can user use `hide [username]` and `show [username]` to toggle which user's are shown. When a user is hidden, you can only hear them, but not see. A user in a call can be silenced with `mute [username]`. `mute` can be undone with `unmute`. These commands only apply to the user that runs them Running `mute` or `unmute` with no argument will perfrom the action on the user. This will be applied to everyone.
@@ -530,6 +547,7 @@ C# Access Webcam: https://www.google.com/search?q=c%23+access+webcam&rlz=1C1CHBF
 
 # Keep in mind
 ATM, when encryption level <= EncryptionConfig.Strength.Light, the size of the key is too small for certificates. This is because the size of the key is too small to compensate for the salt which is generated with EncryptionConfig.Strength.Strong settings (as per the Handshake protocol) <br>
+Dates/Time is in UTC <br>
 
 # To add
 Common.Channels.ServerChannel itereates backwards though the list when checking for heartbeats so it can remove dead clients from client list within the same iteration. This mimimises lock time.
