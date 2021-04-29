@@ -1,10 +1,27 @@
-# CLUNKS
+# **CLUNKS** - A Brief Overview
 
 ***C**ommand* ***L**ine* ***U**nification* ***N***etwor***k*** ***S**ystem*
 
-**CLUNKS** is a system to provide simple LAN video conferencing for large businesses and establishments. Users only need to create a **CLUNK** server on their network, and they will be able to host and join video calls with anyone on that network.
+**CLUNKS** is a system to provide simple LAN video conferencing for large businesses and establishments. Users only need to create a **CLUNK** server on their network, and they will be able to host and join logical entities on the server to communicate with any users added to it. **CLUNKS** currently runs with messaged based communication but has the underlying framework in place to be compatible with video and audio comminucation aswell.
+
+While other similar programs may exist, they are usually bespoke softwares made pricately for specific environments and aren't desinged to be public and widely accesible like **CLUNKS** is. This means that they may not have the same security and performance benefits that comes built into **CLUNKS**, and the ones which do are often private or proprietary.
+
+**CLUNKS** is created with inclusion in mind, and aims to create a satisfying user experience for all machines, regardless of the power of the machine running the client. While this approach applies to the server also, the operation of **CLUNKS** can benifit largely from having the server running on a more powerful machine. Other services may not share this philoosphy, making **CLUNKS** great for quickly getting a system up and running for fast and secure communication in any environment.
+
+**CLUNKS** aims to:
+- Contain functionality that will allow users to communicate with each other via messages
+- Provide a smooth user experience by utilising threads to distribute the workload across multiple asynchrounous paths of exeuction
+- Provide secure communcation by encrypting all network traffic sent through it
+- Provide abosulte confidence of integrity of data
+- Provide fast communication services
+- Be a service that can run smoothly on any machine, regardless of its performance grade (within reason)
+- Provide a flexible underlying codebase that can be expanded for more features in the future such as audio and video calling
+- Proivde unique user accounts used to perform actions within the program
+- Provide an application allowing users to easily create and configure their server to their specific needs
 
 ---
+
+# **CLUNKS** - The Design 
 
 ## Servers
 When the user first installs the product, they will need to create a CLUNK server to be able to do anything. The CLUNK server is the server-side program which manages all sub-servers and serves clients.

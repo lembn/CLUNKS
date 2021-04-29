@@ -119,7 +119,7 @@ namespace Client.Helpers
         /// <param name="message">The message content</param>
         /// <param name="entity">The entity that the message was sent to (for global chat)</param>
         /// <param name="default">The default console colour</param>
-        public static void Add(string username, string message, string entity ConsoleColor @default = ConsoleColor.Gray)
+        public static void Add(string username, string message, string entity, ConsoleColor @default = ConsoleColor.Gray)
         {
             List<string> text = new List<string>();
             List<ConsoleColor> colours = new List<ConsoleColor>();
