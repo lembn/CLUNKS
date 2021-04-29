@@ -5,21 +5,6 @@ namespace Common.Helpers
 {
     public static class ConsoleTools
     {
-        public static bool AskYesNo(string question)
-        {
-            ConsoleKey response;
-            do
-            {
-                Console.Write($"{question}? [y/n] ");
-                response = Console.ReadKey(false).Key;
-                if (response != ConsoleKey.Enter)
-                    Console.WriteLine();
-
-            } while (response != ConsoleKey.Y && response != ConsoleKey.N);
-
-            return response == ConsoleKey.Y;
-        }
-
         public static string HideInput(string prompt)
         {
             Console.Write($"{prompt}>>> ");

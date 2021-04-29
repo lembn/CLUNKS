@@ -100,8 +100,8 @@ namespace Common.Channels
                     else
                     {
                         clientList[i].missedHBs += 1;
-                        if (clientList[i].missedHBs == 2) { } //TODO: replace
-                            //RemoveClient(clientList[i]);
+                        if (clientList[i].missedHBs == 2)
+                                RemoveClient(clientList[i]);
                     }
                 }
             })); //Heartbeat

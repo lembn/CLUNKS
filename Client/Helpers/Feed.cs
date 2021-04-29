@@ -7,24 +7,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 
-namespace TestEnv
+namespace Client.Helpers
 {
-    /// <summary>
-    /// A reference type wrapper for the bool class
-    /// </summary>
-    public class State
-    {
-        private bool state;
-
-        public State(bool initial) => state = initial;
-
-        public static implicit operator bool(State a) => a.state;
-        public static implicit operator State(bool a) => new State(a);
-    }
-
-    /// <summary>
-    /// A Thread safe class to represent the incoming message feed of a user
-    /// </summary>
     public static class Feed
     {
         #region Private Members
@@ -96,7 +80,7 @@ namespace TestEnv
                 }
             }
             pointer = 0;
-            Update((Console.CursorLeft, Console.CursorTop));            
+            Update((Console.CursorLeft, Console.CursorTop));
             alive = true;
             ThreadHelper.GetECThread(sleeper.Token, () =>
             {
@@ -135,7 +119,7 @@ namespace TestEnv
         /// <param name="message">The message content</param>
         /// <param name="entity">The entity that the message was sent to (for global chat)</param>
         /// <param name="default">The default console colour</param>
-        public static void Add(string username, string message, string entity = null, ConsoleColor @default = ConsoleColor.Gray)
+        public static void Add(string username, string message, string entity ConsoleColor @default = ConsoleColor.Gray)
         {
             List<string> text = new List<string>();
             List<ConsoleColor> colours = new List<ConsoleColor>();
@@ -152,7 +136,7 @@ namespace TestEnv
             Add(" - ", @default);
             Add(message, @default);
             if (pointer > 0 && updated)
-            {   
+            {
                 PrintHeader(OLDFEED);
                 updated = false;
                 pointer++;
@@ -229,7 +213,7 @@ namespace TestEnv
                         }
                     }
                 }
-            Update((Console.CursorLeft, Console.CursorTop));
+                Update((Console.CursorLeft, Console.CursorTop));
             }
         }
 
@@ -241,7 +225,7 @@ namespace TestEnv
         /// <summary>
         /// A method to set the feed to inactive
         /// </summary>
-        public static void Deactivate(bool save)
+        private static void Deactivate(bool save)
         {
             lock (alive)
             {
@@ -249,9 +233,9 @@ namespace TestEnv
                     return;
                 if (deactivating)
                     return;
-                sleeper.Cancel();
-                sleeper.Dispose();
-                sleeper = new CancellationTokenSource();
+                //sleeper.Cancel();
+                //sleeper.Dispose();
+                //sleeper = new CancellationTokenSource();
                 PrintHeader(DEADFEED);
                 alive = false;
             }
@@ -299,7 +283,7 @@ namespace TestEnv
                 saveData.Save(stream);
                 stream.Close();
                 stream.Dispose();
-            }    
+            }
             int savedLines = lines.Count;
             linesToSave.Clear();
             return savedLines;
@@ -356,43 +340,6 @@ namespace TestEnv
             Console.ForegroundColor = ConsoleColor.White;
             Console.Write(dashes + header + dashes);
             Console.SetCursorPosition(orignalLeft, orignalTop);
-        }
-    }
-
-    class Program
-    {
-        private static string username = "lem";
-
-        static void Main(string[] args)
-        {
-            Feed.YOU = username;
-            Feed.Initialise(3);
-            Feed.Show();
-            //Feed.Add(username, new string('b', 680) + "end", "test");
-            //Feed.Add(username, "msg1", "test");
-            //Feed.Add(username, new string('b', 120) + "end", "test");
-            //Feed.Add(username, "msg2");
-            //Feed.Add(username, "msg3");
-            //Feed.Add(username, "msg4");
-            //Feed.Scroll(true);
-            //Feed.Add(username, "msg5");
-            //Feed.Add(username, "msg6");
-            //Feed.Add(username, "msg7");]
-            Thread adder = new Thread(() =>
-            {
-                int counter = 0;
-                while (true)
-                {
-                    if (counter == 3)
-                        ;// Feed.Deactivate();
-                    if (counter == 7)
-                        Feed.Show();
-                    Feed.Add(username, $"msg{++counter}", "test");
-                    Thread.Sleep(1500);
-                }
-            });
-            adder.Start();
-            adder.Join();
         }
     }
 }

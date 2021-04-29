@@ -23,6 +23,7 @@ namespace Client
         {
             Console.CancelKeyPress += new ConsoleCancelEventHandler(Quit);
             Title();
+            Helpers.Feed.Initialise(3);
             bool state = true;
             channel = new ClientChannel(1024, IPAddress.Parse(args[0]), Convert.ToInt32(args[1]), Convert.ToInt32(args[2]), EncryptionConfig.Strength.Strong, ref state);
             quit = !state;
@@ -171,6 +172,9 @@ namespace Client
                             channel.StatusDispatch += ChatHandler;
                             channel.Add(outPacket);
                             break;
+                        case Communication.FEED:
+                            Helpers.Feed.Show();
+                            break;
                         case "cls":
                             Console.Clear();
                             prompted = false;
@@ -240,7 +244,10 @@ namespace Client
             {
                 Console.WriteLine($"LOGIN completed with status '{values[0].ToUpper()}'.");
                 if (values[0] != Communication.FAILURE)
+                {
                     username = values[1];
+                    Helpers.Feed.YOU = username;
+                }
                 channel.StatusDispatch -= LoginResponseHandler;
                 prompted = false;
                 pass = true;
@@ -271,17 +278,8 @@ namespace Client
 
         private static void MessageHandler(object sender, PacketEventArgs e)
         {
-            //TODO: write message handler
             string[] values = e.packet.Get();
-            if (values[0] == Communication.TRUE)
-            {
-                Console.WriteLine($"{(values[1] == username ? "YOU" : values[1])}@{traversalTrace.Peek()} - {values[2]}");
-            }
-            else
-            {
-                Console.WriteLine($"{values[1]} - {values[2]}");
-                //msg is private
-            }
+            Helpers.Feed.Add(values[1], values[2], values[0] == Communication.TRUE ? traversalTrace.Peek() : null);
         }
 
         private static void Quit(object sender, ConsoleCancelEventArgs e)
