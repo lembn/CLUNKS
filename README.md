@@ -2,11 +2,31 @@
 
 ***C**ommand* ***L**ine* ***U**nification* ***N***etwor***k*** ***S**ystem*
 
-**CLUNKS** is a system to provide simple LAN video conferencing for large businesses and establishments. Users only need to create a **CLUNK** server on their network, and they will be able to host and join logical entities on the server to communicate with any users added to it. **CLUNKS** currently runs with messaged based communication but has the underlying framework in place to be compatible with video and audio comminucation aswell.
+**CLUNKS** is a system to provide simple LAN communication services for large businesses and establishments. Users will need to create a **CLUNK** server on their network, and from there, the clients are able to log into pre-made user accounts, which can use to host, join logical entities on the server to communicate with any users added to it. **CLUNKS** currently runs with messaged based communication but has the underlying framework in place to be compatible with video and audio comminucation aswell.
 
 While other similar programs may exist, they are usually bespoke softwares made pricately for specific environments and aren't desinged to be public and widely accesible like **CLUNKS** is. This means that they may not have the same security and performance benefits that comes built into **CLUNKS**, and the ones which do are often private or proprietary.
 
 **CLUNKS** is created with inclusion in mind, and aims to create a satisfying user experience for all machines, regardless of the power of the machine running the client. While this approach applies to the server also, the operation of **CLUNKS** can benifit largely from having the server running on a more powerful machine. Other services may not share this philoosphy, making **CLUNKS** great for quickly getting a system up and running for fast and secure communication in any environment.
+
+## The Plan
+
+The overall service will be broken down into three distinct exeuctable programs. First the client, a C# .NET5 Console Application that will connect to the server provide a user with all the means necessary to communicate with other server-users. 
+
+Then there is the server program itself. The server is a C# ASP.NET Worker Service that can be built down into a Windows Service or daemon (appropriate to the operating system of the build machine) and executed once to run for long periods of time, and serve clients. The server will manage the user database and also will act as a secure 'middle-man' for the encryption so that users only ever need to store one asymmetric key (managed by the client program). While the default server and client are written in C#, all the server program does is expose a socket on its machine and process the data coming into that socket in a certain way. This means that theoretically, any program could be created in any language to connect to a **CLUNKS** server, so long as it followed the correct protocols and presented data in the right way (otherwise the new client would be rejected by the server). In a practical sense, the possibilites could range from a user creating their own simplified version of the **CLUNKS** client; to a user intergrating **CLUNKS** into a whole different application, so long as they had access to a server. Likewise, along with the server being openly acessible, the server is written abstracly enough that it could be implemented into a WAN - despite being targeted for a LAN configuration. This would simply involve hosting a **CLUNKS** server on a web server machine, allowing it to be accessed by any client with an internet connection. 
+
+Finally there is the support program: ClunksEXP. The server is configured using `.exp` files, which are a configuration on `XML` that allows users to configure user accounts, entities on the server and different user privelleges. When the server is run, it can be told to load an `.exp` configuration into itself, which it will do, reconfiguring the server to whatever was defined in the `.exp` file. This not only makes different configurations easy and quick to change, but also makes them easy to share. If the server ran soley from a database file, the only way a configuration could be used twice is if the database was reconstructed, which could easily become a long and tedious task; or copied and shared, which could potentially take up very large amounts of disk space. `.exp` files are lightweight, and can be created and edited withing ClunksEXP, making server configuration and reconfiguration simple and easy and allowing server admins to easily share configurations between each other if they wish to do so.
+
+ClunksEXP is written in Python, a scripting language which best suits the objective the program is tring to achieve. The client and program are both written in cross-platform compatible languages, making **CLUNKS** as a whole a completely cross-platform service that can run on Windows, Linux and MacOS.
+
+## Feasabilty
+
+>*i.* The user hardware requirements for service are very feasible since **CLUNKS** is designed to run well on any system. Furthermore, in a LAN setting, a stable internet connection wouldn't even be required so long as there is a network for devices to connect to. The service could even be run in remote locations!
+
+>*ii.* In terms of comparing **CLUNKS** to other similar software solutions, there isn't much of a jump for users to adapt to between the current available systems and what **CLUNKS** aims to be. It should be simple to use and approachable to new users, making the change very feasible.
+
+>*iii.* The processing issues of the solution (from a programming perspective) aren't necessarily simple, but definitely possible, and since all major potential feasability issues have been considered, the project can be considered to be feasible in terms of coding, production and usage.
+
+## Objectives
 
 **CLUNKS** aims to:
 - Contain functionality that will allow users to communicate with each other via messages
@@ -19,27 +39,37 @@ While other similar programs may exist, they are usually bespoke softwares made 
 - Proivde unique user accounts used to perform actions within the program
 - Provide an application allowing users to easily create and configure their server to their specific needs
 
----
+<br>
+
+--------
+<br>
 
 # **CLUNKS** - The Design 
 
-## Servers
-When the user first installs the product, they will need to create a CLUNK server to be able to do anything. The CLUNK server is the server-side program which manages all sub-servers and serves clients.
+## The Proposed System - Servers
 
-To create a CLUNK server, the user must be an admin/superuser on their system. Using ClunksExp, they can create exp files to configure the server. The server program itself is a windowless Windows Application. It only needs to be started on the server machine, from there it can be interacted with though the client scripts.
+For new **CLUNKS** installations, a new CLUNK server will need to be started to get the system up and running. Using ClunksEXP, a user can create `.exp` files to create the configuration they want to run the server on. This file can then be loaded into the server when it starts up and the server can be left running to serve users. The `.exp` file will contain the informaton for user accounts, and hosted entities.
 
-A CLUNK server hosts *sub-servers*. Sub-servers are designed to create physical separation withing the server, each sub-server be represented as a seperate entity in the database. Because of this design, a user registered to a sub-server, will not exist in any other sub-server unless they are created in the other sub-servers also. This allows the admin of the CLUNK server to create separation within the server. For example, a school may use CLUNKS for meetings, but create seperate subservers for each year group.
+The available hosted entities, in hierarchical order, are:
+ - Sub-servers
+ - Rooms
+ - Groups
 
-The server admin can also create *global users*. These are users who are not tied to one specific sub-sever but exist globally to the entire server. In the school scenario, this would be used to create accounts for teachers, since it allows the admin to create the user once, rather than making a new one for each year group sub-sever.
+Sub-servers are the (hierarchically) greatest entity that can be created on the server. They are created directly on the server and are used to create separation within different groups of users within the server. Each sub-server be represented with seperate tables in the database, such that a user registered to a sub-server, will not exist in any other sub-server unless they are created in the other sub-servers also. Providing the admin of the CLUNK server the ability to create separation within the server. For example, a school using CLUNKS may create seperate subservers for each year group.
 
-The ability to run commands within CLUNKS is controlled by the server admin. The server-admin can grant different permissions to different users which will allow them to do certain things. In the school example, the server admin may configure the server such that only teachers can start calls, and sudents may only join existing ones. To achive this, the would create an *elevation level* (one for the student and one for the teacher). Elevation levels describe the actions that a user is allowed to make. The teacher elevation level would have the ability to make calls, the student one would not. These elevation levels can then be assigned to the users as the admin sees fit.
+Like sub-servers, rooms are also entites that can exists on a CLUNK server, with the difference between a sub-server and room being that rooms cannot be created directly onto the server, while sub-servers can. Sub-servers however, cannot be created anywhere other than directly on the server. This means that any complex structures required by the server admin can be created using rooms, which must be a child of a sub-server or another room. In the school example used above, rooms could be used to represent different classes within in the year groups. Rooms can also be password protected.
 
----
+Finally, groups are temporary rooms that can be created by clients on the server. Unlike sub-servers and rooms, groups can only be created at runtime, so aren't included in the `exp` specification of a CLUNKS server. They serve the purpose of allowing the user to make privatised spaces on the parent enity without needing to permanently impact the structure of the server. The member-list of the group is the same as the member list of the groups's parent and the room must be the child of a room or another group. Privatisation is achieved with the (optional) password that a room can be created with such that the password will only be shared with the desired users, and only they can connect to the room. After being created, the group will exist until all its members quit the program. If they leave the group but still have the program open, the group will be kept alive until the last group member quits the program.
 
-## Using **CLUNKS**
-As the name suggests, **CLUNKS**, is a command line application, the recommded usage is to add **CLUNKS** to the user's environment variables so they can call the program from their command prompt/terminal.
+The server admin can also create *global users*. These are users who are not tied to one specific sub-sever but exist globally to the entire server. In the school scenario, this would be used to create accounts for teachers, since it allows the admin to create the user account for a teacher once, rather than repeatedly duplicating the same account for each year group sub-sever.
 
-To run the program, users will call `clunks [serverIP]`, (or whatever the program is named in the user's environment variables). They can tell they're in the **CLUNKS** environment as their command promt/terminal will change to:
+The ability to run commands within CLUNKS is controlled by the server admin. The server-admin can grant different permissions to different users which will allow them to do certain things. In the school example, the server admin may configure the server such that only teachers can create groups, and sudents may only join existing ones. To achive this, the would create an *elevation level* (one for the student and one for the teacher). Elevation levels describe the actions that a user is allowed to make. The teacher elevation level would have the ability to make calls, the student one would not. These elevation levels can then be assigned from within ClunksEXP to the users as the admin sees fit.
+
+## The Proposed System - Client Side Usage
+
+As the name suggests, **CLUNKS**, is a command line application, the recommded usage is for a user to add **CLUNKS** to their environment variables so they can call the client program from their command prompt/terminal.
+
+To run the program, users will call `clunks [serverIP] [serverTCPPort] [serverUDPPort]`, (or whatever the program is named in the user's environment variables). They can tell they're in the **CLUNKS** environment as their command promt/terminal will change to:
 ```
 CLUNKS>>>
 ```
@@ -66,7 +96,7 @@ CLUNKS>>> changepwd [old password] [new password]
 ```
 
 ### **Connecting**
-To interact with other active users on the server, the user will need to enter the entities (sub-servers/rooms/groups) that the other users are in. This can be done with:
+To interact with other active users on the server, the user will need to enter the entities that the other users are in. This can be done with:
 ```
 CLUNKS>>> connect [targetEntityName]
 ```
@@ -78,18 +108,12 @@ CLUNKS>>>
 ```
 
 ### **Groups**
-For group calls, the user can call the sub-server, or room they are currently in and any member of the entity is able to join that call, however if a user wanted to make a group call that didn't include all members of the entity, they can create a group.
-
-Groups are temporary rooms that can be created by clients on the server. They serve the purpose of allowing the user to make privatised spaces on the parent enity without needing to permanently impact the structure of the server.
-
 ```
 CLUNKS>>> makegrp [roomname] [password]
 ```
 *Where [password] is optional*
 
-After this, the group can be joined using the standard `connect` command. The member-list of the group is the same as the member list of the groups's parent. Privatisation is achieved with the password.
-
-After being created The group will exist until all its members quit the program. If they leave the group but still have the program open, the group will be kept alive until the last group member quits the program.
+After this, the group can be joined using the standard `connect` command. 
 
 ### **Messaging**
 Messaging is another base feature of CLUNKS. Users can message each other directly with:
@@ -131,8 +155,25 @@ There are commands that users can run to obtain information about the subserver.
 
 *Settings:* `settings` will allow the user to configure the program to run differently to optimise efficiency and improve the user experience for them personally.
 
-----
-# Technical Notes
+---
+
+## Database Design
+
+## Class Design
+
+## Communication
+Packets
+
+## Security
+
+## Complex Data Processing
+
+<br>
+
+--------
+<br>
+
+# **CLUNKS** - Technical Notes
 ## Program Protocols - Packets
 Even though CLUNKS uses TCP/UDP for network transmission, alone, they only offer the ability to send bytes over the network, making it diffuclt for the receiving device to interpret what these bytes represent. To sovle this a wrapper protocol was needed to govern how these bytes are arranged. This protocol can be seen in the Common.Packets.Packet class, which provides a wrapper for the Common.Channel classes to use when transferring data.
 
@@ -550,4 +591,5 @@ ATM, when encryption level <= EncryptionConfig.Strength.Light, the size of the k
 Dates/Time is in UTC <br>
 
 # To add
-Common.Channels.ServerChannel itereates backwards though the list when checking for heartbeats so it can remove dead clients from client list within the same iteration. This mimimises lock time.
+DB Design
+DB passwords are hashed
