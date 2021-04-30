@@ -6,6 +6,8 @@
 
 While other similar programs may exist, they are usually bespoke softwares made pricately for specific environments and aren't desinged to be public and widely accesible like **CLUNKS** is. This means that they may not have the same security and performance benefits that comes built into **CLUNKS**, and the ones which do are often private or proprietary.
 
+There are also some other programs that achieve a similar result (provide communication between users on different machines) but in different ways (non CLI). A good example of some of these are Skype and Microsoft Teams. Both are Microsoft-developed applications to provide communication services with Skype being aimed for more personal usage and Microsoft Teams targeting a professional setting. While both applications work very well and could be used in place of **CLUNKS** to acheive its task, there is often much overhead to using these programs - being that an account has to be opened with Microsoft and lots of verification has to be put in place to protect this account, etc. **CLUNKS** aims to solve this problem by simplifying the process and removing all the unnecessary extra parts of the solution so that the user doesn't have to worry about them. This makes the system easy to set up and very accessible to new users.
+
 **CLUNKS** is created with inclusion in mind, and aims to create a satisfying user experience for all machines, regardless of the power of the machine running the client. While this approach applies to the server also, the operation of **CLUNKS** can benifit largely from having the server running on a more powerful machine. Other services may not share this philoosphy, making **CLUNKS** great for quickly getting a system up and running for fast and secure communication in any environment.
 
 ## The Plan
@@ -20,10 +22,8 @@ ClunksEXP is written in Python, a scripting language which best suits the object
 
 ## Feasabilty
 
->*i.* The user hardware requirements for service are very feasible since **CLUNKS** is designed to run well on any system. Furthermore, in a LAN setting, a stable internet connection wouldn't even be required so long as there is a network for devices to connect to. The service could even be run in remote locations!
-
->*ii.* In terms of comparing **CLUNKS** to other similar software solutions, there isn't much of a jump for users to adapt to between the current available systems and what **CLUNKS** aims to be. It should be simple to use and approachable to new users, making the change very feasible.
-
+>*i.* The user hardware requirements for service are very feasible since **CLUNKS** is designed to run well on any system. Furthermore, in a LAN setting, a stable internet connection wouldn't even be required so long as there is a network for devices to connect to. The service could even be run in remote locations! <br> <br>
+>*ii.* In terms of comparing **CLUNKS** to other similar software solutions, there isn't much of a jump for users to adapt to between the current available systems and what **CLUNKS** aims to be. It should be simple to use and approachable to new users, making the change very feasible. <br> <br>
 >*iii.* The processing issues of the solution (from a programming perspective) aren't necessarily simple, but definitely possible, and since all major potential feasability issues have been considered, the project can be considered to be feasible in terms of coding, production and usage.
 
 ## Objectives
@@ -157,16 +157,363 @@ There are commands that users can run to obtain information about the subserver.
 
 ---
 
+## Major Components
+The C# code will be written in Microsoft Visual Studio (A C# supporting IDE) which organises projects into 'Solutions' and 'Projects'. A VS Project represents an entire C# assembly, a solution is a collection of projects and related data. The client and server programs will be written as individual projects in the overall solution. The solution will also contain another project 'Common' which will contain the classes that are shared between the client and server projects.
+
 ## Database Design
 
-## Class Design
+# Move old DBH notes into here
+# Talk about why SQLite was chosen
 
-## Communication
-Packets
+Below is a entity relationship diagram displaying the structure of the database and relationships of the entities within it. The lines between feild names show the foreign key relationships, primary keys are highlighted in bold:
+
+*NOTE: The database will be a SQLite database but the diagram shows some non-SQLite datatypes*
+
+![image](README_img/dbschema_inverted.png)
+
+<!-- TABLE elevations {
+ id int PK
+ name varchar
+ canCallSubservers int
+ canCallRooms int
+ canCallGroups int
+ canCallUsers int
+ canMsgSubservers int
+ canMsgRooms int
+ canMsgGroups int
+ canMsgUsers int
+ canCreateGroups int
+}
+TABLE subservers {
+ id int PK
+ name varchar
+}
+TABLE rooms {
+ id int PK
+ name varchar
+ password varchar
+}
+TABLE subserver_rooms {
+ id int PK
+ subserverID int
+ roomID int
+}
+TABLE room_rooms {
+ id int PK
+ parent int
+ child int
+}
+TABLE users {
+ id int PK
+ name varchar
+ password varchar
+ elevation int
+ loggedIn int
+}
+TABLE users_subservers {
+ id int PK
+ userID int
+ subserverID int
+ present int
+}
+TABLE users_rooms {
+ id int PK
+ userID int
+ roomID int
+ present int
+}
+TABLE groups {
+ id int PK
+ name varchar
+ password varchar
+ owner int
+}
+TABLE room_groups {
+ id int PK
+ roomID int
+ groupID int
+}
+TABLE group_groups {
+ id int PK
+ parent int
+ child int
+}
+TABLE users_groups {
+ id int PK
+ userID int
+ groupID int
+ present int
+}
+TABLE notifications {
+ id int PK
+ sender int
+ receiver int
+ time varchar
+ msg varchar
+ isMsg int 
+ isGlobal int 
+}
+
+Ref: "users"."elevation" < "elevations"."id"
+
+Ref: "users"."id" < "users_subservers"."userID"
+
+Ref: "subservers"."id" < "users_subservers"."subserverID"
+
+Ref: "subservers"."id" < "subserver_rooms"."subserverID"
+
+Ref: "subserver_rooms"."roomID" < "rooms"."id"
+
+Ref: "rooms"."id" < "room_rooms"."parent"
+
+Ref: "rooms"."id" < "room_rooms"."child"
+
+Ref: "rooms"."id" < "room_groups"."roomID"
+
+Ref: "room_groups"."groupID" < "groups"."id"
+
+Ref: "groups"."id" < "group_groups"."parent"
+
+Ref: "groups"."id" < "group_groups"."child"
+
+Ref: "rooms"."id" < "users_rooms"."roomID"
+
+Ref: "users"."id" < "users_rooms"."userID"
+
+Ref: "users"."id" < "users_groups"."userID"
+
+Ref: "groups"."id" < "users_groups"."groupID"
+
+Ref: "users"."id" < "notifications"."sender"
+
+Ref: "users"."id" < "notifications"."receiver" -->
+
+For a more detailed veiew, here is the SQL schema of the database (*In SQLite syntax*):
+``` sql
+CREATE TABLE "elevations" (
+	"id"	INTEGER,
+	"name"	TEXT NOT NULL UNIQUE,
+	"canCallSubservers"	INTEGER NOT NULL,
+	"canCallRooms"	INTEGER NOT NULL,
+	"canCallGroups"	INTEGER NOT NULL,
+	"canCallUsers"	INTEGER NOT NULL,
+	"canMsgSubservers"	INTEGER NOT NULL,
+	"canMsgRooms"	INTEGER NOT NULL,
+	"canMsgGroups"	INTEGER NOT NULL,
+	"canMsgUsers"	INTEGER NOT NULL,
+	"canCreateGroups"	INTEGER NOT NULL,
+	PRIMARY KEY("id")
+);
+CREATE TABLE "subservers" (
+	"id"	INTEGER,
+	"name"	TEXT NOT NULL UNIQUE,
+	PRIMARY KEY("id")
+);
+CREATE TABLE "rooms" (
+	"id"	INTEGER,
+	"name"	TEXT NOT NULL UNIQUE,
+	"password"	TEXT NOT NULL,
+	PRIMARY KEY("id")
+);
+CREATE TABLE "subserver_rooms" (
+	"id"	INTEGER,
+	"subserverID"	INTEGER,
+	"roomID"	INTEGER,
+	FOREIGN KEY("roomID") REFERENCES "rooms"("id"),
+	FOREIGN KEY("subserverID") REFERENCES "subservers"("id"),
+	PRIMARY KEY("id"),
+	UNIQUE("subserverID","roomID")
+);
+CREATE TABLE "room_rooms" (
+	"id"	INTEGER,
+	"parent"	INTEGER,
+	"child"	INTEGER,
+	FOREIGN KEY("parent") REFERENCES "rooms"("id"),
+	FOREIGN KEY("child") REFERENCES "rooms"("id"),
+	PRIMARY KEY("id"),
+	UNIQUE("parent","child")
+);
+CREATE TABLE "users" (
+	"id"	INTEGER,
+	"name"	TEXT NOT NULL UNIQUE,
+	"password"	TEXT NOT NULL,
+	"elevation"	INTEGER,
+	"loggedIn"	INTEGER NOT NULL,
+	FOREIGN KEY("elevation") REFERENCES "elevations"("id"),
+	PRIMARY KEY("id")
+);
+CREATE TABLE "users_subservers" (
+	"id"	INTEGER,
+	"userID"	INTEGER,
+	"subserverID"	INTEGER,
+	"present"	INTEGER NOT NULL,
+	FOREIGN KEY("subserverID") REFERENCES "subservers"("id"),
+	FOREIGN KEY("userID") REFERENCES "users"("id"),
+	PRIMARY KEY("id"),
+	UNIQUE("userID","subserverID")
+);
+CREATE TABLE "users_rooms" (
+	"id"	INTEGER,
+	"userID"	INTEGER,
+	"roomID"	INTEGER,
+	"present"	INTEGER NOT NULL,
+	FOREIGN KEY("roomID") REFERENCES "rooms"("id"),
+	FOREIGN KEY("userID") REFERENCES "users"("id"),
+	PRIMARY KEY("id"),
+	UNIQUE("userID","roomID")
+);
+CREATE TABLE "groups" (
+	"id"	INTEGER,
+	"name"	TEXT NOT NULL UNIQUE,
+	"password"	TEXT NOT NULL,
+	"owner"	INTEGER,
+	FOREIGN KEY("owner") REFERENCES "users"("id"),
+	PRIMARY KEY("id")
+);
+CREATE TABLE "room_groups" (
+	"id"	INTEGER,
+	"roomID"	INTEGER,
+	"groupID"	INTEGER,
+	FOREIGN KEY("groupID") REFERENCES "groups"("id"),
+	FOREIGN KEY("roomID") REFERENCES "rooms"("id"),
+	PRIMARY KEY("id"),
+	UNIQUE("roomID","groupID")
+);
+CREATE TABLE "group_groups" (
+	"id"	INTEGER,
+	"parent"	INTEGER,
+	"child"	INTEGER,
+	FOREIGN KEY("parent") REFERENCES "groups"("id"),
+	FOREIGN KEY("child") REFERENCES "groups"("id"),
+	PRIMARY KEY("id"),
+	UNIQUE("parent","child")
+);
+CREATE TABLE "users_groups" (
+	"id"	INTEGER,
+	"userID"	INTEGER,
+	"groupID"	INTEGER,
+	"present"	INTEGER NOT NULL,
+	FOREIGN KEY("groupID") REFERENCES "groups"("id"),
+	FOREIGN KEY("userID") REFERENCES "users"("id"),
+	PRIMARY KEY("id"),
+	UNIQUE("userID","groupID")
+);
+CREATE TABLE "notifications" (
+	"id"	INTEGER,
+	"sender"	INTEGER,
+	"receiver"	INTEGER,
+	"time"	TEXT,
+	"msg"	TEXT,
+	"isMsg"	INTEGER NOT NULL,
+	"isGlobal"	INTEGER NOT NULL,
+	FOREIGN KEY("receiver") REFERENCES "users"("id"),
+	FOREIGN KEY("sender") REFERENCES "users"("id"),
+	PRIMARY KEY("id"),
+	UNIQUE("sender","receiver","time")
+);
+```
+
+As you can see, care has been taken to normalise the design of the database to 3rd normal form. This will improve the database's performance by eliminating reduncancies and the chance of anomalous behaviour. The most important part of this that will majorly impact the program are the link tables: `users_subservers`, `users_rooms`, `users_groups`, `subserver_rooms`, `room_rooms`, `room_groups` and `group_groups`. For the double entity tables, the naming standard used reads as `[parent]_[child]`, so the table `subserver_rooms` contains information about rooms with sub-server parents. Since rooms and groups can be created within themselves, `room_rooms` and `group_groups` are used to keep track of these relationships.
+
+The `password` feilds of all relevant tables will contain passwords that have been hashed on creation. In the case of the `room` and `user` tables, the passwords are hashed from within ClunksEXP, and loaded into the database when the `.exp` file is read. For the `groups` table, passwords are hashed by the server when the group is created by a user. Passowrds are hashed so that in the event of a data breach, the user information will remain safe. If the database was accessed and all the data was in its original form, an attacker would be able to see any sensitive data in plaintext, but since the data is hashed, even if the database was accessed, each password would then have to individually cracked for the attacker to access the whole plaintext data.
+
+While this may not seem to be an issue with today's computational abilities, the nature of the issue, cracking even a single password an intractable problem to solve with a common solution being to exaustively seach (brute-force) all the different combinations until the hash of the combination matches the hash found in the database. To combat this, one method often used for password cracking is the utilisation of rainbow tables. Rainbow tables are precalculated hash tables that contain passwords and their resulting hash digest. For example, imagine a rainbow table that looked like this:
+
+| Hash | Password |
+| ----------- | ----------- |
+| tNuqe)98:JXSMV3g#^@u&(dV | P4s5W0rd |
+| zsk7[$XZ#nbZv*~*6)v:Enf9 | thisismypassword |
+| B&A:JWPHEL98[Es]5$"{$X6T | !y3l10wC4t! |
+<br>
+
+This could be used by an attacker who breahced the database, and came across the hash `zsk7[$XZ#nbZv*~*6)v:Enf9`. This attacker wouldn't need to spend any time cracking the password, since by looking up the hash in their rainbow table, they would quickly discover that the original password was '`thisismypassword`'.
+
+Most password cracking techniques rely on exploiting bad descisions made by the user, leaving the program with no way of stopping these techniques,however, the usage of rainbow tables can be prevented by the program, which is why **CLUNKS** consistently uses Bcrypt for hashing passwords. Unlike tradional cryptographic hash functions, Bycrpt uses a `cost` which repeatedly re-hashes the digest with random seeds a large number of times so that matching passwords won't have matching hashes. In our example. this would protect the user who's password is '`thisismypassword`' since the hash in the attacker's rainbow table would no longer match the hash in the database.
+
+The queries used in the CLUNK server will all be *parameterised*, which is SQLite's version if *prepared statements*. Perpared  statements are a feature of SQL where An SQL statement template is created and sent to the database with some values left as unspecified parameters. An example of this could be:
+
+``` sql
+INSERT INTO subservers(name) VALUES($name);
+```
+*Where `$` denotes a placeholder parameter*
+
+The database will then parse, compile, and optimize the query in the SQL statement template, and store the result without executing it. At a later time, the program will then bind actual values to the parameters, and the database will execute the statement.
+
+For example, if a part of the program was written to get the `id` of a user from `users` by name, it may execute:
+```sql
+SELECT id FROM users WHERE name='John';
+```
+If the name used for the search was taken from a user input, an attacker could manipulate the program into running a malicous sequence like:
+``` sql
+SELECT id FROM users WHERE name='John';DROP TABLE users;
+```
+
+However, with a parameterised query, the program would send: `SELECT id FROM users WHERE name=$name` to the database first. After parsing the query, the database would be expecting valid data that can be casted into a `varchar` so the database would reject `'John';DROP TABLE users;` because it contains SQL code so is not a valid `varchar`. This makes prepared statements/parameterised queries a useful defence against SQL injections, because parameter values are treated seperate from the statement body.
+
+Furthermore, the program could the go on to execute the statement as many times as it wants with different values and the operation would be much faster because the body of the statment has already been processed. This reduces overall parsing time as the preparation on the query is done only once (although the statement is executed multiple times).
+
+Here is a sample of some of the queries that will need to be used in the program. <br>
+*The examples below will show the statements in a parameterised form. It may help to refer to the database diagram [here](README_img/dbschema.png). The examples below will also utilise string formatting syntax where `{}` can be used to inject a variable value into a string. There are some queries used in the process described below that will not be identified as they are self-explanatory.*
+
+### **User Information Queries:**
+
+When a user attempts to enter an entity with the `connect` command, the server will need to determine if the user exists on the member list of the given entity, using: the name of the entity; table of entity, and username of the user. The statement below is used to achieve this:
+
+```sql
+SELECT *
+FROM users_{entity}s
+INNER JOIN users ON users.id=users_{entity}s.userID
+INNER JOIN {entity}s ON {entity}s.id=users_{entity}s.{entity}ID
+WHERE users.name=$username
+AND {entity}s.name=$entityName;
+```
+*Where `entity` is the name (singular) of the table the entity is in. For example, if the given entity was a sub-server, `entity` would store `'subserver'` (NOT `'subservers'`).*
+
+Here, the program queries the link-table that connects users and the desired type of entity and joins it with the `users` table and the table containing the given entity. The statement will check to make sure the user and entity IDs match across the `JOIN` with the given names. The returned result is casted into an array and the length of this array is checked to find the number of rows returned. If the number of rows returned is greater than 0 then the user exists on the entity,
+
+When the user sucessfully enters the entity, the database is updated to reflect the user's presence in the entity. This is done with:
+
+```sql
+UPDATE users_{entity}s
+SET present=1
+WHERE EXISTS(SELECT *
+             FROM users
+             INNER JOIN {entity}s ON {entity}s.name=$entityName AND {entity}s.id=users_{entity}s.{entity}ID
+             WHERE users.name=$username AND users.id=users_{entity}s.userID);
+```
+*Where `entity` is the name (singular) of the table the entity is in. For example, if the given entity was a sub-server, `entity` would store `'subserver'` (NOT `'subservers'`).*
+
+In this statement, the appropriate link-table is update to set `present` to 1 (treated as `true` since SQLite has no boolean values). The condition for setting a row's `present` value to 1 should be if (and only if) the row represents the specific user-entity relationship for the given user and entity. In other SQL varieties (such as MySQL or Microsoft SQLServer) this could be achieved with a `UPDATE ... JOIN` statement, but such statements are not supported in SQLite.
+
+Because of this, to achive the same effect that `UPDATE ... JOIN` would have, the `EXISTS` operator must be used. `EXISTS` is a boolean operator within SQLite that will iterate over the rows of a table, and return `true` if the data from the current row causes it's predicate to return 1 or more rows. Pairing `EXISTS` with `WHERE` perfectly emulates the `UPDATE ... JOIN` behavoiur so all that needs to be done is to move the `JOIN` logic into a new query passed as the predicate used by `EXISTS`.
+
+Now that the user is on the entity, that can communicate with other users who are also present on the entity. To do this, the server will query the database to find all the active (currently logged in) users on the given entity so that they can be notified with the user's message:
+
+```sql
+SELECT userID FROM users_{entity}s
+INNER JOIN {entity}s ON {entity}s.name=$entityName
+INNER JOIN users ON users.id=users_{entity}s.userID
+WHERE loggedIn=1;
+```
+
+Here the userIDs of all the users is returned from the appropriate link table where `users.loggedIn` is set to 1 (`true`). The statement checks if `users.loggedIn = 1` instead of `[link-table].present = 1` because it aims to identify all the users who are on the logged in and in the entity, regardless of if they're currently present on that entity or not. For example, if a user is currently present on `room1`, a child of `subserver1` the `users_subservers` will not show the user being present on `subserver1` (as it should) because they user can only be present on one entity at a time. However, if a message is sent to `subsever1`, the user should be notified of it since it is a part of their current location. 
+
+## Class Design
+Packets - BuildPacket flowchart
+        - GetDataStream flowchart
+Channels
+Program and Worker
+DBH, Cursor
 
 ## Security
+Encryption
+Handshakes - flowchart
+EncryptionConfig class
 
 ## Complex Data Processing
+Entity Traversal
+DBH.Trace
+DBH.LoadExp
 
 <br>
 
@@ -174,6 +521,9 @@ Packets
 <br>
 
 # **CLUNKS** - Technical Notes
+*NOTE:*
+> *For viewing and executing the code, it is recommended to clone the entire repository and load the `CLUNKS.sln` file into Visual Studio so that the approprate files can be loaded to carry through required dependencies and code arrangments. This will load the Client, Server and Common projects. For viewing the ClunksEXP code, it is recommended to open the `ClunksEXP` folder of the repository in a python-supporting IDE*.
+
 ## Program Protocols - Packets
 Even though CLUNKS uses TCP/UDP for network transmission, alone, they only offer the ability to send bytes over the network, making it diffuclt for the receiving device to interpret what these bytes represent. To sovle this a wrapper protocol was needed to govern how these bytes are arranged. This protocol can be seen in the Common.Packets.Packet class, which provides a wrapper for the Common.Channel classes to use when transferring data.
 
@@ -591,5 +941,4 @@ ATM, when encryption level <= EncryptionConfig.Strength.Light, the size of the k
 Dates/Time is in UTC <br>
 
 # To add
-DB Design
-DB passwords are hashed
+Thread join issue -> testing
