@@ -6,6 +6,6 @@ namespace Common.Channels
     {
         public string Message;
 
-        public ChannelFailEventArgs(string message) => this.Message = message;
+        public ChannelFailEventArgs(string message) => Message = message;
     }
 }

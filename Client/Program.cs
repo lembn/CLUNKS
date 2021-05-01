@@ -284,6 +284,7 @@ namespace Client
 
         private static void Quit(object sender, ConsoleCancelEventArgs e)
         {
+            Helpers.Feed.Cleanup();
             channel.Close("Shutting down CLUNKS...");
             quit = true;
             if (e != null)

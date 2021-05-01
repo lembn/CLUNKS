@@ -13,7 +13,6 @@ namespace Common.Channels
     public class ClientModel : DataStream, IDisposable
     {
         private Socket handler;        
-        public bool disposed;
         
         #region Public Members
 
@@ -27,6 +26,7 @@ namespace Common.Channels
         public int missedHBs;
         public bool isAdmin = false;
         public Dictionary<string, string> data;
+        public bool disposed;
 
         public Socket Handler
         {

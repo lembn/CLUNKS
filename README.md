@@ -2,7 +2,7 @@
 
 ***C**ommand* ***L**ine* ***U**nification* ***N***etwor***k*** ***S**ystem*
 
-**CLUNKS** is a system to provide simple LAN communication services for large businesses and establishments. Users will need to create a **CLUNK** server on their network, and from there, the clients are able to log into pre-made user accounts, which can use to host, join logical entities on the server to communicate with any users added to it. **CLUNKS** currently runs with messaged based communication but has the underlying framework in place to be compatible with video and audio comminucation aswell.
+**CLUNKS** is a system to provide simple LAN communication services for large businesses and establishments. Users will need to create a CLUNK Server on their network, and from there, the clients are able to log into pre-made user accounts, which can use to host, join logical entities on the server to communicate with any users added to it. **CLUNKS** currently runs with messaged based communication but has the underlying framework in place to be compatible with video and audio comminucation aswell.
 
 While other similar programs may exist, they are usually bespoke softwares made pricately for specific environments and aren't desinged to be public and widely accesible like **CLUNKS** is. This means that they may not have the same security and performance benefits that comes built into **CLUNKS**, and the ones which do are often private or proprietary.
 
@@ -14,7 +14,7 @@ There are also some other programs that achieve a similar result (provide commun
 
 The overall service will be broken down into three distinct exeuctable programs. First the client, a C# .NET5 Console Application that will connect to the server provide a user with all the means necessary to communicate with other server-users. 
 
-Then there is the server program itself. The server is a C# ASP.NET Worker Service that can be built down into a Windows Service or daemon (appropriate to the operating system of the build machine) and executed once to run for long periods of time, and serve clients. The server will manage the user database and also will act as a secure 'middle-man' for the encryption so that users only ever need to store one asymmetric key (managed by the client program). While the default server and client are written in C#, all the server program does is expose a socket on its machine and process the data coming into that socket in a certain way. This means that theoretically, any program could be created in any language to connect to a **CLUNKS** server, so long as it followed the correct protocols and presented data in the right way (otherwise the new client would be rejected by the server). In a practical sense, the possibilites could range from a user creating their own simplified version of the **CLUNKS** client; to a user intergrating **CLUNKS** into a whole different application, so long as they had access to a server. Likewise, along with the server being openly acessible, the server is written abstracly enough that it could be implemented into a WAN - despite being targeted for a LAN configuration. This would simply involve hosting a **CLUNKS** server on a web server machine, allowing it to be accessed by any client with an internet connection. 
+Then there is the server program itself. The server is a C# ASP.NET Worker Service that can be built down into a Windows Service or daemon (appropriate to the operating system of the build machine) and executed once to run for long periods of time, and serve clients. The server will manage the user database and also will act as a secure 'middle-man' for the encryption so that users only ever need to store one asymmetric key (managed by the client program). While the default server and client are written in C#, all the server program does is expose a socket on its machine and process the data coming into that socket in a certain way. This means that theoretically, any program could be created in any language to connect to a CLUNK Server, so long as it followed the correct protocols and presented data in the right way (otherwise the new client would be rejected by the server). In a practical sense, the possibilites could range from a user creating their own simplified version of the **CLUNKS** client; to a user intergrating **CLUNKS** into a whole different application, so long as they had access to a server. Likewise, along with the server being openly acessible, the server is written abstracly enough that it could be implemented into a WAN - despite being targeted for a LAN configuration. This would simply involve hosting a CLUNKS Server on a web server machine, allowing it to be accessed by any client with an internet connection. 
 
 Finally there is the support program: ClunksEXP. The server is configured using `.exp` files, which are a configuration on `XML` that allows users to configure user accounts, entities on the server and different user privelleges. When the server is run, it can be told to load an `.exp` configuration into itself, which it will do, reconfiguring the server to whatever was defined in the `.exp` file. This not only makes different configurations easy and quick to change, but also makes them easy to share. If the server ran soley from a database file, the only way a configuration could be used twice is if the database was reconstructed, which could easily become a long and tedious task; or copied and shared, which could potentially take up very large amounts of disk space. `.exp` files are lightweight, and can be created and edited withing ClunksEXP, making server configuration and reconfiguration simple and easy and allowing server admins to easily share configurations between each other if they wish to do so.
 
@@ -48,16 +48,16 @@ ClunksEXP is written in Python, a scripting language which best suits the object
 
 ## The Proposed System - Servers
 
-For new **CLUNKS** installations, a new CLUNK server will need to be started to get the system up and running. Using ClunksEXP, a user can create `.exp` files to create the configuration they want to run the server on. This file can then be loaded into the server when it starts up and the server can be left running to serve users. The `.exp` file will contain the informaton for user accounts, and hosted entities.
+For new **CLUNKS** installations, a new CLUNK Server will need to be started to get the system up and running. Using ClunksEXP, a user can create `.exp` files to create the configuration they want to run the server on. This file can then be loaded into the server when it starts up and the server can be left running to serve users. The `.exp` file will contain the informaton for user accounts, and hosted entities.
 
 The available hosted entities, in hierarchical order, are:
  - Sub-servers
  - Rooms
  - Groups
 
-Sub-servers are the (hierarchically) greatest entity that can be created on the server. They are created directly on the server and are used to create separation within different groups of users within the server. Each sub-server be represented with seperate tables in the database, such that a user registered to a sub-server, will not exist in any other sub-server unless they are created in the other sub-servers also. Providing the admin of the CLUNK server the ability to create separation within the server. For example, a school using CLUNKS may create seperate subservers for each year group.
+Sub-servers are the (hierarchically) greatest entity that can be created on the server. They are created directly on the server and are used to create separation within different groups of users within the server. Each sub-server be represented with seperate tables in the database, such that a user registered to a sub-server, will not exist in any other sub-server unless they are created in the other sub-servers also. Providing the admin of the CLUNK Server the ability to create separation within the server. For example, a school using CLUNKS may create seperate subservers for each year group.
 
-Like sub-servers, rooms are also entites that can exists on a CLUNK server, with the difference between a sub-server and room being that rooms cannot be created directly onto the server, while sub-servers can. Sub-servers however, cannot be created anywhere other than directly on the server. This means that any complex structures required by the server admin can be created using rooms, which must be a child of a sub-server or another room. In the school example used above, rooms could be used to represent different classes within in the year groups. Rooms can also be password protected.
+Like sub-servers, rooms are also entites that can exists on a CLUNK Server, with the difference between a sub-server and room being that rooms cannot be created directly onto the server, while sub-servers can. Sub-servers however, cannot be created anywhere other than directly on the server. This means that any complex structures required by the server admin can be created using rooms, which must be a child of a sub-server or another room. In the school example used above, rooms could be used to represent different classes within in the year groups. Rooms can also be password protected.
 
 Finally, groups are temporary rooms that can be created by clients on the server. Unlike sub-servers and rooms, groups can only be created at runtime, so aren't included in the `exp` specification of a CLUNKS server. They serve the purpose of allowing the user to make privatised spaces on the parent enity without needing to permanently impact the structure of the server. The member-list of the group is the same as the member list of the groups's parent and the room must be the child of a room or another group. Privatisation is achieved with the (optional) password that a room can be created with such that the password will only be shared with the desired users, and only they can connect to the room. After being created, the group will exist until all its members quit the program. If they leave the group but still have the program open, the group will be kept alive until the last group member quits the program.
 
@@ -162,14 +162,13 @@ The C# code will be written in Microsoft Visual Studio (A C# supporting IDE) whi
 
 ## Database Design
 
-# Move old DBH notes into here
-# Talk about why SQLite was chosen
+For the CLUNK Server to keep track of its data, it store data in a SQLite database that will be created on the disk of the server machine. SQLite was chosen in mind of the accessibilty that CLUNKS tries to achieve. Other variations of SQL databases would require a database engine to be installed and running on the server machine. While this can be beneficial in some places, it can make setting up an application much more complicated and difficult to setup, likewise, a solid understand of databases is often required to troubleshoot the many problems that can occur with these systems. SQLite works differently to these variations and is instead a self-contained full database management package, requiring no external dependencies to be installed and cofigured along with it. This not only simplifies CLUNKS from a development perspective, but also from a usage perspective, making the setup of a CLUNKS server quick and easy.
 
 Below is a entity relationship diagram displaying the structure of the database and relationships of the entities within it. The lines between feild names show the foreign key relationships, primary keys are highlighted in bold:
 
 *NOTE: The database will be a SQLite database but the diagram shows some non-SQLite datatypes*
 
-![image](README_img/dbschema_inverted.png)
+![image](README_img/dbschema.png)
 
 <!-- TABLE elevations {
  id int PK
@@ -430,7 +429,7 @@ This could be used by an attacker who breahced the database, and came across the
 
 Most password cracking techniques rely on exploiting bad descisions made by the user, leaving the program with no way of stopping these techniques,however, the usage of rainbow tables can be prevented by the program, which is why **CLUNKS** consistently uses Bcrypt for hashing passwords. Unlike tradional cryptographic hash functions, Bycrpt uses a `cost` which repeatedly re-hashes the digest with random seeds a large number of times so that matching passwords won't have matching hashes. In our example. this would protect the user who's password is '`thisismypassword`' since the hash in the attacker's rainbow table would no longer match the hash in the database.
 
-The queries used in the CLUNK server will all be *parameterised*, which is SQLite's version if *prepared statements*. Perpared  statements are a feature of SQL where An SQL statement template is created and sent to the database with some values left as unspecified parameters. An example of this could be:
+The queries used in the CLUNK Server will all be *parameterised*, which is SQLite's version if *prepared statements*. Perpared  statements are a feature of SQL where An SQL statement template is created and sent to the database with some values left as unspecified parameters. An example of this could be:
 
 ``` sql
 INSERT INTO subservers(name) VALUES($name);
@@ -496,47 +495,60 @@ INNER JOIN users ON users.id=users_{entity}s.userID
 WHERE loggedIn=1;
 ```
 
-Here the userIDs of all the users is returned from the appropriate link table where `users.loggedIn` is set to 1 (`true`). The statement checks if `users.loggedIn = 1` instead of `[link-table].present = 1` because it aims to identify all the users who are on the logged in and in the entity, regardless of if they're currently present on that entity or not. For example, if a user is currently present on `room1`, a child of `subserver1` the `users_subservers` will not show the user being present on `subserver1` (as it should) because they user can only be present on one entity at a time. However, if a message is sent to `subsever1`, the user should be notified of it since it is a part of their current location. 
+Here the userIDs of all the users is returned from the appropriate link table where `users.loggedIn` is set to 1 (`true`). The statement checks if `users.loggedIn = 1` instead of `[link-table].present = 1` because it aims to identify all the users who are on the logged in and in the entity, regardless of if they're currently present on that entity or not. For example, if a user is currently present on `room1`, a child of `subserver1` the `users_subservers` will not show the user being present on `subserver1` (as it should) because they user can only be present on one entity at a time. However, if a message is sent to `subsever1`, the user should be notified of it since it is a part of their current location.
 
-## Class Design
-Packets - BuildPacket flowchart
-        - GetDataStream flowchart
-Channels
-Program and Worker
-DBH, Cursor
+### **Concurrency**
+The program will utilise lots of asynchronous programming to make sure that operations can run smoothly and simultaneously. This could become a problem when trying to access the database asyncrhonously since C#'s Microsoft.Data.Sqlite libraries are not designed to be thread safe. This means that race conditions can easily be introduced into the program logic when multiple threads attempt to access the database simultaneously.
 
-## Security
-Encryption
-Handshakes - flowchart
-EncryptionConfig class
+Race conditions are when two threads attempt to access a shared resource and end up creating conflicts on the resource (for example if two threads attempt to remove an entry from the database at the same time). Normally, this is combatted with C#'s `lock` statement, which creates a mutex on an object being `lock`ed (prevents the object from being accessed by mutliple threads at the same time so that other threads have to wait for the first thread to finish its work), however for resource management reasons, the connection and command objects used for database browsing are not shared between threads, so cannot be locked. To make up for this, the program will utilise SQLite's WAL mode for concurrent processing:
 
-## Complex Data Processing
-Entity Traversal
-DBH.Trace
-DBH.LoadExp
+WAL (Write Ahead Logging) inverts SQL's transaction-rollback system to preserve the database while it is being edited.
+> *The traditional rollback journal works by writing a copy of the original unchanged database content into a separate rollback journal file and then writing changes directly into the database file. In the event of a crash or ROLLBACK, the original content contained in the rollback journal is played back into the database file to revert the database file to its original state. The COMMIT occurs when the rollback journal is deleted. The WAL approach inverts this. The original content is preserved in the database file and the changes are appended into a separate WAL file. A COMMIT occurs when a special record indicating a commit is appended to the WAL. Thus a COMMIT can happen without ever writing to the original database, which allows readers to continue operating from the original unaltered database while changes are simultaneously being committed into the WAL. Multiple transactions can be appended to the end of a single WAL file.*
 
-<br>
+*From https://www.sqlite.org/wal.html*
 
---------
-<br>
+Essentially, each thread keeps track of its own changes with the WAL file, which are then made to the database when the thread is done, and conficts are resolved by the database engine. While also solving the race condition issue, this also improves the performance of database operations since without a `lock` statement, it allows multiple threads perform theyre operations without being blocked. In the same performance-oriented mindset, shared caching is used when connecting to the database from the progam which offers faster data transfer between the threads used by the program.
 
-# **CLUNKS** - Technical Notes
-*NOTE:*
-> *For viewing and executing the code, it is recommended to clone the entire repository and load the `CLUNKS.sln` file into Visual Studio so that the approprate files can be loaded to carry through required dependencies and code arrangments. This will load the Client, Server and Common projects. For viewing the ClunksEXP code, it is recommended to open the `ClunksEXP` folder of the repository in a python-supporting IDE*.
+## Class Design - Channels
 
-## Program Protocols - Packets
-Even though CLUNKS uses TCP/UDP for network transmission, alone, they only offer the ability to send bytes over the network, making it diffuclt for the receiving device to interpret what these bytes represent. To sovle this a wrapper protocol was needed to govern how these bytes are arranged. This protocol can be seen in the Common.Packets.Packet class, which provides a wrapper for the Common.Channel classes to use when transferring data.
+For communication over the network, the program will need a library of methods that can provide the functionality so send and receive data over the machine's network pipe. While the standard C# `socket` class can be used, it exposes many methods and properties that will not be needed by **CLUNKS**, on the other hand the default TCP/UDP network classes abstract too much from the `socket` and would require extra code to be written to add some specific functionality back in. Because of this, the best solution is to create a wrapper for the C# network componenets that can be used by the client and server in a simple way. A customised wrapper will also allow the resultant classes to be built best to fit into **CLUNKS**. For example, this way the encryption can be built into the wrapper so that the classes using it don't have to worry about securing their data.
 
-When data is being sent from one party to another, a `Packet` is created to hold the data. Packets contain some meta-data:
- - **Salts** - used for certificates.
- - **UserID** - used to identify the user who created that packet (or the recipient user if the packet was created by the server).
+Furthermore, while commmunication will mainly use TCP because of the intergrity it ensures, a custom wrapper will allow the usage to swap between protocols to UDP. UDP may be used in certain places because it has a very small footprint on bandwidth, (about 60% less than TCP). Because of this it is also much faster than TCP as by nature because it doesn't contain the slow error checking methods that TCP uses. UDP doesn't wait for acknowledgement from the receiver, is connectionless, so an active connection doesn't need to be managed, doesn't compensate for lost packets and also doesn't attempt to guarantee packet delivery. Although this means that the packets recieved by the user may not be an accurate representation of what was originally sent, the eventual consistency reliant nature of the protocol (the philosophy that even if a few audiovisual frames are dropped in the process, the overall data received should be good enough to provide a good user experience) combined with the speed of data transfer makes it ideal for something like audiovisual streaming over a network. This will be achived with `Channel`s.
+
+The `Channel` class will be an abstract base class to encapsulate these componenets, creating the desired wrapper. From here, the `ClientChannel` and `ServerChannel` can be derived to serve the purpose of sending and receiving data over the network and returning or *"dispatching"* that data off to the Client and Server respectively. `Channel`, `ClientChannel` and `ServerChannel` will all be organised into a namespace in `Common` called `Channels`. Below is a UML class diagram representing the structure of the `Common.Channels` namespace:
+
+![image](README_img/common.channels.png)
+
+The Common.Channels.Channel classes implement the C# `IDisposable` interface to allow its members (namely the sockets and encryption handlers) to be safely disposed by the Garbage Collector when they are no longer being used. This improves (decreases) the amount of memory used by the program and ensures that memory isn't being allocated or held for unnecessary objects. In the same fashion, thoughout the program, varibales are often resued for the same objective. The implementation of `IDiposable` also frees the IP address and port used by the socket when the channel is no longer in use, so that they can be cleaned up by the OS.
+
+`DataStream` is a class used to reperesent the stream of incoming bytes picked up by the listeners of a class. `ClientModel` is a class used by `ServerChannel` to represent a model of a connected client on the system. `ClientModel` derives from `DataStream` to represent stream of incoming bytes being received by a specific client. Since `ClientChannel` is used on the client, it doesn't need to use a `ClientModel` (since `ClientModel` is used to basically model a remote `ClientChannel`) so uses `DataStream` directly.
+
+### **Concurrency**
+
+Both the client and server channels will use five 'master threads' to asynchronously perform operations. These five threads perform the network operations and can spawn other threads when needed to assist with their task.
+
+One of these threads is the listening thread, used for listening for incoming data on the socket. The client only communicates with one server at a time, so the listening is quite simple but the server needs the ability to listen to multiple clients simultaneously. An adapted version of the Apache philosophy was implemented to achieve this.
+
+Apache servers create a new thread to serve each incoming user's requests. Of course, this means that the limit to how many users can be served at once will be whatever the maximum thread count assigned to the program but on powerful machines with lots of system resouces, this doesnt tend to be an issue. However, **CLUNKS** is designed to be friendly to all types of machine and on slower or systems, these limitations could ruin the user experience.
+
+To combat this, the CLUNKS Server will create new threads to only when needed to perform tasks, rather than to serve users. This means that instead of creating a new thread whenever a new user joins, a new thread will be created only if there are no idle threads available. For example, if there was only one listening thread currently being used, and a new user is attempting to send data, if the current thread is idle, that thread is assigned to process the new data. This minimises the amount of threads being used by the program at any given time and also thwarts the Slow Loris DOS attacks that Apache servers are so vulnerable to since you can't force the server to reach its thread cap. *(Slow Loris attacks work by manipulating a server into creating new threads that are all serving the same machine so that no other mnachines can join)*
+
+### **Packets**
+
+Even though CLUNKS can use TCP/UDP for network transmission, alone, they only offer the ability to send bytes over the network, making it diffucult for the receiving device to interpret what these bytes represent. To sovle this a wrapper protocol will be needed to govern how these bytes should be arranged. This protocol will be implemented as a class: `Packet`, which provides an object that a uses this protocol to arrange data for the `Common.Channel` classes to use when transferring data.
+
+When data is being sent from one endpoint to another, a `Packet` will created to hold the data. Packets contain some meta-data:
  - **DataID** - used to identiy what type of information is held in the packet.
+ - **UserID** - used to identify the user who created that packet (or the recipient user if the packet was created by the server).
+ - **Salts** - used for certificates.
 
-DataIDs are implemented as a C# enum. They are used by the Channel classes to identfy how to treat different packets.
+DataIDs will be implemented as a C# `enum`, to be used by the `Common.Channel` classes to identfy how to handle different incoming packets.
 
-UserIDs are unsigned integers used to identify different ClientChannels/ClientModels. They are unsigned because negative numbers can cause awkward encoding issues when serializing the packet. UserID's are counted from 1 upwards, where 1 is the null value for an unnasigned user. 1 is used as the null value because negative numbers can't be used and 0 is always a difficult value to process since when the packet is serialized into an array of bytes, it is impossible for the receiver to distinguish between a 0 meaning the number 0 and a 0 meaning an empty byte, which means that packets can't be reconstructed.
+UserIDs will be unsigned integers used by the server to identify different clients. Unsigned integers were chosen because negative numbers can cause encoding issues when serializing the `Packet` into a stream of bytes. Because of this, userID's are counted from 2 upwards, with the value 1 being null value for an unnasigned client. Normally, a negative number is used for a null value, for example `-1`, however, as mentioned before, negative numbers cannot be used. The next value to consider is zero, but zero is also a bad value because `byte` objects have no null value. This means that when the `Pakcet` is serialized into an array of bytes and sent over the network, it becomes impossible for the receiver to distinguish between zero meaning the number `0` and a zero meaning an empty byte. This amibuity prevents `Packet`s from being accurately reconstructed.
 
-The 'body' of the packet is a JSON object which hold the actual data to send. When packets are being sent, the packet metadata and body are added to a new JSON object called the `payload`. A payload may look something like this:
+*Client userIDs are not the same as database userIDs. The term 'Client' is used to refers to a CLUNKS client - a remote endpoint that has connected to a CLUNK Server. Client userIDs are numbers assigned to clients by the server to act as a unique identifier. The term 'User' refers to a database user - a CLUNKS client that has logged into a database account. Database userIDs are taken from the `id` feild (primary key) of the database's `users` table and uniquely identify a user in the database.*
+
+After the metadata, comes the `Packet` body. The 'body' of the `Packet` is a JSON object which holds the actual data to send. When `Packet`s are being sent, the metadata and body are added to a new JSON object called the `payload`. The payload of a `Packet` is a JSON representation of its full data. For example, the payload of a packet sending a cryptographic signature may look something like this:
 
 ```json
 {
@@ -550,16 +562,106 @@ The 'body' of the packet is a JSON object which hold the actual data to send. Wh
 ```
 *NOTE: in reality, the salt and signautre are byte arrays encoded into Base64, so wouldn't contain some of the characters shown in the above example.*
 
-When a packet is being serialized into a byte array (so that it can be sent over the network), a the payload is constructed, then symmetrically encrypted. The symmetric key and IV then get asymmetrically with the receiver's public key. From here, the encrypted payload and encrypted symmetric data are added to a new array, preceeded by the total length of the payload. This length is used by the recipient to extract the payload bytes from the total byte array (the length of the encrypted data is a stored constant so doesn't need to be sent). The total legnth is always a 32 byte integer, so takes up the first 4 bytes of the serialization output. This new array can then be sent off across the network and the packet can be reconstruced by reversing the serialization process.
+When packets are being serialized, the payload is encoded into an array of bytes. This array of bytes is encrypted which is where the channels get their built in encryption from. Since different parties at endpoints may be using different strengths of encryption and will be using different keys, etc, the only way to generalise the serialization and deserialization of `Packet` objects is for the algorithms which perform the operations to be serpate from the crpytography information. This is achived with the `PacketFactory` and `EncryptionConfig` clases. `PacketFactory` is a class that will be used to serialize and deserialize packets. `EncryptionConfig` is a class who's members will be used by `PacketFactory` instances to determine how a packet should be encrypted.
 
-## Concurrency
-Both the client and server channels use five 'master threads' to asynchronously perform operations. These five threads perform the network operations and can spawn other threads when needed to assist with their task.
+It allows different users to use different levels of encryption instead of forcing all users to use the same. This strongly follows the **CLUNKS** philosophy because cryptographic functions (encryption, decryption and hashing) can be very slow on less powerful machines. This is undesirable in a real-time conferecing scenario, where latency cab ve critical. Because of this, the server would have to choose between using stronger encryption that would increase security but worsen they user experience for users with less powerful machines, or use weaker encryption that would run will everywhere but be more vulnarbale. `EncryptionConfig` solves this by allowing different users to choose how much encrpytion to use, and when, so that they can tailor their security to best suit them.
+This achieves the abstraction of crpytography information from the serializers. Here is a UML class diagram showing `Packet`, `PacketFactory` and `EncryptionConfig` and how they are related:
 
-One of these threads is the listening thread, used for listening for incoming data on the socket. The client only communicates with one server at a time, so the listening is quite simple but the server needs the ability to listen to multiple clients simultaneously. An adapted version of the Apache philosophy was implemented to achieve this.
+![image](README_img/common.packets.png)
 
-Apache servers create a new thread to serve each incoming user's requests. Of course, this means that the limit to how many users can be served at once will be whatever the maximum thread count assigned to the program but on powerful machines with lots of system resouces, this doesnt tend to be an issue. However, **CLUNKS** is designed to be friendly to all types of machine and on slower or systems, these limitations could ruin the user experience.
+---
+<br>
 
-To combat this, the **CLUNKS** server creates a new threads to only when needed to perform tasks, rather than to serve users. This means that instead of creating a new thread whenever a new user joins, a new thread is created only if there are no idle threads available. For example, if there was only one listening thread currently being used, and a new user is attempting to send data, if the current thread is idle, that thread is assigned to process the new data. This minimises the amount of threads being used by the program at any given time and also thwarts the Slow Lloris DOS attacks that Apache servers are so vulnerable to.
+The stream of bytes that `Packet`s get serialized into/deserialized out of is structured into three parts:
+
+| Data | Length (in bytes) |
+| ----------- | ----------- |
+| Header | 4 |
+| Crpytography Data | 256 |
+| Payload | Value of Header |
+
+A 4 byte header is used consistently across the program, follwing the conventional programming standard of 32 byte integers. The header is used by the receiver of a serialized packet to determine how many bytes of the incoming datastream makes up the payload of the packet. Because of this the header must be a constant value so that the receiver knows how many bytes it should use to determine the header's value. Since the header represents a size it never be negative, so could be implemeneted as a `uint` (unsigned integer) to maxmimise the range of the header by allocating all of its 32 bytes to positive values, however theoreticlly, there should never be a packet who's serialized datastream is large enough to need the extended range, so it shouldn't matter.
+
+After the header comes the crpytography data. The table shows the length of cryptography data as 256 but in the program it will be a value taken from an instance of `EncryptionConfig`. When serialzing the packet, The bytestream representation of the payload is symmetrically encrypted, then the key used to encrypt they payload is asymmetrically encrpyted and stored in the *'cryptography data'* section of the bytestream. The reason that two cryptographic systems have to be used is because of the limitations of the RSA algorihtm. In an ideal world, the payload would be encrypted with the recipient's public key and could be sent off from there, however, if the length of the payload bytestream is greater than the number of bits in the key, bytestream cannot be encrpted (because the RSA key can't cover the full extent of the data). This means that to keep the encryption purey asymmetric would require limiting the length of the bytestream to the length of the recipient's key (in bits) or hoping that the length of the datastream would no exceed the length of the recipients key. Both of these are far from ideal, so to solve the issue the data is encrypted symmetrically with AES-256. Since they AES key is required for decrypting the data it must be sent along with it so is encrypted with the recipient's public key to secure it. This way the data is encrypted fully - with no limitations to its length, and securely - with no limitations to the cryptography. The symmetric keys used to encrypt the data are randomly generated per serialization. Asymmetric keys are maintained for the length of a client's session connected to the server.
+
+Below are two flowcharts, to demonstrate operations perfomed by the serializers when building and breaking down `Packet`s:
+
+# Packets - BuildPacket flowchart - GetDataStream flowchart
+
+![image](README_img/serializers.png)
+
+---
+<br>
+
+With everything in place for complete end-to-end encryted communication, here is a UML class diagram showing the structure of the `Common.Channels` namespace:
+
+# Show full diagram
+
+---
+<br>
+
+# TODO: below
+Handshakes - flowchart
+Program and Worker
+DBH, Cursor
+Feed
+- Why state was needed
+
+## Complex Data Processing
+Entity Traversal
+ClunksEXP sector tracing
+DBH.LoadExp
+Different versions of `Feed` (CQ, Pointer, FeedLine)
+Feed offscreen logic
+    (hence where `sleeper` gets its name). A `WaitHandle` is a C# object used to make threads wait for a signal. In their standard usage, a `WaitHandle` will wait forever until they receive a signal from `WaitHandle.Set()`, in this case the `WaitHandle` will pause the thread until it receives a signal from `sleeper.Cancel` (which invokes `WaitHandle.Set`) or if three seconds elapses in that time. The reason that `sleeper`'s `WaitHandle` is used for sleeping instead of `Thread.Sleep` is so that the sleep can be cancelled by `sleeper.Cancel`. If `Thread.Sleep` was used and `sleeper` was cancelled during the three seconds of waiting, the loop would have to wait for the thread to stop sleeping to poll the `CancellationToken` and realise that it should stop looping.
+
+### **Entity Tracing**
+
+'Entity traces' are used throughout the CLUNKS client and server sides to both display and determine the location of a user in the server's overall structure. An example of an entity trace is `subserver1 - room1 - room2`. This trace would be referred to as the trace for the room '`room2`', which is a child of the room '`room1`', which is a child of the subserver '`subserver1`'. Traces are created in the program in two ways:
+- In the client where the trace of the user's location is built up as they traverse to different entities
+- In the server's `DBHandler.DBHandler.Trace` method which finds the trace of an entity using only the name of the lowest child of the path (this would be `room2` in the previous example.)
+
+This segment will be focusing on the logic behind `DBHandler.Trace`, a function to calculate the trace of a given entity. The psuedocoded function is shown below:
+
+*`entityTables = ["subservers", "rooms", "groups"]`* <br>
+*`_entityTables = ["subserver", "room", "group"]`* <br>
+
+```
+FUNCTION Trace(trace)
+    IF Execute("SELECT COUNT(*) FROM subservers WHERE name=trace[0];") > 0 THEN
+        Close()
+        RETURN trace
+    ENDIF
+    index = 1
+    IF Execute("SELECT COUNT(*) FROM groups WHERE name=trace[0];") > 0
+        index = 2
+    ENDIF
+    id = Execute("SELECT id FROM entityTables[index] WHERE name=trace[0];")
+    parentID = Execute("SELECT parent FROM _entityTables[index]_entityTables[index] WHERE child=id;")
+    IF parentID = NULL THEN
+        parentID = Execute("SELECT _entityTables[index - 1]ID FROM _entityTables[index - 1]_entityTables[index] WHERE _entityTables[index]ID=id;")
+    ENDIF
+    trace = trace.Push(Execute("SELECT name FROM entityTables[index] WHERE id=parentID;"))
+    RETURN Trace(trace)
+ENDFUNCTION
+```
+
+*Where `Exeucute` is a function that executes an SQL statement and returns the result if necessary and `trace` is an indexable stack of strings representing the current trace with the first item of the list representing the first item of the trace. If index `a` is already occupied,  The explaination below will use the `subserver1 - room1 - room2` trace as an example.*
+
+`Trace` utilises a recursive algorithm to create the trace of an entity. In this fashion, the first thing checked by the algorithm is the base case. Since traces are built from the lowest child (a room or group) up to a subserver, the bottom (leftmost) item of the trace represents the highest ranking entity found so far. When the algorithm is complete, this 'bottom' value is the name of some subserver, so the base case for this recursion is if the bottom value of the trace is present in the `subservers` table of the database. This algorithm checks the prescence of an entity in the database by counting the number of entities with the specified name. If the returned value (for the base case) if greater than zero, then the bottom value indicates a subserver and the trace can be completed, so the connection to the database and any opened caches or WAL data is closed/cleaned up and the trace is returned.
+
+Otherwise, the algorithm checks to see if the bottom entity is a room or a group. After identifying this the parent can be found and added to the trace. This is done by first finding out the parent's ID in the database from the approprate linking table, then querying the name using the ID as a search index. When the current bottom entity is a room or group, the parent entity can either be of the same type (another room/group) or of the next type up in the heirarchy (group -> room or room -> subserver). To identfy this the presence of the parent is first tested in the `room_rooms`/`group_groups` tables approraitely. If this test fails, the result stored into `parentID` will be null, so the parent must belong to the upper ranking table (`subserver_rooms`/`room_groups`) and the parent's ID is found from there.
+
+Once the parent's ID in the database has been found, the parent's name can be found, and added to the trace, then `Trace` method will call itself with the new name in the bottom entry.
+
+<br>
+
+--------
+<br>
+
+# **CLUNKS** - Technical Notes
+*NOTE:*
+> *For viewing and executing the code, it is recommended to clone the entire repository and load the `CLUNKS.sln` file into Visual Studio so that the approprate files can be loaded to carry through required dependencies and code arrangments. This will load the Client, Server and Common projects. For viewing the ClunksEXP code, it is recommended to open the `ClunksEXP` folder of the repository in a python-supporting IDE*.
 
 ### **Networking**
 The program performs all network operations on seperate threads to ensure that the user isnt left waiting for network repsonses while using the program on the client side, and to allow the server the flexibilty of serving multiple users at once.
@@ -733,14 +835,6 @@ While the new algorithm is clearly significantly better on memory as `n` grows l
 
 In the above graph, the red line represents the growth of memory usage for the first algorithm with a buffer size of `1Kb`; the blue line shows the growth of memory usage for the second algoritm with a `1Kb` buffer; the purple line is the first algorithm with a `3Kb` buffer and the green line is the second algorithm with a `3Kb` buffer. The graph shows that using the first algorithm with a small buffer size is signifiactly better than other combinations as the recursion depth increases.
 
-## Data Flow
-Network commmunication mainly used TCP because of the intergrety it ensures, but during video calls, The program will use UDP instead. A broadcasting user will send: the frame of their video, the audio frame, which user they are and the total size of the data in a C# class object seriliazed into JSON which will be serialized again into a bytestream. The receiving user will display the frames using the Gstreamer multimedia library. The user identification will only be used when managing calls with more than 2 members, but will be present in all data objects as part of the protocol used by CLUNKS.
-
-UDP is being used because it creates very small packets, (about 60% smaller than TCP). It is also much faster than TCP by nature because it doesn't contain the slow error checking methods that TCP uses, doesn't wait for acknowledgement from the receiver, is connectionless, so an active connection doesn't need to be managed, doesn't compensate for lost packets and also doesn't attempt to guarantee packet delivery. Although this means that the packets recieved by the user may not be an accurate representation of what was originally sent, the eventual consistency reliant nature of the protocol (the philosophy that even if a few audiovisual frames are dropped in the process, the overall data received should be good enough to provide a good user experience) combined with the speed of data transfer makes it ideal for audiovisual streaming over a network.
-
-## Security (Server)
-The CLUNK server will use SQLite for database managmemnt. The only senstive information stored in the databases on the CLUNK server are the passwords used for user, rooms and groups. They will all be hashed with bcrypt.
-
 ## Security (User)
 The client and server will perform a handshake on connection to ensure confididentiality and setup the asymmetric key exchange.
 
@@ -760,9 +854,15 @@ To verify a certificate:
 
 This process is done once from server to client, then from client to server to provide security, integrity and confidentiality on both ends. It provides: security via the encryption; integrity via the hash (because if the data was changed the hashes wouldn't match) and confidentially via the signing of the asymmetric keys (since the intended sender would be the only person who had the correct private key to be able to sign the original digest).
 
-## CPU Performance
-### Thread Sleeping (on continuous threads)
-When the Common.Channels.ClientChannel class was first created, it would use Common.Helpers.ThreadHelper.GetECThread to create and run threads that would run tasks endlessly. The idea of this was that data could be sent to the user at any time, so the socket would need to be constantly checked for new incoming data. During development, it was observed that the program was using a significant amount of processing power:
+<br>
+
+--------
+<br>
+
+# **CLUNKS** - The Testing
+
+## CPU Performance - Thread Sleeping (on continuous threads)
+When the `Common.Channels.ClientChannel` class was first created, it would use `Common.Helpers.ThreadHelper.GetECThread` to create and run threads that would run tasks endlessly. The idea of this was that data could be sent to the user at any time, so the socket would need to be constantly checked for new incoming data. During development, it was observed that the program was using a significant amount of processing power:
 
 ![image](README_img/ClientChannelNoThreadRest.jpg)
 ![image](README_img/ClientChannelNoThreadRest2.jpg)
@@ -778,43 +878,7 @@ Even though 10 milliseconds seems to be such a minor change to be creating such 
 
 It also may have come to mind that if the threads are waiting for 10 milliseconds per iteration, they could potentially miss any information that is sent to the socket while the thread is asleep. Fortunately, for C# this is not the case. The C# socket class is based off of the Berkley Socket Interface (originally implemented in C++) in which sockets communicate over a FIFO pipe created on the network. Any incoming data missed by the thread will be buffered by the pipe and can be collected when the thread resumes execution. Since the fastest that a thread will (most likely) ever need to run is around 30 iterations per second (since video calls often render frames at 30fps), the threads will have more than enough time to be able to sleep for 10ms and collect any missed data from the network pipe without introducting noticable latency in video calls, whilst still minimising CPU usage.
 
-### EncryptionConfig
-The EncryptionConfig class from Common.Helpers allows different users to use different levels of encryption instead of forcing all users to use the same.
-
-This functionality was added because cryptographic functions (encryption, decryption and hashing) can be very slow on less powerful machines, which is undesirable in a real-time conferecing scenario, where latency is critical. Because of this, the server would have to choose between using stronger encryption that would increase security but worsen they user experience for users with less powerful machines, or use weaker encryption that would run will everywhere but be more vulnarbale.
-
-The EncryptionConfig class solves this by allowing different users to choose how much encrpytion to use, and when, so that they can tailor their security to best suit them.
-
-## Memory Management
-### **IDisposable**
-The Common.Channels.Channel base class implements the C# `IDisposable` interface to allow its members (namely the sockets and encryption handlers) to be safely disposed by the Garbage Collector when they are no longer being used. This improves (decreases) the amount of memory used by the program and ensures that memory isn't being allocated or held for unnecessary objects. In the same fashion, thoughout the program, varibales are often resued for the same objective.
-
-The implementation of `IDiposable` also frees the IP address and port used by the socket when the channel is no longer in use, so that they can be cleaned up by the OS.
-
-## Network Performance
-The GetJsonSerializer method from Common.Helpers.ObjectConverter creates a serializer that serializes objects into minified JSON strings. This decreases the size of Packets and decreases the bandwidth used by the program along with it.
-
-## Database Handling
-DB Design - https://dbdesigner.page.link/w4z9AyGuCeFoD6NdA
-
-### **Concurrency**
-The program utilises lots of asynchronous programming to make sure that operations can run smoothly without interefering with whatever the user is doing. This became a problem when trying to access the database asyncrhonously since C#'s Microsoft.Data.Sqlite libraries are not designed to be thread safe. This means that race conditions can easily be introduced into the program logic when multiple threads attempt to access the database simultaneously.
-
-Race conditions are when two threads attempt to access a shared resource and end up creating conflicts on the resource (for example if two threads attempt to remove an entry from the database at the same time). Normally, this is combatted with C#'s `lock` statement, which creates a mutex on an object being locked (prevents the object from being accessed by mutliple threads at the same time so that other threads have to wait for the first thread to finish its work), however for resource management reasons, the connection and command objects used for database browsing are not shared between threads, so cannot be locked. To make up for this, the program uses SQLite's WAL mode for concurrent processing:
-
-WAL (Write Ahead Logging) inverts SQL's transaction-rollback system to preserve the database while it is being edited.
-> *The traditional rollback journal works by writing a copy of the original unchanged database content into a separate rollback journal file and then writing changes directly into the database file. In the event of a crash or ROLLBACK, the original content contained in the rollback journal is played back into the database file to revert the database file to its original state. The COMMIT occurs when the rollback journal is deleted. The WAL approach inverts this. The original content is preserved in the database file and the changes are appended into a separate WAL file. A COMMIT occurs when a special record indicating a commit is appended to the WAL. Thus a COMMIT can happen without ever writing to the original database, which allows readers to continue operating from the original unaltered database while changes are simultaneously being committed into the WAL. Multiple transactions can be appended to the end of a single WAL file.*
-
-*From https://www.sqlite.org/wal.html*
-
-Essentially, each thread keeps track of its own changes with the WAL file, which are then made to the database when the thread is done, and conficts are resolved by the database engine.
-
-
-While also solving the race condition issue, this also improves the performance of database operations since without a `lock` statement, it allows multiple threads perform theyre operations without being blocked.
-
-Likewise, in the same performance-oriented mindset, shared caching is used when connecting to the database from the progam which offers faster data transfer between the threads used by the program.
-
-### **Entity Traversal**
+## Entity Traversal
 
 Entity traversal (achieved with the `connect` command) is the action of moving between different entities on the server. Much has to be taken into consideration on the server-side of this operation to make sure that everything is executed smoothly and cleanly while keeping the process simple for the client.
 
@@ -872,53 +936,113 @@ After diving back down into the documentation for the C# event system, it was di
 
 Now that the main problem had been identified, it could be easily solved by making the event trigger with `OnDispatch` asynchronous by wrapping it with `Task.Run`, so that the dispatch thread would be free to move on after triggering the event.
 
-### **Entity Tracing**
+## Message Feed
+During the late development stages of the `Feed` class a problem was discovered that seemed to come out of nowhere, but had serious implications for the finalisation of the class.
 
-'Entity traces' are used throughout the CLUNKS client and server sides to both display and determine the location of a user in the server's overall structure. An example of an entity trace is `subserver1 - room1 - room2`. This trace would be referred to as the trace for the room '`room2`', which is a child of the room '`room1`', which is a child of the subserver '`subserver1`'. Traces are created in the program in two ways:
-- In the client where the trace of the user's location is built up as they traverse to different entities
-- In the server's `DBHandler.DBHandler.Trace` method which finds the trace of an entity using only the name of the lowest child of the path (this would be `room2` in the previous example.)
+*([commit 452623a](https://github.com/lembn/CLUNKS/blob/452623a7831a4658a4d038d629f810c1c3d9d227/.TestEnv/Program.cs) shows the state of the class at this point. Since the class was still in development at this point, it is in `.TestEnv.Program` and hadn't been intergrated into the Client yet)*
 
-This segment will be focusing on the logic behind `DBHandler.DBHandler.Trace`. The (simplified) method is shown below:
+At this point in time, the `Feed.Save` method was being written to generalise the process of saving the feed messages rather than repeating the code in multiple places after its initial implementation, the program was run to test the new method but everytime the method was called, the program would just quit and die. What was especially strange about this was that there were no errors thrown, which is very unusal for C# being that it is a very well documented and maintained language, so has few undefined behaviours. This is made the problem incredibly more difficult to solve, as there were no clues pointing to where the root of the problem may lie so really it could come from any part of the program.
 
-*`entityTables = ["subservers", "rooms", "groups"]`* <br>
-*`_entityTables = ["subserver", "room", "group"]`* <br>
+First, the `Feed.Save` method was investigated, as that was what was new to the program, however, even though the `Feed.Save` method was new, the logic contained within it had already existed in the code in various other locations before it's creation. `Feed.Save` was only created to prevent having this duplicate code around the class, so it was quite percuilar for the method to behave like this when it's contained code was performing fine before. Here is a sample of how `Feed.Save` looked (at the time of the issue):
 
-``` c#
-public static List<string> Trace(List<string> trace, Cursor cursor)
+```c#
+private static int Save(List<List<KeyValuePair<string, ConsoleColor>>> linesToSave, int offset = 0)
 {
-    if (Convert.ToInt32(cursor.Execute($"SELECT COUNT(*) FROM subservers WHERE name=$entityName;", trace[0])) > 0)
+    XDocument saveData = XDocument.Load(tempFile.FullName);
+    foreach (List<KeyValuePair<string, ConsoleColor>> lineData in linesToSave.Skip(offset))
     {
-        cursor.Dispose();
-        return trace;
+        XElement current = new XElement("line");
+        foreach (KeyValuePair<string, ConsoleColor> data in lineData)
+            current.Add(new XElement("entry", new XAttribute("text", data.Key), new XAttribute("colour", (int)data.Value)));
+        saveData.Add(current);
     }
-    int index = 1;
-    if (Convert.ToInt32(cursor.Execute($"SELECT COUNT(*) FROM groups WHERE name=$entityName;", trace[0])) > 0)
-        index = 2;
-    int id = Convert.ToInt32(cursor.Execute($"SELECT id FROM {entityTables[index]} WHERE name=$entityName;", trace[0]));
-    int parentID;
-    try
-    {
-        parentID = Convert.ToInt32(cursor.Execute($"SELECT parent FROM {_entityTables[index]}_{entityTables[index]} WHERE child='{id}';"));
-    }
-    catch (InvalidCastException)
-    {
-        parentID = $"SELECT {_entityTables[index - 1]}ID FROM {_entityTables[index - 1]}_{entityTables[index]} WHERE {_entityTables[index]}ID='{id}';");
-    }
-    trace = trace.Insert(0, cursor.Execute($"SELECT name FROM {entityTables[index]} WHERE id='{parentID}';"));
-    return Trace(trace, cursor);
+    saveData.Save(tempFile.FullName);
+    int savedLines = lines.Count;
+    linesToSave.Clear();
+    saved = true;
+    return savedLines;
 }
 ```
-*Where `cursor` is the object used for interacting with the database. The explaination below will use the `subserver1 - room1 - room2` trace as an example.*
 
-`Trace` utilises a recursive algorithm to create the trace of an entity. In this fashion, the first thing checked by the algorithm is the base case. Since traces are built from the lowest child (a room or group) up to a subserver, the bottom (leftmost) item of the trace represents the highest ranking entity found so far. When the algorithm is complete, this 'bottom' value is the name of some subserver, so the base case for this recursion is if the bottom value of the trace is present in the `subservers` table of the database. This algorithm checks the prescence of an entity in the database by counting the number of entities with the specified name. If the returned value (for the base case) if greater than zero, then the bottom value indicates a subserver and the trace can be completed, so the `cursor` object is disposed (cleaning up the connection to the database and any opened caches or WAL data) and the trace is returned.
+They key thing to see here is the first line:
+```c#
+saveData.Save(tempFile.FullName);
+```
+`tempFile` is an object storing some information about the temporary file that was created on the system to store message data. `saveData` is a C# LINQ object used to represent and XML document in the program. The program was failing at a point where `Feed.Save` should have been called, this means that any messgage data should have been saved into the temporary file by this line, however every time the program failed, the temporary file remained empty, suggesting that the program failed somewhere within this method, before this line. To watch what was happening, breakpoints were added into the method on its first line and the program was debugged from there.
 
-Otherwise, the algorithm checks to see if the bottom entity is a room or a group. After identifying this the parent can be found and added to the trace. This is done by first finding out the parent's ID in the database from the approprate linking table, then querying the name using the ID as a search index. When the current bottom entity is a room or group, the parent entity can either be of the same type (another room/group) or of the next type up in the heirarchy (group -> room or room -> subserver). To identfy this the presence of the parent is first tested in the `room_rooms`/`group_groups` tables approraitely. If this test fails it will raise an `InvalidCastException` (due to the way that `cursor.Execute` return its values), so this exception can be caught and used to find the id of the parent in the upper ranking table (`subserver_rooms`/`room_groups`).
+Breakpoints allow a programmer to pause the program's execution on any line, and analyse the state of any objects within the scope of the current stack frame. From there the programmer can release the program, allowing it to run at speed, or step through the program line by line and watch how the logic of the code affects the variables within it. In a asynchronous multi-threaded environment, this can be especially useful as a programmer is able to analyse the different call stacks of all running threads when the program is paused, since they all belong to the same executable. Breakpoint debugging was heavily used when investigating this problem since with undefined behaviour like this, one of the only ways to gain an insight as to what is happening is to watch the code itself.
 
-Once the parent's ID in the database has been found, the parent's name can be found, and added to the trace, then `Trace` method will call itself with the new name in the bottom entry. 
+In this case, the breakpoint debugging identified that the program was dying on the first line of the method. Remeber, no exceptions were thrown by any part of the program so there was still no insight as to why this was happening. After reading the docs for `XDocument.Load` and `FileInfo.FullName`, it clear that there was nothing wrong with the code on this line. To be sure of this, the code was copied and moved into a new test file, where it executed perfectly fine without error. This was strange behaviour so just to be sure, the automatic temporary file pattern was removed and replaced with manually creating a file in a created directory of the user's *special folder* for common application data - a more familiar design that could be trusted to always work.
 
-----
+When this new code also failed it was clear that `Feed.Save` was not causing the problem here, but rather that it was coming from elsewhere in the program. Analysing the call stack of the `Feed.Save` breakpoint showed that it was being called by `Feed.Deactivate`, a method on the `Feed` class used for deactivating the feed under certain conditions. This program was especially suspicous becasue before investivating `Feed.Deactivate`, console logs were added to all the other methods off the class to show whether or not they were running to completion (before the first and after the last line of each method) and `Feed.Deactivate` was the only one that logged geting in but never logged getting out. Here is a sample of the `Feed.Deactivate` code (at the time of the issue):
 
-# ClunksEXP
+``` c#
+private static void Deactivate(bool save)
+{
+    lock (alive)
+    {
+        if (!alive)
+            return;
+        if (deactivating)
+            return;
+        deactivating = true;
+        sleeper.Cancel();
+        PrintHeader(DEADFEED);
+        alive = false;
+    }
+    lock (saveLock)
+        if (save)
+            saveCount = Save(lines, saveCount);
+    deactivating = false;
+}
+```
+
+First, the alive object is locked, to prevent any other methods from changing it while it is being used within this method. The first condition (`if (!alive)`) is a safety check to make sure the feed isn't already deactivated. Likewise, the second condition (`if (deactivating)`) is another safety to make sure a differents thread don't deactivate the feed at the same time. Then `deactivating` is set to true (so that any other thread attempting to deactivate after this point in time will fail the second safety check) and an object called `sleeper` is cancelled. This here is the important line. When debugging this method with breakpoints, the program would run until `Save` was called, and then fail within `Save`. However, when the line `sleeper.Cancel();` was commented out, the program would run with the expected behavoiur and the issue was gone. This mean either `sleeper.Cancel()` was the cause of the problem or commenting out `sleeper.Cancel();` pushed the issue elsewhere into the program that wasn't being hit by the current tests. *Being pushed elsewhere would mean that the execution of `sleeper.Cancel()` was taking enough time that the program was caught by the crash while executing this line, and removing it would allow the program to escape this.*
+
+`sleeper` is a C# `CancellationTokenSource`. `CancellationTokenSource`s contain `CancellationToken`s which can be used to asynchronously cancel a running thread from outside the thread. Here is a sample of the code that `sleeper` manages:
+
+```c#
+while (!sleeper.Token.IsCancellationRequested)
+{
+    if ((Console.CursorTop > Console.WindowHeight - 1) && (Console.CursorTop >= size + 2 + (Console.WindowHeight - 1)) && alive)
+        Deactivate(true);
+    else
+        sleeper.Token.WaitHandle.WaitOne(3000);
+    Thread.Sleep(10);
+}
+```
+
+As you can see, the state of `sleeper`'s token's cancellation is repeatedly polled, and the code inside it is repeatedly executed for as long as the token remains uncancelled. The purpose of this loop is to detect if the current message feed is offscreen (if the user has scrolled so far from it that it is no longer visible in the console). The logic to achieve this can be seen in the `if` condition, where: `Console.CursorTop` is the (zero based) row location of the cursor from the first row in the console and `size` is the number of message lines that the feed should display. Size is incremented by two for this comparison to inlucde the two extra box lines that the feeed will have.
+
+What matters here, is that if the feed is offscreen, `Deactivate` is called, otherwise, the loop should sleep for three seconds on `sleeper`'s `WaitHandle`. If `sleeper.Cancel` is called within those three seconds, the wait is interrupted and broken out of and the loop will continue on as if it had waited the full time. While removing `sleeper.Cancel` from deactivate seemed to solve the problem, the unfortunate situation was that `sleeper` was needed, so it couldn't be removed. Furthermore, a very similiar design pattern was used in the `Common.Channel` classes for their threads and was working fine, so it was strange that here `sleeper.Cancel` was causing issues.
+
+Because of this the class was tested relentlessly, adding log lines everywhere and commenting out every block of unecessary code. This was so extreme that the program was only left with its synchrounous, main-thread code uncommented by the end. The main thread code was run, just to make sure that it was 100% definitely not the cause of the problem but when it ran it executed, got in and out of all the called methods, then died. It was at this point that I realised what the cause of the problem really was.
+
+Before adding the `Feed.Save` method, this code was present at the bottom of the `.TestEnv.Program.Main()`:
+
+```c#
+//keep-alive
+Task.Run(() =>
+{
+    while (true)
+        Console.Read();
+});
+```
+
+This code spawns a new thread, and makes it read input from the console's input buffer forever. While this may seem like it does nothing, it was resposnible for keeping the program alive since it forced the program to constantly wait for new input, and as soon as it received some, it would wait for more. When `Feed.Save` was written, this code was removed from the class so technically there was nothing left to keep the program alive. This is what the reality of the *"problem"* was.
+
+Since the `Feed` class is designed to be intergrated into the Client, no means for keeping the threads alive after execution should be needed, as the Client should be resposible for keeping the program alive, however, during testing, the `Feed` class was being created in its own, independent environment so had to be resposible for keeping itself alive. Forgetting this, I had removed the "keep-alive" loop from the code leaving the program literally "hanging by a thread" as the only thing left keeping the program alive was the `while` loop responsible for decetecting if the thread is offscreen (shown above).
+
+When `sleeper.Cancel` was called this detection loop was broken out of and since there was nothing else left running in the program it would simply just quit, as it should. The program was never actually crashing, it behaving completely normally under the conditions that the code had put it in. This is why no errors/exceptions were thrown on fail. The reason it was failing after the `Feed.Save` breakpoint was because the breakpoint was allowing all the paths of execution to catch up to each other and synchronise, such that after the execution was released from the breakpoint, eveything would end simultanously. After discovering this the "keep-alive" was replaced into the program, and the `Feed` could be finalised, later to be intergrated into the client.
+
+<br>
+
+--------
+<br>
+
+# **CLUNKS** - Evaluation
+
+<!-- # ClunksEXP
 **ClunksEXP** is the tool used to create the `.exp` files used by **CLUNKS** to load server configurations. It was created so that users would'nt have to configure the server from within the command line and so that configurations can be stored or shared between users if needed. **ClunksEXP** can load an existing `.exp` file to be edited or the user can use the program to create a new configuration from scratch, then export it into a new `.exp` file.
 
 ## EXP Files
@@ -927,18 +1051,13 @@ Once the parent's ID in the database has been found, the parent's name can be fo
 The algorithms used for generating and loading `.exp` files utilise recursive patterns to simplify the process. This works especially well for `.exp` files since the XML markup they contain creates a tree-like structure, which is best traversed recursively.
 
 ## Sector Tracing
-If the created users are global are all marked as global users then there may not be any sectors marked on any of the server entities. In this scenario, the sectors to be marked onto the entities should be implied from the sector of the users who reside in those entities, since the all users will need to be marked with sectors anyway so that the exporter knows which elevation to apply to the user. Programmatically, this is performed with the `IOManager.Export.ApplySectorsRecrusive` function, which recursively backtracks through the structure of the server to apply sectors to subserver entities, starting with the lowest child in tree that has a user within it.
+If the created users are global are all marked as global users then there may not be any sectors marked on any of the server entities. In this scenario, the sectors to be marked onto the entities should be implied from the sector of the users who reside in those entities, since the all users will need to be marked with sectors anyway so that the exporter knows which elevation to apply to the user. Programmatically, this is performed with the `IOManager.Export.ApplySectorsRecrusive` function, which recursively backtracks through the structure of the server to apply sectors to subserver entities, starting with the lowest child in tree that has a user within it. -->
 
----
-
-# Research
+<!-- # Research
 C# Send Email: https://www.google.com/search?rlz=1C1CHBF_en-GBGB777GB777&sxsrf=ALeKk031_qPKoOIFowLL7Lrg2_e-ZTZgCw%3A1610481594743&ei=uv_9X-TcLPOF1fAP3Pu5wAc&q=c%23+send+email+smtp&oq=c%23+send+emai&gs_lcp=CgZwc3ktYWIQAxgBMgQIIxAnMgcIABDJAxBDMgUIABCRAjIECAAQQzIECAAQQzICCAAyAggAMgIIADICCAAyAggAOgQIABBHOgcIIxDJAxAnOgUIABCxAzoKCAAQsQMQFBCHAjoHCAAQFBCHAjoICAAQsQMQgwE6BAgAEApQn0FY7UlglVRoAHACeACAAeYBiAHbCJIBBTUuNC4xmAEAoAEBqgEHZ3dzLXdpesgBCMABAQ&sclient=psy-ab
 
 C# Access Webcam: https://www.google.com/search?q=c%23+access+webcam&rlz=1C1CHBF_en-GBGB777GB777&oq=c%23+acc&aqs=chrome.0.69i59j69i57j69i58j69i60l2.1166j0j7&sourceid=chrome&ie=UTF-8
 
-# Keep in mind
+<!-- # Keep in mind
 ATM, when encryption level <= EncryptionConfig.Strength.Light, the size of the key is too small for certificates. This is because the size of the key is too small to compensate for the salt which is generated with EncryptionConfig.Strength.Strong settings (as per the Handshake protocol) <br>
 Dates/Time is in UTC <br>
-
-# To add
-Thread join issue -> testing

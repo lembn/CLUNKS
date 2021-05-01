@@ -36,7 +36,7 @@ namespace Common.Packets
         private static JsonSerializer serializer; //Used for serializing JObjects
         private static RNGCryptoServiceProvider rngCsp; //Secure random generator used for generating body salts
         
-        private bool disposedValue;
+        private bool disposed;
 
         //Used to tag elements in the payload
         private enum PayloadTag
@@ -229,14 +229,14 @@ namespace Common.Packets
 
         protected virtual void Dispose(bool disposing)
         {
-            if (!disposedValue)
+            if (!disposed)
             {
                 if (disposing)
                 {
                     rngCsp.Dispose();
                 }
 
-                disposedValue = true;
+                disposed = true;
             }
         }
 
