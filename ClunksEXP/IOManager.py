@@ -258,7 +258,6 @@ class IOManager:
         elevationElements = []
         sectorToElevation = {}
         elevationRoot = None
-        globalUserRoot = ET.SubElement(root, 'globalUsers')
         entities = self.ReadAll(self.storage['elevation'])
         if entities:
             elevationRoot = ET.SubElement(root, 'elevations')
@@ -279,6 +278,7 @@ class IOManager:
                 sectorToElevation[sector] = x
 
         usernames = []
+        globalUserRoot = ET.SubElement(root, 'globalUsers')
         entities = self.ReadAll(self.storage['user'])
         for user in entities:
             name = user[0].lower().strip()

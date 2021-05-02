@@ -2,6 +2,7 @@
 
 ***C**ommand* ***L**ine* ***U**nification* ***N***etwor***k*** ***S**ystem*
 
+
 **CLUNKS** is a system to provide simple LAN communication services for large businesses and establishments. Users will need to create a CLUNK Server on their network, and from there, the clients are able to log into pre-made user accounts, which can use to host, join logical entities on the server to communicate with any users added to it. **CLUNKS** currently runs with messaged based communication but has the underlying framework in place to be compatible with video and audio comminucation aswell.
 
 While other similar programs may exist, they are usually bespoke softwares made pricately for specific environments and aren't desinged to be public and widely accesible like **CLUNKS** is. This means that they may not have the same security and performance benefits that comes built into **CLUNKS**, and the ones which do are often private or proprietary.
@@ -487,7 +488,7 @@ However, with a parameterised query, the program would send: `SELECT id FROM use
 Furthermore, the program could the go on to execute the statement as many times as it wants with different values and the operation would be much faster because the body of the statment has already been processed. This reduces overall parsing time as the preparation on the query is done only once (although the statement is executed multiple times).
 
 Here is a sample of some of the queries that will need to be used in the program. <br>
-*The examples below will show the statements in a parameterised form. It may help to refer to the database diagram [here](README_img/dbschema.png). The examples below will also utilise string formatting syntax where `{}` can be used to inject a variable value into a string. There are some queries used in the process described below that will not be identified as they are self-explanatory.*
+*The examples below will show the statements in a parameterised form. It may help to refer to the database diagram <a href="README_img/dbschema.png" target="_blank">here</a>. The examples below will also utilise string formatting syntax where `{}` can be used to inject a variable value into a string. There are some queries used in the process described below that will not be identified as they are self-explanatory.*
 
 ### **User Information Queries:**
 
@@ -540,7 +541,7 @@ Race conditions are when two threads attempt to access a shared resource and end
 WAL (Write Ahead Logging) inverts SQL's transaction-rollback system to preserve the database while it is being edited.
 > *The traditional rollback journal works by writing a copy of the original unchanged database content into a separate rollback journal file and then writing changes directly into the database file. In the event of a crash or ROLLBACK, the original content contained in the rollback journal is played back into the database file to revert the database file to its original state. The COMMIT occurs when the rollback journal is deleted. The WAL approach inverts this. The original content is preserved in the database file and the changes are appended into a separate WAL file. A COMMIT occurs when a special record indicating a commit is appended to the WAL. Thus a COMMIT can happen without ever writing to the original database, which allows readers to continue operating from the original unaltered database while changes are simultaneously being committed into the WAL. Multiple transactions can be appended to the end of a single WAL file.*
 
-*From https://www.sqlite.org/wal.html*
+*From <a href="https://www.sqlite.org/wal.html" target="_blank">www.sqlite.org</a>*
 
 Essentially, each thread keeps track of its own changes with the WAL file, which are then made to the database when the thread is done, and conficts are resolved by the database engine. While also solving the race condition issue, this also improves the performance of database operations since without a `lock` statement, it allows multiple threads perform theyre operations without being blocked. In the same performance-oriented mindset, shared caching is used when connecting to the database from the progam which offers faster data transfer between the threads used by the program.
 
@@ -719,6 +720,45 @@ First any parameters contained within `statement` are extracted with the regular
 
 If `command` does represent a query, the results of the query are read from the `SqliteReader` and stored in results. If there was only one row read then the result is either a single value so can be returned independently; or a single row/array of values and can be returned as such. If multiple rows were read the algorithm will first check to see if each row only returned one value, if so the returned array should be one-dimensional, otherwise the whole `results` array can be returned. `DBHandler.Cursor` will also implement `IDisposable` so that the `SqliteConnection` object can be cleaned up when the `Cursor` object is disposed of.
 
+## Complex Data Processing - Entity Tracing
+
+'Entity traces' are used throughout the CLUNKS client and server sides to both display and determine the location of a user in the server's overall structure. An example of an entity trace is `subserver1 - room1 - room2`. This trace would be referred to as the trace for the room '`room2`', which is a child of the room '`room1`', which is a child of the subserver '`subserver1`'. Traces are created in the program in two ways:
+- In the client where the trace of the user's location is built up as they traverse to different entities
+- In the server's `DBHandler.DBHandler.Trace` method which finds the trace of an entity using only the name of the lowest child of the path (this would be `room2` in the previous example.)
+
+This segment will be focusing on the logic behind `DBHandeler.DBHandler.Trace`, a function to calculate the trace of a given entity. The psuedocoded function is shown below:
+
+*`entityTables = ["subservers", "rooms", "groups"]`* <br>
+*`_entityTables = ["subserver", "room", "group"]`* <br>
+
+```
+FUNCTION Trace(trace, cursor)
+    IF cursor.Execute("SELECT COUNT(*) FROM subservers WHERE name=trace[0];") > 0 THEN
+        cursor.Dispose()
+        RETURN trace
+    ENDIF
+    index = 1
+    IF cursor.Execute("SELECT COUNT(*) FROM groups WHERE name=trace[0];") > 0
+        index = 2
+    ENDIF
+    id = cursor.Execute("SELECT id FROM entityTables[index] WHERE name=trace[0];")
+    parentID = cursor.Execute("SELECT parent FROM _entityTables[index]_entityTables[index] WHERE child=id;")
+    IF parentID = NULL THEN
+        parentID = cursor.Execute("SELECT _entityTables[index - 1]ID FROM _entityTables[index - 1]_entityTables[index] WHERE _entityTables[index]ID=id;")
+    ENDIF
+    trace = trace.Push(cursor.Execute("SELECT name FROM entityTables[index] WHERE id=parentID;"))
+    RETURN Trace(trace, cursor)
+ENDFUNCTION
+```
+
+*Where `cursor` is an instance of `DBHandler.DBHandler.Cursor` and `trace` is an indexable stack of strings representing the current trace with the first item of the list representing the first item of the trace. If index `a` is already occupied,  The explaination below will use the `subserver1 - room1 - room2` trace as an example.*
+
+`Trace` utilises a recursive algorithm to create the trace of an entity. In this fashion, the first thing checked by the algorithm is the base case. Since traces are built from the lowest child (a room or group) up to a subserver, the bottom (leftmost) item of the trace represents the highest ranking entity found so far. When the algorithm is complete, this 'bottom' value is the name of some subserver, so the base case for this recursion is if the bottom value of the trace is present in the `subservers` table of the database. This algorithm checks the prescence of an entity in the database by counting the number of entities with the specified name. If the returned value (for the base case) if greater than zero, then the bottom value indicates a subserver and the trace can be completed, so the cursor can be disposed so opened caches or WAL data is closed/cleaned up and the trace is returned.
+
+Otherwise, the algorithm checks to see if the bottom entity is a room or a group. After identifying this the parent can be found and added to the trace. This is done by first finding out the parent's ID in the database from the approprate linking table, then querying the name using the ID as a search index. When the current bottom entity is a room or group, the parent entity can either be of the same type (another room/group) or of the next type up in the heirarchy (group -> room or room -> subserver). To identfy this the presence of the parent is first tested in the `room_rooms`/`group_groups` tables approraitely. If this test fails, the result stored into `parentID` will be null, so the parent must belong to the upper ranking table (`subserver_rooms`/`room_groups`) and the parent's ID is found from there.
+
+Once the parent's ID in the database has been found, the parent's name can be found, and added to the trace, then `Trace` method will call itself with the new name in the bottom entry.
+
 ## Class Design - Message Feed
 
 The Client program will need to use some class to handle incoming messages from the server. While this may seem like a simple task, it can actually be quite complicated to manage because messages can come in at any time. Server responses are expected from the server whenever a client makes a request. Because of this, the Client program easily can control the way that these are presented on the console without interrupting the current actions of the user. Messages on the other hand, are completely unpredictable. They can come in at any time so can't be simply outputted to the console since they may end up interrupting the user. The next best thing may seem to be to wait for a good time to alert the user of the message, and then either show it to them or prompt them to look for the message, however, this can make the process tedious for the user and also takes the user out of the real-time experience that **CLUNKS** aims to offer.
@@ -790,10 +830,10 @@ First the procedure will take the message data and sort and store it into `text`
 
 >
 >*`[`* <br>
->*`[["fred", "red"], [" - ", "gray"], ["hey mark, its fred here!", "gray"]],`* <br>
->*`[["mark", "blue"], [" - ", "gray"], ["hey fred, how you been?", "gray"]],`* <br>
->*`[["fred", "red"], [" - ", "gray"], ["good thanks, how about you?", "gray"]],`* <br>
->*`[["mark", "blue"], [" - ", "gray"], ["all good over here too.", "gray"]],`* <br>
+>&nbsp;&nbsp;&nbsp;&nbsp;*`[["fred", "red"], [" - ", "gray"], ["hey mark, its fred here!", "gray"]],`* <br>
+>&nbsp;&nbsp;&nbsp;&nbsp;*`[["mark", "blue"], [" - ", "gray"], ["hey fred, how you been?", "gray"]],`* <br>
+>&nbsp;&nbsp;&nbsp;&nbsp;*`[["fred", "red"], [" - ", "gray"], ["good thanks, how about you?", "gray"]],`* <br>
+>&nbsp;&nbsp;&nbsp;&nbsp;*`[["mark", "blue"], [" - ", "gray"], ["all good over here too.", "gray"]],`* <br>
 >*`]`* <br>
 >
 
@@ -846,60 +886,291 @@ Next `Console.CursorTop` is compared to `size + 2 + (Console.WindowHeight - 1)`.
 
 ### **State**
 
-`Feed` needs a variable (`alive`) to keep track of if the feed is active of if it has been automatically deactivated. Normally this could be implemented a standard C# boolean, but booleans are `struct`s which are *'value type'* objects. This means that they store the actual data they are supposed to represent. In comparison, a *'refence type'* object like `class` stores refences to the memory location where the data is stored, instead of storing the actual data itself. The problem this introduces is that `alive` needs to be locked in some places of the class, to make sure that threads don't edit it's value while other threads are reading it. This is a problem becase value type objects cannoot be used with C#'s `lock` statement, only refence types. The solution was to create a wrapper, `State` to wrap the standard C# boolean in a class so that it can be used as a refence type object. After this the wrapper must define the `implicit` and `explicit` cast operators. These operators tell the compiler how to cast a `State` object into a boolean so that `State` objects could be used like normal booleans for comparisons and assingments. `State` can be found in the `Client.Helpers` namespace
-
-
-
-## Complex Data Processing
-Entity Traversal
-ClunksEXP sector tracing
-DBH.LoadExp
-
-### **Entity Tracing**
-
-'Entity traces' are used throughout the CLUNKS client and server sides to both display and determine the location of a user in the server's overall structure. An example of an entity trace is `subserver1 - room1 - room2`. This trace would be referred to as the trace for the room '`room2`', which is a child of the room '`room1`', which is a child of the subserver '`subserver1`'. Traces are created in the program in two ways:
-- In the client where the trace of the user's location is built up as they traverse to different entities
-- In the server's `DBHandler.DBHandler.Trace` method which finds the trace of an entity using only the name of the lowest child of the path (this would be `room2` in the previous example.)
-
-This segment will be focusing on the logic behind `DBHandler.Trace`, a function to calculate the trace of a given entity. The psuedocoded function is shown below:
-
-*`entityTables = ["subservers", "rooms", "groups"]`* <br>
-*`_entityTables = ["subserver", "room", "group"]`* <br>
-
-```
-FUNCTION Trace(trace)
-    IF Execute("SELECT COUNT(*) FROM subservers WHERE name=trace[0];") > 0 THEN
-        Close()
-        RETURN trace
-    ENDIF
-    index = 1
-    IF Execute("SELECT COUNT(*) FROM groups WHERE name=trace[0];") > 0
-        index = 2
-    ENDIF
-    id = Execute("SELECT id FROM entityTables[index] WHERE name=trace[0];")
-    parentID = Execute("SELECT parent FROM _entityTables[index]_entityTables[index] WHERE child=id;")
-    IF parentID = NULL THEN
-        parentID = Execute("SELECT _entityTables[index - 1]ID FROM _entityTables[index - 1]_entityTables[index] WHERE _entityTables[index]ID=id;")
-    ENDIF
-    trace = trace.Push(Execute("SELECT name FROM entityTables[index] WHERE id=parentID;"))
-    RETURN Trace(trace)
-ENDFUNCTION
-```
-
-*Where `Exeucute` is a function that executes an SQL statement and returns the result if necessary and `trace` is an indexable stack of strings representing the current trace with the first item of the list representing the first item of the trace. If index `a` is already occupied,  The explaination below will use the `subserver1 - room1 - room2` trace as an example.*
-
-`Trace` utilises a recursive algorithm to create the trace of an entity. In this fashion, the first thing checked by the algorithm is the base case. Since traces are built from the lowest child (a room or group) up to a subserver, the bottom (leftmost) item of the trace represents the highest ranking entity found so far. When the algorithm is complete, this 'bottom' value is the name of some subserver, so the base case for this recursion is if the bottom value of the trace is present in the `subservers` table of the database. This algorithm checks the prescence of an entity in the database by counting the number of entities with the specified name. If the returned value (for the base case) if greater than zero, then the bottom value indicates a subserver and the trace can be completed, so the connection to the database and any opened caches or WAL data is closed/cleaned up and the trace is returned.
-
-Otherwise, the algorithm checks to see if the bottom entity is a room or a group. After identifying this the parent can be found and added to the trace. This is done by first finding out the parent's ID in the database from the approprate linking table, then querying the name using the ID as a search index. When the current bottom entity is a room or group, the parent entity can either be of the same type (another room/group) or of the next type up in the heirarchy (group -> room or room -> subserver). To identfy this the presence of the parent is first tested in the `room_rooms`/`group_groups` tables approraitely. If this test fails, the result stored into `parentID` will be null, so the parent must belong to the upper ranking table (`subserver_rooms`/`room_groups`) and the parent's ID is found from there.
-
-Once the parent's ID in the database has been found, the parent's name can be found, and added to the trace, then `Trace` method will call itself with the new name in the bottom entry.
+`Feed` needs a variable (`alive`) to keep track of if the feed is active of if it has been automatically deactivated. Normally this could be implemented a standard C# boolean, but booleans are `struct`s which are *'value type'* objects. This means that they store the actual data they are supposed to represent. In comparison, a *'refence type'* object like `class` stores refences to the memory location where the data is stored, instead of storing the actual data itself. The problem this introduces is that `alive` needs to be locked in some places of the class, to make sure that threads don't edit it's value while other threads are reading it. This is a problem becase value type objects cannoot be used with C#'s `lock` statement, only refence types. The solution was to create a wrapper, `State` to wrap the standard C# boolean in a class so that it can be used as a refence type object. After this the wrapper must define the `implicit` and `explicit` cast operators. These operators tell the compiler how to cast a `State` object into a boolean so that `State` objects could be used like normal booleans for comparisons and assingments. `State` can be found in the `Client.Helpers` namespace.
 
 --------
 <br>
 
-# **CLUNKS** - Technical Notes
+## ClunksEXP
+
+ClunksEXP, developed in python, is a gui program the wraps around its main functionality script `IOManager.py`. The module `IOManager` conains a class `IOManager` which contains the methods that perform the bulk of the heavy lifting in terms of data processing. `.exp` files will be loaded and created by instances of `IOManager.IOManager` and ClunksEXP's file storage is managed there too. Like `Client.Helpers.Feed`, ClunkEXP will utilise a temporary file (this time created by the system in the user's temp folder) to store data until it is either expoerted out to an `.exp` or the program is closed. The data stored in this file are python `list`s serialized with `pickle`. The `list`s are created by the program to represent that data that sources the `.exp` and should look something like:
+
+>
+>*`[["ss1"]]`* //*sub-server data*<br>
+>*`[],`* //*room data*<br>
+>*`[["u1", "", "user", "True"], ["u3", "", "user", "True"]],`* //*user data*<br>
+>*`["user_elv", "True", "True", "True", "True", "True", "True", "True", "True", "True", "user"],`* //*elevation data*<br>
+>
+
+Which would generate the corresponding `.exp`:
+```xml
+<?xml version="1.0"?>
+<root>
+  <subservers>
+    <subserver name="ss1"/>
+  </subservers>
+  <globalUsers>
+    <user username="u1" password="" sectors="user" global="True" elevation="user_elv"/>
+    <user username="u2" password="" sectors="user" global="True" elevation="user_elv"/>
+  </globalUsers>
+  <elevations>
+    <elevation name="user_elv" privilege="511" sectors="user"/>
+  </elevations>
+</root>
+```
+
+ClunksEXP uses sectors to create logical groupings of users within the program. A sector represents a group of users. In the above example, *`user_elv`* elevation has been created with the sector *`"user"`*. This information is used by the exporter to determine that any user with the *`"user"`* sector applied to them, should have the elevation privelleges denoted by `user_elv`
+
+ClunksEXP's gui will be managed by `ClunksEXP.Windows.MainWindow`, the module loaded by the entry point script for the program. This will create the main window, and any other new windows of the program. `MainWindow` will also host threads, created when a new window is created, to make sure that windows can't be duplicated. These windows will be instances of classes that will represnet the window programmatically. Each of these classes will derive from a base class `Editor` which will define the overall behaviour that any editor should have helping to keep the subclasses DRY.
+
+## UI Design
+Other than `Feed`, the Client UI is very simple since it is all contained within a standard console. The aim is for the UI to be infomrative to the user while still retaining simplicity. Here is a sample of thow the UI should look on startup of the Client:
+
+![image](README_img/client_ui_design.jpg)
+
+Since the server is designed to be a long running service, it has no UI and won't be assinged one by the system. When debbuging, an editor like Visual Studio may provide a console that can be used for as a sink logging from the executable but when the code is built into the target service, it will run with no UI.
+
+On the other hand, ClunksEXP will have the most advanced UI of all the parts of **CLUNKS**. This will entail mutlti-window browsing that should looks something like this:
+
+![image](README_img/clunksExp_prototype.gif)
+
+# **CLUNKS** - A Guided Tour
 *NOTE:*
 > *For viewing and executing the code, it is recommended to clone the entire repository and load the `CLUNKS.sln` file into Visual Studio so that the approprate files can be loaded to carry through required dependencies and code arrangments. This will load the Client, Server and Common projects. For viewing the ClunksEXP code, it is recommended to open the `ClunksEXP` folder of the repository in a python-supporting IDE*.
+
+Now that the programming is complete, a tour of the project can show the most computationally interesting parts of the different componenets that make up the solution. The best place to start is with a look into ClunksEXP, the program used to create the `.exp` file needed to intialise a server. For reference, this is how it looks to create a new `exp` file from scratch:
+
+## Creating An EXP
+
+# Show gif of creating a .exp from scratch
+
+For a look into how the gui classes are handled, please view the code in <a href="ClunksEXP/gui/windows/MainWindow.py" target="_blank">*this module*</a>. An interesting thing to look out for here are multi-threading techinques used to handle the opening, closing and lifing of windows. This section will be focusing on `IOManager.IOManager.Export`. As mentioned in the design, the `IOManager` module carries the dataprocessing of the program and a good example of this is `Export()`. The method is quite long (around 200 lines) so to view the full method it please navigate <a href="ClunksEXP/IOManager.py" target="_blank">*here*</a> otherwise, parts of the method will be broken down and explained below.
+
+The first couple blocks of the method setup some of the variables and objects that will be used later on in the algorithm. One thing to note is that the variable `entities` is reused throughout the program to store data loaded from the temporary file. This helps to save memory since after one batch data has been processed it doesn't need to be reused so can be overwritten. This also prevents large amounts of memory being taken from the heap in the case that each other sets of loaded data is large.
+
+At this point:
+
+```python
+for x in range(len(entities)):
+    name = entities[x][0].lower().strip()
+    if name not in subserverNames:
+        subserverNames.append(name)
+    else:
+        logFunc('EXPORT FAILED: Subserver names must be unique.')
+        return
+    subserverElements.append(ET.SubElement(subserverRoot, 'subserver', {'name': entities[x][0]}))
+    nameToSubserver[entities[x][0]] = x
+    if not entities[x][1].split(',')[0]:
+        noSectorSubservers[x] = None
+    else:
+        for sector in entities[x][1].split(','):
+            if sector:
+                try:
+                    sectorToSubserver[sector.strip()].append(x)
+                except KeyError:
+                    sectorToSubserver[sector.strip()] = [x]
+```
+
+The algorithm starts to create nodes in the `.exp` document to represent the subservers. This is done in the first `if` statement block. The second `if` statement block (`if not entities[x][1].split(',')[0]`) is used to track subservers that weren't assigned a sector by the user. In this case the sectors of the subserver should be derived from the sectors of the users who exist on that subserver. In the worst case scenario, a subserver could have no sectors, and no direct users exists on it. This subserver could then contain a room which also had no sectors, which may contain more rooms with no sectors on them. In this case to find the sectors for the subserver, the program would have to trace upwards from the user on the lowest child of the subserver tree, back up to the subserver to apply the sectors. Clearly this has the potential to be a very complicated problem, but this is performed later on in the program. *Even though sectors are completely ignore by the Server when loading `.exp`s into the database, they are used by ClunksEXP when importing existing `.exp`s files to be edited. This is why then need to be accurately preserved*
+
+For now if a subserver has no sectors, a new entry is added into `noSectorSubserver` pointing from the index of the current subserver in the list of subservers (`subserverElements`) to `None`. If a subserver does have sectors applied to it then for all the sectors on the subserver, `sectorToSubserver` is edited such that the entry containing the concerned sector points to a list that contains the index of the current subserver in the list of subservers. By the end of the code block above (If there were no failures):
+- `subserverElements` is a list containing XML element objects representing all the processed subservers
+- `subserverNames` is a list of all the subserver names
+- `nameToSubserver` is a dictionary that points from the name of a subserver to the index of that subserver in `subserverList`
+- `noSectorSubservers` is a dictionary pointing from the index of a subserver to `None`
+- `sectorToSubserver` is a dictionary pointing from a sector name to a list of indexes of subservers who have that sector
+
+Next, the room data is processed:
+
+```python
+for x in range(len(entities)):
+    name = entities[x][0].lower().strip()
+    if name not in roomNames and name not in subserverNames:
+        roomNames.append(name)
+    else:
+        logFunc('EXPORT FAILED: Room/subserver names must be unique.')
+        return
+    if entities[x][2] in subserverNames:
+        room = entities[x]
+        processedRooms.append(x)
+        roomElements.append(ET.SubElement(subserverElements[nameToSubserver[room[2]]], 'room', {'name': room[0], 'password': room[1]}))
+        nameToRoom[room[0]] = len(roomElements) - 1
+        parentIndex = nameToSubserver[room[2]]
+        if not room[3].split(',')[0]:
+            if parentIndex in noSectorSubservers.keys():
+                noSectorSubservers[parentIndex] = len(roomElements) - 1
+            noSectorRooms[len(roomElements) - 1] = None
+        else:
+            for sector in room[3].split(','):
+                if sector:
+                    if parentIndex in noSectorSubservers.keys():
+                        try:
+                            sectorToSubserver[sector.strip()].append(len(subserverElements) - 1)
+                        except KeyError:
+                            sectorToSubserver[sector.strip()] = [len(subserverElements) - 1]
+                        del noSectorSubservers[parentIndex]
+                    try:
+                        sectorToRoom[sector.strip()].append(len(roomElements) - 1)
+                    except KeyError:
+                        sectorToRoom[sector.strip()] = [len(roomElements) - 1]
+    elif entities[x][2] not in roomNames:
+        logFunc(f"EXPORT FAILED: Parent of room '{entities[x][0]}' does not exist.")
+        return
+```
+
+This iteration is repsonsible for processing rooms that are children of subservers. This is represented in the code with the `if entities[x][2] in subserverNames` condition. If this condition isn't satisfied, `elif entities[x][2] not in roomNames:` is tested to see if the parent of the room actually exists in the data. If it doesn't the user is alerted and the export is failed. Otherwise, the program keeps track of the fact that it is processing the current room, by storing the index of the room (`processedRooms.append(x)`). This is so that in the next loop, processed rooms aren't re-processed. After creating a new XML element object to represent the current room and appending it to `roomElements`, the name of the room is also noted into the `nameToRoom` dictionary.
+
+The room's sectors are then checked. If the room has no sectors, the algorithm checks to find if the parent also has no sectors. In this case, the `None` value pointed to by the index of the parent is replaced by the index of the current room. This is used for tracing sectors back to the subserver when one is finally found for the room. If the room has sectors then for each sector applied to the room the algorithm will manipulate `sectorToRoom` in the same way that `sectorToSubserver` is manipulated in the previous loop. If the room has sectors and the parent is found to have no sectors, then the sectors are applied to the subserver by updating `sectorToSubserver`. By the end of the code block above (If there were no failures):
+- `roomElements` is a list containing XML element objects representing all the processed rooms
+- `roomNames` is a list of all the room names
+- `nameToRoom` is a dictionary that points from the name of a room to the index of that room in `roomList`
+- `noSectorRooms` is a dictionary pointing from the index of a room to `None`
+- `sectorToRoom` is a dictionary pointing from a sector name to a list of indexes of rooms who have that sector
+- `noSectorSubservers` has been updated to contain the indexes of subservers that originally had no sectors but now have sectors applied to them
+
+After this, another iteration is perfomed though the same list to process the rooms left unprocessed by the previous loop. While it many seem inneficient to iterate twice over the same list, the operations performed by the second iteration rely on the data collected by the first one. Because of this combining the two iterations into one loop would require the second loop being run each time the first loop comes round so that it can update its data. This would have a polynomial time complexity of O(n^2), which is worse than the current complexity of O(2n) -> O(n). Here is the code for the second loop:
+
+```python
+for x in range(len(entities)):
+    if x not in processedRooms:
+        room = entities[x]
+        parent = roomElements[nameToRoom[entities[x][2]]]
+        roomElements.append(ET.SubElement(parent, 'room', {'name': entities[x][0], 'password': entities[x][1]}))
+        nameToRoom[room[0]] = len(roomElements) - 1
+        parentIndex = nameToRoom[room[2]]
+        if not room[3].split(',')[0]:
+            if parentIndex in noSectorRooms.keys():
+                noSectorRooms[parentIndex] = len(roomElements) - 1
+            noSectorRooms[len(roomElements) - 1] = None
+        else:
+            if parentIndex in noSectorRooms.keys():
+                if isinstance(room[3], list):
+                    ApplySectorsRecrusive(parentIndex, room[3])
+                else:
+                    ApplySectorsRecrusive(parentIndex, [room[3]])
+            for sector in entities[x][3].split(','):
+                if sector:
+                    try:
+                        sectorToRoom[sector.strip()].append(len(roomElements) - 1)
+                    except KeyError:
+                        sectorToRoom[sector.strip()] = [len(roomElements) - 1]
+```
+
+Here, the previously inprocessed names are processed normally in terms of creation, being added to `nameToRoom` and being added to `noSectorRooms` if the room has no sectors. The difference here is what happens when a room does sectors. In the previous loop all the rooms being handled were children of a subserver. This means that if a room had sectors and it's parent subserver didn't it was easy to apply these sectors onto the server since a subserver is always at the root of a tree of entities. In this loop though, the parent is a room. This room's parent could also be a room and that rooms parent could also be a room. In theory this relationship could go on forever before reaching the subserver as is the design of how rooms are meant to be created (because theoretically, rooms can be infinitely created within each other). While this isn't a problem and was a deliberate choice in the design, it introduces a problem of tracing the sectors back up to each element who should have them.
+
+To solve this issue, a the recursive function `ApplySectorsRecrusive` (which is local to the scope of `Export`) is called to trace entities back up to the server, and apply the appropriate sectors along the way. This function can be thought of as similar to `Server.DBHandler.DBHandler.Trace` but doesn't have the liberty of searching a database to find the parents of the current entity and instead has to utilse reverse dicionary lookup traversal to locate the next entity to process. Here is `ApplySectorsRecrusive` in full:
+
+```python
+def ApplySectorsRecrusive(index, sectors, searchSubservers = False):
+    if searchSubservers:
+        for sector in sectors:
+            if sector:
+                try:
+                    sectorToSubserver[sector.strip()].append(index)
+                except KeyError:
+                    sectorToSubserver[sector.strip()] = [index]
+        del noSectorSubservers[index]
+    else:
+        for sector in sectors:
+            if sector:
+                try:
+                    sectorToRoom[sector.strip()].append(index)
+                except KeyError:
+                    sectorToRoom[sector.strip()] = [index]
+        del noSectorRooms[index]
+        found = False
+        for parent, child in noSectorRooms.items():
+            if child == index:
+                ApplySectorsRecrusive(parent, sectors)
+                found = True
+                break
+        if not found:
+            for parent, child in noSectorSubservers.items():
+                if child == index:
+                    ApplySectorsRecrusive(parent, sectors, True)
+                    break
+```
+
+Similar to `Server.DBHandler.DBHandler.Trace`, `ApplySectorsRecrusive` checks to see if it has reached the subserver first, as this is the base case for the recursion. If the recursion has reached the subserver element then it has completed it's traversal up the tree to the root so it can apply the sectors to the subserver to complete the operation, then quit. Otherwise the current entity is a room, and the sectors passed into the function should be applied to the current room. Entries from `noSector[entity]` are deleted after the room the reference has been processed to provent the algorithm running into the same entity twice. The algorithm will then start seaching for the parent of the current room in `noSectorRooms`. Note how the value of entry in `noSectorRooms` is compared to the index of the current element to identify the parent. This is where the reverse lookup happens. If a parent is found the the algorihtm will continue to recurse, using the parent as the next node. The boolean `found` represents the algorithms success in finding a parent in `noSectorRooms`. If `found` is still `False` by the time the `if not found` condition is reached, it means that the parent of the current element is not a room, so therefore a subserver. In this case the algorithm will recurse onto the parent, and set `searchSubservers` to `True` for the recursion, to identify that the base case has been satified.
+
+After processing all the entities, `Export` moves onto processing elevations. This process is the same as the standard ones used for the others, but simpler than the entity processing since elevations don't require a sector, so no sector tracing is needed. Despite this, there is a interesting part of this section of the code used for calculating a integer value from a list of string-casted booleans that represent a binary number:
+
+```python
+privilege = sum([2**i if j == 'True' else 0 for i, j in enumerate(reversed(entities[x][1:len(entities[x]) - 1]))])
+```
+
+This line of code is resposible for taking an list like this:
+```python
+["user_elv", "True", "True", "True", "True", "True", "True", "True", "True", "True", "user"]
+```
+
+and converting the string-casted booleans into the an integer with the value of the binary number represented by the booleans. The binary number is big-endian (LSB last) and the list is an element of a larger list, `entities`, containing other elements of the same format. Because of this, `x`th (zero based) element from `entities` can be accessing with:
+```python
+entities[x]
+```
+
+`entities[x]` contains two elements that are not needed for the calculation, the first and last element. Python's string slicing sytnax can be used to eliminate these elements Since the desired values are from index `1` to index `len(entities[x]) - 1`, the sliced list will look like this:
+```python
+entities[x][1:len(entities[x]) - 1]
+```
+
+Because of the way that values are saved from the editor, the current list is actually little-endian. To fix this, the list can simply be reversed with:
+```python
+reversed(entities[x][1:len(entities[x]) - 1])
+```
+
+Now the list is formatted into a way that can be worked with. To evaluate the binary number represented by the list the sum should be taken of each bit value multiplied by their weight. Mathematically, this would look like:
+
+> ![image](https://quicklatex.com/cache3/91/ql_0b12d4da73db0b9381533fb5d0747d91_l3.png)
+> <!--- \begin{displaymath} \sum_{r=0}^{n-1} 2^rV_r \end{displaymath} ---> 
+> *Where V is the value of the of the bit at position r (0 or 1) and n is the bit-depth of the number*
+
+If the sequence for this series could be programmatically expressed with as a list of interegers, the summation can be found with python's built-in `sum` function. To create this list, python's `enumerate` generator is used to return an iterator that yeilds two values that can be used as the *`r`* and *`Vr`* values of the mathematical summation. For example, `enumerate([a, b, c])` would return:
+
+>
+>*`[`* <br>
+>&nbsp;&nbsp;&nbsp;&nbsp;*`(0, a),`* <br>
+>&nbsp;&nbsp;&nbsp;&nbsp;*`(1, b),`* <br>
+>&nbsp;&nbsp;&nbsp;&nbsp;*`(2, c),`* <br>
+>*`]`* <br>
+>
+
+As you can see, the first element of each returned element is the desired *`r`* value, and the second value is the *`Vr`*. Because of this, using python list comprehension, the sequence of the series can be found by:
+```python
+[2**i if j == 'True' else 0 for i, j in enumerate(reversed(entities[x][1:len(entities[x]) - 1]))]
+```
+*Where `i` is `r` and `j` is `Vr`*
+
+If the value of `j` (*`Vr`*) is `True`, this repsents a bit with value `1` raising 2 to the power of the corresponding `i` (*`r`*) value will represent the amount that should be added to the sum. If `j` is `False`, it represents a `0` so nothing should be added to the sum. From here the sum can be found by passing the list into `sum()`. The value of this series is used to store the value of the privelleges held by a certain elevation without needing to store the list of string-casted booleans. This process is reverse-engineered by the Server when loading the `.exp` to get the boolean list back out.
+
+Moving on from elevations, the final stage of `Export` (seen in the last iteration over `entities`) is responsible for processing users. Global users are processed quite simply because sectors are not relevent to how they are exported or imported, likewise applying elevations is also simple since it only requires a quick look up in the `sectorToElevation` dictionary. For non-global users, the entities they exists on are collected out of the lists stored in `sectorToRoom` and `sectorToSubserver` using the sectors applied to the user.
+
+The algorithm then iterates through these parents and adds the sector they belong to into the `sectors` attribute of the entity's XML element object. If the current entity is the lowest child of a branch of entities that a user exists on, then the user is created as a child node of that element, otherwise the algorithm will continue until it finds the lowest child. The purpose of this it to prevent the user from being added to each node of the branch since if the user exists on the lowest child, it is implied that the user exists on all the parent's of that child. This helps to reduce the file size of `.exp` file for complex configurations that contain many users, as duplicate nodes are drastically minimised. The code resposible for this can be seen here:
+
+```python
+for sector, parents in sectorToParent.items():
+    finalParents = []
+    for parent in parents[0] + parents[1]:
+        parentSectors = parent.get('sectors')
+        if not parentSectors:
+            parentSectors = sector
+        else:
+            parentSectors += f',{sector}'
+        parent.set('sectors', parentSectors)
+        lowest = True
+        for child in parent.iter():
+            if child is not parent and child in parents[1]:
+                lowest = False
+        if lowest:
+            finalParents.append(parent)
+    for parent in finalParents:
+        ET.SubElement(parent, 'user', {'username': user[0], 'password': user[1] , 'sectors': user[2], 'global': user[3], 'elevation': elevationName})
+```
+
+# SPECIFY DEPENDENCIES
+# Show gif of connecting to entities
+# Show gif of messages coming into feed
+# Show gif of messages coming into feed while not interrupting the user
 
 ### **Networking**
 The program performs all network operations on seperate threads to ensure that the user isnt left waiting for network repsonses while using the program on the client side, and to allow the server the flexibilty of serving multiple users at once.
@@ -1036,13 +1307,13 @@ In this final version of the redesigned algorithm, the uses the header to determ
 The computational footprint of this algorithm is much smaller since the buffer is only created once and gets passed around when needed. All this was achived at the cost of the memory footprint, though since each time `client` gets recasted out of `ar.AsyncState` the complete buffer is copied into the new object, so if a single datastream reception recurses very deeply, then the buffer will be copied many many times which could be dangerous, especially if the buffer is large. Both algorithms would require the buffer to be copied into the new object, the only difference is that in the original algorithm the buffer gradually increased in size, so the first copy would be smaller than the next, resulting in a smaller total overall. This comparison of memory footprint expressed mathematically, using big O notation (*examples will use a chunk size of 1Kb and a recusion depth of 3*):
 
 > ***Algorithm 1***: As metioned before, the first algorithm gradually increased the size of the user's buffer, so after all the data has been received, the client would have been copied 3 times with the first buffer having size *1Kb*, the second *2Kb* and the third *3Kb*. The total size therefore is: 
-![image](https://quicklatex.com/cache3/47/ql_6d44af1c80e2867a19f8568d07ae4c47_l3.png) .
+![image](https://quicklatex.com/cache3/47/ql_6d44af1c80e2867a19f8568d07ae4c47_l3.png).
 > <!--- 1 + 2 + 3 = 6Kb ---> 
 >
 > This can be expressed in general form as:
 >
 > ![image](https://quicklatex.com/cache3/fe/ql_d6fc47aaa51ff48be1ee09fb6db24ffe_l3.png)
-> <!--- begin{displaymath}a\sum_{r=1}^n r = \frac{an(n+1)}{2} = \frac{a(n^2 + n)}{2}\end{displaymath} --->
+> <!--- \begin{displaymath}a\sum_{r=1}^n r = \frac{an(n+1)}{2} = \frac{a(n^2 + n)}{2} \end{displaymath} --->
 >
 > *(where ![image](https://quicklatex.com/cache3/7e/ql_d27e058636fa137d40ebca2a1fb9837e_l3.png) is the buffer size [Kb] and ![image](https://quicklatex.com/cache3/29/ql_831c2406b034c3ff4a4734ebb9a95129_l3.png) is recursion depth)*
 > <!--- a --->
@@ -1158,7 +1429,8 @@ Now that the main problem had been identified, it could be easily solved by maki
 ## Message Feed
 During the late development stages of the `Feed` class a problem was discovered that seemed to come out of nowhere, but had serious implications for the finalisation of the class.
 
-*([commit 452623a](https://github.com/lembn/CLUNKS/blob/452623a7831a4658a4d038d629f810c1c3d9d227/.TestEnv/Program.cs) shows the state of the class at this point. Since the class was still in development at this point, it is in `.TestEnv.Program` and hadn't been intergrated into the Client yet)*
+
+*(<a href="https://github.com/lembn/CLUNKS/blob/452623a7831a4658a4d038d629f810c1c3d9d227/.TestEnv/Program.cs" traget="_blank">commit 452623a</a> shows the state of the class at this point. Since the class was still in development at this point, it is in `.TestEnv.Program` and hadn't been intergrated into the Client yet)*
 
 At this point in time, the `Feed.Save` method was being written to generalise the process of saving the feed messages rather than repeating the code in multiple places after its initial implementation, the program was run to test the new method but everytime the method was called, the program would just quit and die. What was especially strange about this was that there were no errors thrown, which is very unusal for C# being that it is a very well documented and maintained language, so has few undefined behaviours. This is made the problem incredibly more difficult to solve, as there were no clues pointing to where the root of the problem may lie so really it could come from any part of the program.
 
@@ -1260,17 +1532,6 @@ When `sleeper.Cancel` was called this detection loop was broken out of and since
 <br>
 
 # **CLUNKS** - Evaluation
-
-<!-- # ClunksEXP
-**ClunksEXP** is the tool used to create the `.exp` files used by **CLUNKS** to load server configurations. It was created so that users would'nt have to configure the server from within the command line and so that configurations can be stored or shared between users if needed. **ClunksEXP** can load an existing `.exp` file to be edited or the user can use the program to create a new configuration from scratch, then export it into a new `.exp` file.
-
-## EXP Files
-`.exp` files are XML files that summarise the information to be stored in the database. Unlike a database file, the data stored in `.exp` don't attempt to maximise efficiency. Because of this, each item stored in the file can be stored plainly as it is rather than along with metadata about it. This makes `.exp` files smaller than database files, making them good for sharing or permanently storing different states or configurations of the server.
-
-The algorithms used for generating and loading `.exp` files utilise recursive patterns to simplify the process. This works especially well for `.exp` files since the XML markup they contain creates a tree-like structure, which is best traversed recursively.
-
-## Sector Tracing
-If the created users are global are all marked as global users then there may not be any sectors marked on any of the server entities. In this scenario, the sectors to be marked onto the entities should be implied from the sector of the users who reside in those entities, since the all users will need to be marked with sectors anyway so that the exporter knows which elevation to apply to the user. Programmatically, this is performed with the `IOManager.Export.ApplySectorsRecrusive` function, which recursively backtracks through the structure of the server to apply sectors to subserver entities, starting with the lowest child in tree that has a user within it. -->
 
 <!-- # Research
 C# Send Email: https://www.google.com/search?rlz=1C1CHBF_en-GBGB777GB777&sxsrf=ALeKk031_qPKoOIFowLL7Lrg2_e-ZTZgCw%3A1610481594743&ei=uv_9X-TcLPOF1fAP3Pu5wAc&q=c%23+send+email+smtp&oq=c%23+send+emai&gs_lcp=CgZwc3ktYWIQAxgBMgQIIxAnMgcIABDJAxBDMgUIABCRAjIECAAQQzIECAAQQzICCAAyAggAMgIIADICCAAyAggAOgQIABBHOgcIIxDJAxAnOgUIABCxAzoKCAAQsQMQFBCHAjoHCAAQFBCHAjoICAAQsQMQgwE6BAgAEApQn0FY7UlglVRoAHACeACAAeYBiAHbCJIBBTUuNC4xmAEAoAEBqgEHZ3dzLXdpesgBCMABAQ&sclient=psy-ab
