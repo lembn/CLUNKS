@@ -65,6 +65,30 @@ The server admin can also create *global users*. These are users who are not tie
 
 The ability to run commands within CLUNKS is controlled by the server admin. The server-admin can grant different permissions to different users which will allow them to do certain things. In the school example, the server admin may configure the server such that only teachers can create groups, and sudents may only join existing ones. To achive this, the would create an *elevation level* (one for the student and one for the teacher). Elevation levels describe the actions that a user is allowed to make. The teacher elevation level would have the ability to make calls, the student one would not. These elevation levels can then be assigned from within ClunksEXP to the users as the admin sees fit.
 
+The Server will contain an XML `App.config` file, that can be edited by users to change the behavoiur of the CLUNK Server on startup. The configuration file looks like this:
+
+```xml
+<?xml version="1.0"?>
+<configuration>
+  <connectionStrings>
+    <add name="default" connectionString="Data Source={0}\data.db;Cache=Shared"/>
+  </connectionStrings>
+
+  <appSettings>
+    <add key="bufferSize" value="1024" />
+    <add key="username" value="admin" />
+    <add key="password" value="$2a$11$7AGg3IqlUDW94AF3Yn3CMOMv4EoHV0UFtpspasMx80DGDyxljxDk2"/>
+    <add key="ipaddress" value="192.168.0.21"/>
+    <add key="tcpPort" value="40000"/>
+    <add key="udpPort" value="30000"/>
+    <add key="dataPath" value=""/>
+    <add key="newExp" value="true"/>
+  </appSettings>
+</configuration>
+```
+
+The values of any `add` elements defined within this file can be edited by the admin of a CLUNK Server.
+
 ## The Proposed System - Client Side Usage
 
 As the name suggests, **CLUNKS**, is a command line application, the recommded usage is for a user to add **CLUNKS** to their environment variables so they can call the client program from their command prompt/terminal.
@@ -125,6 +149,17 @@ This will send a message to the user. Messages are stored in the database. A use
 [subservername]
 CLUNKS>>> chat [message]
 ```
+To see incoming messages, users can use the `feed` command to display a message feed onto the console:
+```
+CLUNKS>>> feed
+========================[INCOMING FEED - (LIVE)]=========================
+
+
+
+=========================================================================
+CLUNKS>>> 
+```
+The user can then continue to use **CLUNKS** as usual. When messages are received, they will populate the feed. The feed can be scrolled with `CRTL` + `UP/DOWN`. The feed will output itself to fit the size of the console at the time `feed` was run. It will deactivate itself when offscreen. In inavtive feed will say `[FEED - (DEACTIVATED)]` in the header instead of `[INCOMING FEED - (LIVE)]`. If the user is currently scrolled up and a new message comes in, the feed will alert the user that new messages are available by updateing the header to `[INCOMING FEED - (▼)]`.
 
 ### **Calling**
 After a user has entered the sub-server, they can create calls. To call another user, they can run:
@@ -582,38 +617,243 @@ The stream of bytes that `Packet`s get serialized into/deserialized out of is st
 
 A 4 byte header is used consistently across the program, follwing the conventional programming standard of 32 byte integers. The header is used by the receiver of a serialized packet to determine how many bytes of the incoming datastream makes up the payload of the packet. Because of this the header must be a constant value so that the receiver knows how many bytes it should use to determine the header's value. Since the header represents a size it never be negative, so could be implemeneted as a `uint` (unsigned integer) to maxmimise the range of the header by allocating all of its 32 bytes to positive values, however theoreticlly, there should never be a packet who's serialized datastream is large enough to need the extended range, so it shouldn't matter.
 
-After the header comes the crpytography data. The table shows the length of cryptography data as 256 but in the program it will be a value taken from an instance of `EncryptionConfig`. When serialzing the packet, The bytestream representation of the payload is symmetrically encrypted, then the key used to encrypt they payload is asymmetrically encrpyted and stored in the *'cryptography data'* section of the bytestream. The reason that two cryptographic systems have to be used is because of the limitations of the RSA algorihtm. In an ideal world, the payload would be encrypted with the recipient's public key and could be sent off from there, however, if the length of the payload bytestream is greater than the number of bits in the key, bytestream cannot be encrpted (because the RSA key can't cover the full extent of the data). This means that to keep the encryption purey asymmetric would require limiting the length of the bytestream to the length of the recipient's key (in bits) or hoping that the length of the datastream would no exceed the length of the recipients key. Both of these are far from ideal, so to solve the issue the data is encrypted symmetrically with AES-256. Since they AES key is required for decrypting the data it must be sent along with it so is encrypted with the recipient's public key to secure it. This way the data is encrypted fully - with no limitations to its length, and securely - with no limitations to the cryptography. The symmetric keys used to encrypt the data are randomly generated per serialization. Asymmetric keys are maintained for the length of a client's session connected to the server.
+After the header comes the crpytography data. The table shows the length of cryptography data as 256 but in the program it will be a value taken from an instance of `EncryptionConfig`. When serialzing the packet, The bytestream representation of the payload is symmetrically encrypted, then the key used to encrypt they payload is asymmetrically encrpyted and stored in the *'cryptography data'* section of the bytestream. The reason that two cryptographic systems have to be used is because of the limitations of the RSA algorihtm. In an ideal world, the payload would be encrypted with the recipient's public key and could be sent off from there, however, if the length of the payload bytestream is greater than the number of bits in the key, bytestream cannot be encrpted (because the RSA key can't cover the full extent of the data). This means that to keep the encryption purey asymmetric would require limiting the length of the bytestream to the length of the recipient's key (in bits) or hoping that the length of the datastream would no exceed the length of the recipients key. Both of these are far from ideal, so to solve the issue the data is encrypted symmetrically with AES-256. Since they AES key and IV are required for decrypting the data they must be sent along with it so is encrypted with the recipient's public key to secure it. This way the data is encrypted fully - with no limitations to its length, and securely - with no limitations to the cryptography. The symmetric keys used to encrypt the data are randomly generated per serialization. Asymmetric keys are maintained for the length of a client's session connected to the server.
 
 Below are two flowcharts, to demonstrate operations perfomed by the serializers when building and breaking down `Packet`s:
-
-# Packets - BuildPacket flowchart - GetDataStream flowchart
 
 ![image](README_img/serializers.png)
 
 ---
 <br>
 
-With everything in place for complete end-to-end encryted communication, here is a UML class diagram showing the structure of the `Common.Channels` namespace:
+The `Common.Channels.Channel` classes will defne a method called `Handshake`. `Handshake` will be used to perform the crpytography key exchange and compare asymmetric signatures. The handshake starts with the client sending a 'Hello' message to the server. This message contains the strength of encrpytion being used by the client, the server responds with an 'Ack' (acknowledgement). Moving on to the second stage, an 'Info' message from the client containing the client's public key is sent to the server. The server responds to this with a 'Hello' message containing its public key. For the third roudntrip, an 'Ack' message is sent from the client, responded to with an 'Info' message from the server containing the userID that the server has chosen to assign the client. This is responded to with the clients digital signature.
 
-# Show full diagram
+The digital signatures are created with the combination of encryption and hashing. Prior to the signature exchange, all messages have a *salt* added to them. Salts are randomly generated values that are appended to the body of a data payload to use for digital signature creation. The idea behind this is that at the end of the handshake, both parties need some data to sign to use for the encryption, usually this would be a log of all messages sent betweent the client and server (since it would be common to both) but in this case since the stages of the handshake are always the same, the data used to create the certificate would aways be the same too. To solve this, the salts are captured and stored by both parties and used to create the certificated at the end of the handshake. This adds a random element to the source for the signature so that it can't be easily replicated.
 
----
-<br>
+To create a certificate:
+ 1. The creator first hashes the list of all the salts they have sent out to create the certificate
+ 2. The hash is then signed (encrypted) with the creators PRIVATE key (very important to note that the private key is being used for encryption instead of the public one)
+ 3. The signed certificate can then be sent off to and verified by the other party
 
-# TODO: below
-Handshakes - flowchart
-Program and Worker
-DBH, Cursor
-Feed
-- Why state was needed
+To verify a certificate:
+ 1. The verifier decrypts the certificate they have been sent using the sender's PUBLIC key
+ 2. They then hash the list of all the salts they have received (using the same hash functions as the creator) to create their own version of the same certificate
+ 3. The two certificates can then be compared and if they match then the signature is verfied
+
+This process is done once from server to client, then from client to server to provide security, integrity and confidentiality on both ends. It provides:
+ - Security via the encryption
+ - Integrity via the hash (because if the data was changed the hashes wouldn't match)
+ - Confidentially via the signing of the asymmetric keys (since the intended sender would be the only person who had the correct private key to be able to sign the original digest).
+
+## Class Design - Program.cs
+
+Both the Client and Server projects will contain a file called `Program.cs` which will define `Program`, the class acting as the entry point for the respective programs. Client's `Program` will contain the main Client program code while Server's `Program` will define the necessary prerequisites needed for the server to run as a hosted service on the system and inject them into `Server.Worker`, which is where the main program code for the Server will be.
+
+## Class Design - Programmatic Database Interaction
+
+In order to interact with the database, the server will use a library of methods that will abstract from the low level operations used for database manipulation. These methods will be organised into a static class `DBHandler`, a part of Server's `DBHandler` namespace. This will simplify the Server programming as it will only need to call into `DBHandler.DBHandler`'s methods to get manipulate the database, without needed to worry about the logic behind the operations. It will also keep the code DRY (**D**on't **R**epeat **Y**ourself) since repeated database code will be eliminated. For `DBHandler` to achive this, another class will be needed, to provide some more abstraction. `Microsoft.Data.Sqlite` (the library containing the database interaction classes/methods) does not provide a cursor class, and instead provides the `SqliteConnection`, `SqliteCommand` and `SqliteDataReader`. Objects are supposed to be instatiated from these classes and used together to connect to, manipulate and read data from the database respectively. Since `DBHandler.DBHandler` has to be made to be thread safe to accomidate for the multi-threaded server, it can't simply use a single instance of each of these classes across the class as that could cause issue with race conditions or force threads to wait for each other. This means that each method of `DBHandler.DBHandler` would need its own `SqliteConnection`, `SqliteCommand` and `SqliteDataReader` and with the large number of methods within `DBHandler.DBHandler`, repeatedly instantiating objects out of these classes would not only by *un*-DRY, but would also increase the memory and CPU footprint used by the class.
+
+To solve this issue, another class will be added to the `DBHandler` namespace: `Cursor`. `Cursor` will contain object of the `SqliteConnection`, `SqliteCommand` and `SqliteDataReader` classes and abstract them from  `DBHandler.DBHandler`, exposing only one method, `Execute` compared to the previous three execution methods on `SqliteCommand`: `ExecuteNonQuery`, `ExecuteScalar`, `ExecuteReader`. This simplifies the usage of a `Cursor` object compared to a `SqliteCommand` and will simplify the `DBHandler.DBHandler` methods heavily. The reason that `SqliteCommand` exposes three methods for execution is for the three types of execution statements: Scalar Queries, Non-Scalar Queries and Non-Query statments. Scalar queries are statments that contain queries that will return one dimensional values, for example:
+
+```sql
+SELECT id FROM users WHERE name='Mike';
+SELECT id FROM users;
+```
+
+In the first statement, only one value is returned (assuming 'Mike' is a unique name), in the second statment, a single dimensional array of `id`s is returned. Non scaral queries are queries that return values with multiple dimensions, for example:
+
+```sql
+SELECT id, name FROM users;
+```
+
+Here, a 2-D array will be returned containing the `id`s and `name`s of of all the users in `users`. Finally an example of a non query statement is:
+
+```sql
+UPDATE users SET name='Mark';
+```
+
+In this example, nothing is returned from the statement, since nothing was requested. `Cursor.Execute` aims to emulate the behaviour of all three of `SqliteCommand`'s execution methods and combine them into one method. Then the result of the call (if it exists) can the be casted into the appropriate type by the caller. Here is a psueocoded algorithm showing how `Cursor.Execute` should work:
+
+```
+FUNCTION Execute(statement, parameters)
+    toReplace = Regex.Matches(statement, "(\$)(\w)*")
+    command.CommandText = Regex.Replace(statement, @"\t|\n|\r|", "")
+    command.CommandText.Trim()
+    command.Parameters.Clear()
+    FOR i = 0 TO toReplace.Length - 1
+        command.Parameters.AddWithValue(toReplace[i], parameters[i])
+    ENDFOR
+    operator = command.CommandText.Split()[0].ToLower()
+    IF (operator == "select" || (operator == "pragma" && !command.CommandText.Contains('='))) THEN
+        results = []
+        reader = command.ExecuteReader()
+        WHILE (reader.Read())
+            results.Add(reader.GetValues());
+        ENDWHILE
+        reader.Close()
+        IF (results.Count == 1) THEN
+            IF (results[0].Length == 1) THEN
+                RETURN results[0][0]
+            ELSE
+                RETURN results[0]
+            ENDIF
+        ELSE
+            firstItems = []
+            FOR i = 0 TO results.Length - 1
+                IF (results[i].Length > 1)
+                    RETURN results.ToArray()
+                ELSE
+                    firstItems.Add(results[i][0])
+                ENDIF
+            ENDFOR
+            RETURN firstItems
+        ENDIF
+    ELSE
+        command.ExecuteNonQueryAsync()
+        RETURN NULL
+    ENDIF
+ENDFUNCTION
+```
+
+First any parameters contained within `statement` are extracted with the regular expression `(\$)(\w)*`. Parameters are denoted with a `$` within the statement so any word preceeded by a dollar-sign should be extracted by the regular expression and stored in `toReplace`. After this `statement` is cleaned of whitespace and assigned to the `CommandText` property of `command` (the `SqliteCommand` used to hold information about the current command). Parameters are then bound to their 'in-statement representaion' and after this the algorithm will check to see if the `statement` was a query statement or not. Since the only SQL commands that could return a value are `SELECT` and `PRAGMA`, if the operator in `statement` was not one of these, it can execute `command` with `ExecuteNonQueryAsync()` and return null, since `command` didn't represent a query.
+
+If `command` does represent a query, the results of the query are read from the `SqliteReader` and stored in results. If there was only one row read then the result is either a single value so can be returned independently; or a single row/array of values and can be returned as such. If multiple rows were read the algorithm will first check to see if each row only returned one value, if so the returned array should be one-dimensional, otherwise the whole `results` array can be returned. `DBHandler.Cursor` will also implement `IDisposable` so that the `SqliteConnection` object can be cleaned up when the `Cursor` object is disposed of.
+
+## Class Design - Message Feed
+
+The Client program will need to use some class to handle incoming messages from the server. While this may seem like a simple task, it can actually be quite complicated to manage because messages can come in at any time. Server responses are expected from the server whenever a client makes a request. Because of this, the Client program easily can control the way that these are presented on the console without interrupting the current actions of the user. Messages on the other hand, are completely unpredictable. They can come in at any time so can't be simply outputted to the console since they may end up interrupting the user. The next best thing may seem to be to wait for a good time to alert the user of the message, and then either show it to them or prompt them to look for the message, however, this can make the process tedious for the user and also takes the user out of the real-time experience that **CLUNKS** aims to offer.
+
+This is why the design for an asynchronous message feed was chosen. The user can bring up a feed by running the `feed` command and from there can see all their messages. The class that manages this is the `Client.Helpers.Feed` class and because its asynchronous, it can update itself while the user continues to use **CLUNKS** as they please.
+
+When new messages need to be added to the feed, they will be added with this method (psuedocoded):
+
+```
+PROCEDURE Add(username, message, entity)
+    text = []
+    colours = []
+
+    PROCEDURE Add(textToAdd, colourToAdd)
+        text.Add(textToAdd)
+        colours.Add(colourToAdd)
+    ENDPROCEDURE
+
+    isGlobal = NOT entity.IsEmpty()
+    IF username == YOU THEN
+        Add("YOU", ConsoleColor.Blue)
+    ELSE
+        Add(username, ConsoleColor.Blue)
+    ENDIF
+    IF isGlobal == TRUE THEN
+        Add("@", ConsoleColor.Gray)
+        Add(entity, ConsoleColor.DarkGreen)
+    ENDIF
+    Add(" - ", ConsoleColor.Gray)
+    Add(message, ConsoleColor.Gray)
+    IF pointer > 0 && updated THEN
+        PrintHeader("[INCOMING FEED - (▼)]")
+        updated = FALSE
+        pointer = pointer + 1
+    ENDIF
+    linesAdded = 1
+    counter = 0
+    insertList = []
+    IF alive == TRUE THEN
+        insertList = lines
+    ENDIF
+    insertList.Insert(0, []);
+    FOR i = 0 TO text.Count - 1
+        IF counter + text[i].Length > width THEN
+            overflow = counter + text[i].Length - width
+            insertList[0].Add([text[i].Substring(0, text[i].Length - overflow), colours[i]])
+            insertList.Insert(0, [])
+            pointer = pointer + 1
+            linesAdded = linesAdded + 1
+            counter = 0
+            text.Insert(i + 1, text[i].Substring(text[i].Length - overflow, overflow))
+            colours.Insert(i + 1, colours[i])
+        ELSE
+            insertList[0].Add([text[i], colours[i]])
+            counter = counter + text[i].Length
+        ENDIF
+    ENDFOR
+    IF alive == FALSE THEN
+        Save(insertList);
+    ELSE
+        IF updated == TRUE THEN
+        Update((Console.CursorLeft, Console.CursorTop));
+        ENDIF
+    ENDIF
+ENDPROCEDURE
+```
+
+First the procedure will take the message data and sort and store it into `text` and `colours` such that the text stored in *`text[n]`* should be coloured with the colour stored in *`colours[n]`*. After this the value of `pointer` is checked to see if it is greater than zero. `pointer` is an integer variable used in the `Feed` class to point the element of `Feed.lines` that should be outputted onto the bottom line of the feed. `lines` is a 3-dimensional list of feed line data that stores information about the lines in the feed such that if each line in `lines` was ouputted, it would display the whole contents of the feed *(this is never done in the program, merely for demostration.)*. A good visualisation of `lines` is:
+
+>
+>*`[`* <br>
+>*`[["fred", "red"], [" - ", "gray"], ["hey mark, its fred here!", "gray"]],`* <br>
+>*`[["mark", "blue"], [" - ", "gray"], ["hey fred, how you been?", "gray"]],`* <br>
+>*`[["fred", "red"], [" - ", "gray"], ["good thanks, how about you?", "gray"]],`* <br>
+>*`[["mark", "blue"], [" - ", "gray"], ["all good over here too.", "gray"]],`* <br>
+>*`]`* <br>
+>
+
+The purpose of `pointer` is for the feed to keep track of the user's postion in lines. New lines are always inserted into the `0th` element of the feed such that the bottom off the feed shows the new messaged. `pointer` is checked to see to be greater than zero because that the user has scrolled away from the newest message, and it isn't visible in the feed. Since `Add` is only called when new messages come in, `pointer` being away from zero at this point means that the feed is now out of date, so the header is updated to display `"[INCOMING FEED - (▼)]"` to alert the user that there are new messages to view. The boolean variable `updated` is then set to `false` to represent that the feed is out of date and pointer is incremented to accurately point to the line that is displayed at the bottom of the feed. When `pointer` is checked to be greater than zero, `updated` must also be true for the condition to be satified. Setting updated to `false` prevents the condition from being satisfied again if `Add` is called before the user scrolls down to the bottom of the feed.
+
+`linesAdded` is an integer used to count the number of lines that `Add` has added to `lines`. It is initialised to `1` because any message must take up at least one line. `counter` is an integer used to count the number of characters that the current line has used, to see if a new `line` needs to be created. `insertList` is a reference the list that new lines should be inserted into. `alive` represnets if the current feed is active or not so if the `alive` is true, new lines should be inserted into `lines` so that they can be ouputted by `Update`, otherwise the lines should be added to a new list so they can be saved to the message file and loaded when a new feed is activated.
+
+A new element of `insertList` is created. This element represents the first line that will be added. After this the procedure will iterate though `text` to continually add all the `text` from the message until it has added eveything. Inside this loop, the algorithm checks to see if the current text to add will fit in the current line or go over. This is done by comparing `counter + text[i].Length` to `width`, where `width` is an integer storing the `width` of the console calculated elsewhere in the class.. If it will fit then it is added to the current line element, and counter is increased to accurately represent the number of characters used up by the current line. If the current text won't fit, then the program will calculate how many characters of the current text will overflow the current line. This value is then stored into `overflow`. The alorithm will then fill the current line with as much of the current text that can fit (with `text[i].Substring(0, text[i].Length - overflow)`), then create a new line element. Since the algorithm is now on a new line, `pointer` and `linesAdded` are and `counter` is reset. The algorithm then inserts the remaining text from the current text back into the `text` list, so that on the next iteration, the overflow characters will be processed accordingly.
+
+When this loop ends the program will either update the feed to disiplay the new line (if the user isn't scrolled), or save the new lines into the message file. The message file is used to store line data while the feed is deactivated. This allows `lines` to be cleared and remain empty until the feed is recalled since it `lines` isn't currently being used, reduces the memory footprint of the program.
+
+When initially designing `Feed`, many options for `lines` were considered, one of the most (seemingly) promising ones was to utilse a circular stack to buffer incoming messages. Originally, messages were going to retain their structure, being stored in an object called `FeedLine` that would store its own version of `lines` specific whatever message it represents. `Feed` would then use a circular stack to hold the objects in a buffer, holding a fixed amount and allowing older messages to get discarded. This not only created a good structure for discarding old messages, but was very efficient on memory since instead of growing the stack (as `lines` currently does), its spaces of the were recycled and used to store newer messages.
+
+For example for a feed of maximum length 5, a circular stack of length 5 could be created. Each time a new message comes in it would be built into a `FeedLine` object, and added to the rear of the stack. If another object was already in this position, it was an old message that could be overwritten. Then when the user wanted to display the line data, `FeedLine`s would be read from the rear of the stack (since thats where the newest messages were) and outputted to the console. This seemed like a great idea at the time, even though there would be some pretty complex logic involved with getting the correct lines out of the `FeedLine` object (especially when the user scrolled or if `FeedLine`s contained multiple lines within them), the efficiency of the design was incredibly. 
+
+Unfortunately, furhter brainstorming identified that while this works in theory, the design is flawed because if the user was scrolled up while new messages came in, the new messages could potentially overwrite the chat history even up to the message that the user was viewing, so the continuity was lost. Solving this would mean either disabling the scroll or looking for a new design, and since the scroll was such a valuable part of the feed, a new design was sought after, bringing feed to uses the `lines` list it is designed for now.
+
+### **Offscreen Detection**
+
+One of the features of `Feed` is that it should be able to automatically detect if the message feed is no longer visible in the console (because the user has progressed in the program causing the console to scroll). This will be done with a thread, a `CancellationTokenSource` and a handy bit of boolean logic. A high level overview of the operation is shown here:
+
+![image](README_img/feed_detection.png)
+
+This will be run on a thread that will loop endlessly, repeatedly polling a `CancellationTokenSource`. `CancellationTokenSource` contain `CancellationToken`s a `CancellationToken` is used to cancel long running threads such as this. The detection thread will poll a `CancellationTokenSource` on the `Feed` class called `sleeper` to see if its `IsCancellationRequested` property is set to true. If it is then `sleeper` has been cancelled with `sleeper.Cancel`, so the thread should stop otherwise, it would continue.
+
+The thread will use `sleeper`s `WaitHandle` to perform the 3 second sleep shown in the flowchart (hence where `sleeper` gets its name). A `WaitHandle` is a C# object used to make threads wait for a signal. In their standard usage, a `WaitHandle` will wait forever until they receive a signal from `WaitHandle.Set()`, in this case the `WaitHandle` will pause the thread until it receives a signal from `sleeper.Cancel` (which invokes `WaitHandle.Set`) or if three seconds elapses in that time. The reason that `sleeper`'s `WaitHandle` is used for sleeping instead of `Thread.Sleep` is so that the sleep can be cancelled by `sleeper.Cancel`. If `Thread.Sleep` was used and `sleeper` was cancelled during the three seconds of waiting, the loop would have to wait for the thread to stop sleeping to poll the `CancellationToken` and realise that it should stop looping.
+
+Now that the thread and `CancellationTokenSource` have been explained, what about the boolean logic? Well the logic that will be used to carry out the questions asked in the flowchart's descisions can be seen here:
+
+```
+IF (Console.CursorTop > Console.WindowHeight - 1) && (Console.CursorTop >= size + 2 + (Console.WindowHeight - 1)) && alive == TRUE THEN
+    Deactivate(true);
+```
+
+The first boolean expression: `(Console.CursorTop > Console.WindowHeight - 1)` performs the first descison from the flowchart. `Console.CursorTop` is an integer property storing the zero-based position index of the row of the cursor in the console. This index is relative the to the first row of the console, not the top row of the console. For example if a user scrolled the console down 20 lines `Console.CursorTop` would equal 19. If the user then reset the console so that the cursor would be at the top of the console, `Console.CursorTop` would still equal 19, the only for the user to way to decrease `Console.CursorTop` would be to scroll back up to the first line of the console.
+
+`Console.CursorTop` is compared to `Console.WindowHeight - 1` (the number of rows in the console) to see if it is greater. If this is true then the cursor is at the bottom of the console, because it has reached or suppased the bottom line of the console (`Console.WindowHeight` is decremented by 1 so that it will match the zero-based offset of `Console.CursorTop`). We check this because if the console hasn't scrolled at all, then the feed will definitely still be visible so shouldn't be deacitavted.
+
+Next `Console.CursorTop` is compared to `size + 2 + (Console.WindowHeight - 1)`. `size` is the number of lines that the feed will display. For example, for a feed that looks like this:
+
+```
+========================[INCOMING FEED - (LIVE)]=========================
+(1)
+(2)
+(3)
+=========================================================================
+```
+
+`size` would equal 3. The value `2` is added to size for this comparison to include the header and footer lines of the feed. `size + 2` is then added to `Console.WindowHeight - 1` to get the row number that the cursor would have to be at for the whole feed to be off the screen. Therefore, if `Console.CursorTop` is greater than or equal to this number, the feed must no longer be visible. Finally, the variable `alive` is compared to true to carry out the last check show in the flowchart. 
+
+### **State**
+
+`Feed` needs a variable (`alive`) to keep track of if the feed is active of if it has been automatically deactivated. Normally this could be implemented a standard C# boolean, but booleans are `struct`s which are *'value type'* objects. This means that they store the actual data they are supposed to represent. In comparison, a *'refence type'* object like `class` stores refences to the memory location where the data is stored, instead of storing the actual data itself. The problem this introduces is that `alive` needs to be locked in some places of the class, to make sure that threads don't edit it's value while other threads are reading it. This is a problem becase value type objects cannoot be used with C#'s `lock` statement, only refence types. The solution was to create a wrapper, `State` to wrap the standard C# boolean in a class so that it can be used as a refence type object. After this the wrapper must define the `implicit` and `explicit` cast operators. These operators tell the compiler how to cast a `State` object into a boolean so that `State` objects could be used like normal booleans for comparisons and assingments. `State` can be found in the `Client.Helpers` namespace
+
+
 
 ## Complex Data Processing
 Entity Traversal
 ClunksEXP sector tracing
 DBH.LoadExp
-Different versions of `Feed` (CQ, Pointer, FeedLine)
-Feed offscreen logic
-    (hence where `sleeper` gets its name). A `WaitHandle` is a C# object used to make threads wait for a signal. In their standard usage, a `WaitHandle` will wait forever until they receive a signal from `WaitHandle.Set()`, in this case the `WaitHandle` will pause the thread until it receives a signal from `sleeper.Cancel` (which invokes `WaitHandle.Set`) or if three seconds elapses in that time. The reason that `sleeper`'s `WaitHandle` is used for sleeping instead of `Thread.Sleep` is so that the sleep can be cancelled by `sleeper.Cancel`. If `Thread.Sleep` was used and `sleeper` was cancelled during the three seconds of waiting, the loop would have to wait for the thread to stop sleeping to poll the `CancellationToken` and realise that it should stop looping.
 
 ### **Entity Tracing**
 
@@ -653,8 +893,6 @@ ENDFUNCTION
 Otherwise, the algorithm checks to see if the bottom entity is a room or a group. After identifying this the parent can be found and added to the trace. This is done by first finding out the parent's ID in the database from the approprate linking table, then querying the name using the ID as a search index. When the current bottom entity is a room or group, the parent entity can either be of the same type (another room/group) or of the next type up in the heirarchy (group -> room or room -> subserver). To identfy this the presence of the parent is first tested in the `room_rooms`/`group_groups` tables approraitely. If this test fails, the result stored into `parentID` will be null, so the parent must belong to the upper ranking table (`subserver_rooms`/`room_groups`) and the parent's ID is found from there.
 
 Once the parent's ID in the database has been found, the parent's name can be found, and added to the trace, then `Trace` method will call itself with the new name in the bottom entry.
-
-<br>
 
 --------
 <br>
@@ -835,25 +1073,6 @@ While the new algorithm is clearly significantly better on memory as `n` grows l
 
 In the above graph, the red line represents the growth of memory usage for the first algorithm with a buffer size of `1Kb`; the blue line shows the growth of memory usage for the second algoritm with a `1Kb` buffer; the purple line is the first algorithm with a `3Kb` buffer and the green line is the second algorithm with a `3Kb` buffer. The graph shows that using the first algorithm with a small buffer size is signifiactly better than other combinations as the recursion depth increases.
 
-## Security (User)
-The client and server will perform a handshake on connection to ensure confididentiality and setup the asymmetric key exchange.
-
-The handshake starts with the user sending a 'Hello' message to the server. This message contains the strength of encrpytion being used by the client, the server responds with an 'Ack' (acknowledgement). The second stage of the handshake starts with an 'Info' message from the client containing the client's public key to use for encryption. The server responds to this with a 'Hello' message containing its public key. The third roudntrip begins with an 'Ack' message from the client. responded to with an 'Info' message from the server containing the userID that the server has chosen to assing the client. This is responded to with the clients digital signature.
-
-The digital signatures are created with the combination of encryption and hashing. Prior to the signature exchange, all messages have a *salt* added to them. Salts are randomly generated values which are appended to the body of a data payload to use for digital signature creation. The idea behind this is that at the end of the handshake, both parties need some data to sign to use for the encryption, usually this would be a log of all messages sent betweent the client and server (since it would be common to both) but in this case since the stages of the handshake are always the same, the data used to create the certificate would aways be the same too. To solve this, the salts are captured and stored by both parties and used to create the certificated at the end of the handshake.
-
-To create a certificate:
- - The creator first hashes the list of all the salts they have sent out to create the certificate
- - The hash is then signed (encrypted) with the creators PRIVATE key (very important to note that the private key is being used for encryption instead of the public one)
- - The signed certificate can then be sent off to and verified by the other party
-
-To verify a certificate:
- - The verifier decrypts the certificate they have been sent using the sender's PUBLIC key
- - They then hash the list of all the salts they have received (using the same hash functions as the creator) to create their own version of the same certificate
- - The two certificates can then be compared and if they match then the signature is verfied
-
-This process is done once from server to client, then from client to server to provide security, integrity and confidentiality on both ends. It provides: security via the encryption; integrity via the hash (because if the data was changed the hashes wouldn't match) and confidentially via the signing of the asymmetric keys (since the intended sender would be the only person who had the correct private key to be able to sign the original digest).
-
 <br>
 
 --------
@@ -943,7 +1162,7 @@ During the late development stages of the `Feed` class a problem was discovered 
 
 At this point in time, the `Feed.Save` method was being written to generalise the process of saving the feed messages rather than repeating the code in multiple places after its initial implementation, the program was run to test the new method but everytime the method was called, the program would just quit and die. What was especially strange about this was that there were no errors thrown, which is very unusal for C# being that it is a very well documented and maintained language, so has few undefined behaviours. This is made the problem incredibly more difficult to solve, as there were no clues pointing to where the root of the problem may lie so really it could come from any part of the program.
 
-First, the `Feed.Save` method was investigated, as that was what was new to the program, however, even though the `Feed.Save` method was new, the logic contained within it had already existed in the code in various other locations before it's creation. `Feed.Save` was only created to prevent having this duplicate code around the class, so it was quite percuilar for the method to behave like this when it's contained code was performing fine before. Here is a sample of how `Feed.Save` looked (at the time of the issue):
+First, the `Feed.Save` method was investigated, as that was what was new to the program, however, even though the `Feed.Save` method was new, the logic contained within it had already existed in the code in various other locations before it's creation. `Feed.Save` was only created to prevent having this duplicate code around the class (to make the code DRY), so it was quite percuilar for the method to behave like this when it's contained code was performing fine before. Here is a sample of how `Feed.Save` looked (at the time of the issue):
 
 ```c#
 private static int Save(List<List<KeyValuePair<string, ConsoleColor>>> linesToSave, int offset = 0)
