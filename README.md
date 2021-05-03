@@ -1191,12 +1191,7 @@ for sector, parents in sectorToParent.items():
         ET.SubElement(parent, 'user', {'username': user[0], 'password': user[1] , 'sectors': user[2], 'global': user[3], 'elevation': elevationName})
 ```
 
-# SPECIFY DEPENDENCIES
-# Show gif of connecting to entities
-# Show gif of messages coming into feed
-# Show gif of messages coming into feed while not interrupting the user
-
-### **Networking**
+## Communicating Over the Network
 The program performs all network operations on seperate threads to ensure that the user isnt left waiting for network repsonses while using the program on the client side, and to allow the server the flexibilty of serving multiple users at once.
 
 From a programming perspective, this achieved using asynchronous callbacks. This means that in the channel scripts (the classes created for network communications), a call is made to the socket to begin listening for activity on the bound endpoint (where the endpoint is the IP/port identity of the remote party) and delegate of the callback method is also passed in. The supplied callback is invoked when activity is detected, this allows the executing thread to be free to perform other activities whilst the callback is waiting to be invoked.
@@ -1556,6 +1551,15 @@ When `sleeper.Cancel` was called this detection loop was broken out of and since
 <br>
 
 # **CLUNKS** - Evaluation
+
+# TODO:
+- LoadEXP
+- ET (show git history?)
+- [Both before 'communicating on the network']
+- Client usage GIFS [after memory footprint analysis]
+- Check that the a tag links actually work
+- specify used dependencies
+- Write eval
 
 <!-- # Research
 C# Send Email: https://www.google.com/search?rlz=1C1CHBF_en-GBGB777GB777&sxsrf=ALeKk031_qPKoOIFowLL7Lrg2_e-ZTZgCw%3A1610481594743&ei=uv_9X-TcLPOF1fAP3Pu5wAc&q=c%23+send+email+smtp&oq=c%23+send+emai&gs_lcp=CgZwc3ktYWIQAxgBMgQIIxAnMgcIABDJAxBDMgUIABCRAjIECAAQQzIECAAQQzICCAAyAggAMgIIADICCAAyAggAOgQIABBHOgcIIxDJAxAnOgUIABCxAzoKCAAQsQMQFBCHAjoHCAAQFBCHAjoICAAQsQMQgwE6BAgAEApQn0FY7UlglVRoAHACeACAAeYBiAHbCJIBBTUuNC4xmAEAoAEBqgEHZ3dzLXdpesgBCMABAQ&sclient=psy-ab
