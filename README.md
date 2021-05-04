@@ -547,7 +547,7 @@ Essentially, each thread keeps track of its own changes with the WAL file, which
 
 ## Class Design - Channels
 
-For communication over the network, the program will need a library of methods that can provide the functionality so send and receive data over the machine's network pipe. While the standard C# `socket` class can be used, it exposes many methods and properties that will not be needed by **CLUNKS**, on the other hand the default TCP/UDP network classes abstract too much from the `socket` and would require extra code to be written to add some specific functionality back in. Because of this, the best solution is to create a wrapper for the C# network componenets that can be used by the client and server in a simple way. A customised wrapper will also allow the resultant classes to be built best to fit into **CLUNKS**. For example, this way the encryption can be built into the wrapper so that the classes using it don't have to worry about securing their data.
+For communication over the network, the program will need a library of methods that can provide the functionality so send and receive data over the machine's network pipe. While the standard C# `socket` class can be used, it exposes many methods and properties that will not be needed by **CLUNKS**, on the other hand the default TCP/UDP network classes abstract too much from the `socket` and would require extra code to be written to add some specific functionality back in. Because of this, the best solution is to create a wrapper for the C# network componenets that can be used by the client and server in a simple way. A customised wrapper will also allow the resultant classes to be built best to fit into **CLUNKS**. For example, this way the encryption can be built into the wrapper so that the classes using it don't have to worry about securing their data. *Because of this, you may come into places in the program where it seems that sensitive data is being sent in plaintext from client to server, or vice versa. In these cases remember that any data sent through a `Channel` class is encrypted automatically, hence why it is handled in plaintext in the program.*
 
 Furthermore, while commmunication will mainly use TCP because of the intergrity it ensures, a custom wrapper will allow the usage to swap between protocols to UDP. UDP may be used in certain places because it has a very small footprint on bandwidth, (about 60% less than TCP). Because of this it is also much faster than TCP as by nature because it doesn't contain the slow error checking methods that TCP uses. UDP doesn't wait for acknowledgement from the receiver, is connectionless, so an active connection doesn't need to be managed, doesn't compensate for lost packets and also doesn't attempt to guarantee packet delivery. Although this means that the packets recieved by the user may not be an accurate representation of what was originally sent, the eventual consistency reliant nature of the protocol (the philosophy that even if a few audiovisual frames are dropped in the process, the overall data received should be good enough to provide a good user experience) combined with the speed of data transfer makes it ideal for something like audiovisual streaming over a network. This will be achived with `Channel`s.
 
@@ -1363,6 +1363,37 @@ While the new algorithm is clearly significantly better on memory as `n` grows l
 
 In the above graph, the red line represents the growth of memory usage for the first algorithm with a buffer size of `1Kb`; the blue line shows the growth of memory usage for the second algoritm with a `1Kb` buffer; the purple line is the first algorithm with a `3Kb` buffer and the green line is the second algorithm with a `3Kb` buffer. The graph shows that using the first algorithm with a small buffer size is signifiactly better than other combinations as the recursion depth increases.
 
+## Dependencies
+
+The program relies on some external packages to provide certain functionality. This section will explain these dependencies and how they work. Along with the external packages, there is some functionality provided by special C# assemblies that come in the standard library, they will also be mentioned.
+
+### **Hosting and Logging:**
+
+The `Server.Worker` uses `Microsoft.Extensions.Hosting` and `Microsoft.Extensions.Logging` to set up the hosted service (worker service) and provide logging out of that service. `Hosting` also allows dependency injection to be used in the program, without having to rely on assembly reflection. `Serilog` is used alongside `Logging` to for the logging of the server. `Serilog` is used to override and reconfigure the default logger used by `Logging` to redirect the sink to a more accessible file to the user.
+
+### **Configuration:**
+
+The server can be configured by the user by editing the `App.config`/`Server.dll.config` files in the server's directory. This functionality is provided by `System.Configuration.ConfigurationManager` which provides the configuration classes used by the server to interact with the configuration file. While this could be achieved manually by reading the file with a `Stream` reader object in the program, `System.Configuration.ConfigurationManager` is the recommended practice for providing external configuration to programs, since it loads the configuration file automatically to the specification that `.config` files shpuld be arranged in. This makes reading connection strings or configuration elements easier in the program. 
+
+### **Database Handling:**
+
+The server also includes `Microsoft.Data.Sqlite`. This exposes the classes and methods used by `Server.DBHandler.Cursor` to interact with the database. Other C#-Sqlite binaries are available, such as `System.Data.Sqlite`, but they are older and don't utilse the full extent of the new .NET functionality as well as `Microsoft.Data.Sqlite` 
+
+### **Hashing:**
+
+Hashing is achieved with two libraries in the program. The server uses `BCrypt.Net-Next` to hash and veify passwords that are sent to it, while ClunksEXP uses the `bcrpyt` package to hash user and room passwords when `.exp` files are being created.
+
+### **GUI:**
+
+ClunksEXP's gui is written using widgets built on the classes provided by `tkinter`. These widgets are the styled by `tkinter.ttk` and `ttkthemes`. Image objecs are handled with `PIL`.
+
+
+### **ClunksEXP IO:**
+
+ClunksEXP's temporary file saving uses the `tempfile` module to create temporary files on the system. These temporary files store data serialized by `pickle`. The `.exp` files are generated programmatically and exporting using the classes and functions exposed by `xml.etree.ElementTree`.
+
+### ****
+
 <br>
 
 --------
@@ -1558,7 +1589,6 @@ When `sleeper.Cancel` was called this detection loop was broken out of and since
 - [Both before 'communicating on the network']
 - Client usage GIFS [after memory footprint analysis]
 - Check that the a tag links actually work
-- specify used dependencies
 - Write eval
 
 <!-- # Research
