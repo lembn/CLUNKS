@@ -205,7 +205,7 @@ Below is a entity relationship diagram displaying the structure of the database 
 *NOTE: The database will be a SQLite database but the diagram shows some non-SQLite datatypes*
 
 ![image](README_img/dbschema.png)
-*[here]*(https://github.com/lembn/CLUNKS/master/README_img/dbschema.png)
+[*Raw view here*](https://github.com/lembn/CLUNKS/master/README_img/dbschema.png)
 
 <!-- TABLE elevations {
  id int PK
@@ -555,7 +555,7 @@ Furthermore, while commmunication will mainly use TCP because of the intergrity 
 The `Channel` class will be an abstract base class to encapsulate these componenets, creating the desired wrapper. From here, the `ClientChannel` and `ServerChannel` can be derived to serve the purpose of sending and receiving data over the network and returning or *"dispatching"* that data off to the Client and Server respectively. `Channel`, `ClientChannel` and `ServerChannel` will all be organised into a namespace in `Common` called `Channels`. Below is a UML class diagram representing the structure of the `Common.Channels` namespace:
 
 ![image](README_img/common.channels.png)
-*[here]*(https://github.com/lembn/CLUNKS/master/README_img/common.channels.png)
+[*Raw view here*](https://github.com/lembn/CLUNKS/master/README_img/common.channels.png)
 
 The Common.Channels.Channel classes implement the C# `IDisposable` interface to allow its members (namely the sockets and encryption handlers) to be safely disposed by the Garbage Collector when they are no longer being used. This improves (decreases) the amount of memory used by the program and ensures that memory isn't being allocated or held for unnecessary objects. In the same fashion, thoughout the program, varibales are often resued for the same objective. The implementation of `IDiposable` also frees the IP address and port used by the socket when the channel is no longer in use, so that they can be cleaned up by the OS.
 
@@ -606,7 +606,7 @@ It allows different users to use different levels of encryption instead of forci
 This achieves the abstraction of crpytography information from the serializers. Here is a UML class diagram showing `Packet`, `PacketFactory` and `EncryptionConfig` and how they are related:
 
 ![image](README_img/common.packets.png)
-*[here]*(https://github.com/lembn/CLUNKS/master/README_img/common.packets.png)
+[*Raw view here*](https://github.com/lembn/CLUNKS/master/README_img/common.packets.png)
 
 ---
 <br>
@@ -626,7 +626,7 @@ After the header comes the crpytography data. The table shows the length of cryp
 Below are two flowcharts, to demonstrate operations perfomed by the serializers when building and breaking down `Packet`s:
 
 ![image](README_img/serializers.png)
-*[here]*(https://github.com/lembn/CLUNKS/master/README_img/serializers.png)
+[*Raw view here*](https://github.com/lembn/CLUNKS/master/README_img/serializers.png)
 
 ---
 <br>
@@ -860,7 +860,7 @@ Unfortunately, furhter brainstorming identified that while this works in theory,
 One of the features of `Feed` is that it should be able to automatically detect if the message feed is no longer visible in the console (because the user has progressed in the program causing the console to scroll). This will be done with a thread, a `CancellationTokenSource` and a handy bit of boolean logic. A high level overview of the operation is shown here:
 
 ![image](README_img/feed_detection.png)
-*[here]*(https://github.com/lembn/CLUNKS/master/README_img/feed_detection.png)
+[*Raw view here*](https://github.com/lembn/CLUNKS/master/README_img/feed_detection.png)
 
 This will be run on a thread that will loop endlessly, repeatedly polling a `CancellationTokenSource`. `CancellationTokenSource` contain `CancellationToken`s a `CancellationToken` is used to cancel long running threads such as this. The detection thread will poll a `CancellationTokenSource` on the `Feed` class called `sleeper` to see if its `IsCancellationRequested` property is set to true. If it is then `sleeper` has been cancelled with `sleeper.Cancel`, so the thread should stop otherwise, it would continue.
 
@@ -1152,10 +1152,13 @@ Now the list is formatted into a way that can be worked with. To evaluate the bi
 
 > ![image](https://quicklatex.com/cache3/91/ql_0b12d4da73db0b9381533fb5d0747d91_l3.png)
 > <!--- \begin{displaymath} \sum_{r=0}^{n-1} 2^rV_r \end{displaymath} ---> 
+>
 > *Where V is the value of the of the bit at position r (0 or 1) and n is the bit-depth of the number*
 
 If the sequence for this series could be programmatically expressed with as a list of interegers, the summation can be found with python's built-in `sum` function. To create this list, python's `enumerate` generator is used to return an iterator that yeilds two values that can be used as the *`r`* and *`Vr`* values of the mathematical summation. For example, `enumerate([a, b, c])` would return:
+```
 
+```
 >
 >*`[`* <br>
 >&nbsp;&nbsp;&nbsp;&nbsp;*`(0, a),`* <br>
