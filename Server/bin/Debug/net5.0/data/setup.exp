@@ -1,13 +1,15 @@
 <?xml version="1.0"?>
 <root>
-  <subservers>
-    <subserver name="ss1"/>
-  </subservers>
-  <globalUsers>
-    <user username="u1" password="" sectors="user" global="True" elevation="user_elv"/>
-    <user username="u2" password="" sectors="user" global="True" elevation="user_elv"/>
-  </globalUsers>
-  <elevations>
-    <elevation name="user_elv" privilege="511" sectors="user"/>
-  </elevations>
+	<subservers>
+		<subserver name="year13">
+			<room name="13CSA" password="$2b$12$v5clS7qA53xvjLGuyrMBheJjPFc06l1YYJj0voPQ9MV0uaTj92P4e" />
+		</subserver>
+	</subservers>
+	<elevations>
+		<elevation name="user_elv" privilege="511" sectors="user" />
+	</elevations>
+	<globalUsers>
+		<user username="mark" password="$2b$12$Kq6xOm1KK7rcHHgq.7GQg.fcJMA6Kd.WTAGCvig3JvIdNRcRnR5Dm" sectors="user" global="True" elevation="user_elv" />
+		<user username="john" password="$2b$12$5AROkTgLhY5lcBoIxTi/RuTAqCw6EoJTYtr3A3hWsxew3KkgzUqi." sectors="user" global="True" elevation="user_elv" />
+	</globalUsers>
 </root>

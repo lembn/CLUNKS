@@ -1,9 +1,9 @@
-﻿namespace Client.Helpers
+﻿namespace Client.Feed
 {
     /// <summary>
     /// A reference type wrapper for the bool class
     /// </summary>
-    public class State
+    internal class State
     {
         private bool state;
 

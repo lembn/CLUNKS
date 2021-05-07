@@ -232,7 +232,7 @@ namespace Server.DBHandler
         {
             cursor.Execute("INSERT INTO rooms (name, password) VALUES ($name, $password)", room.Attribute("name").Value, room.Attribute("password").Value);
             int roomID = Convert.ToInt32(cursor.Execute("SELECT last_insert_rowid();"));
-            cursor.Execute($"INSERT INTO {(parentIsRoom ? "room" : "group")}_rooms ({(parentIsRoom ? "parent, child" : "subserverID, roomID")}) VALUES ($parent, $roomID);", parentID, roomID);
+            cursor.Execute($"INSERT INTO {(parentIsRoom ? "room" : "subserver")}_rooms ({(parentIsRoom ? "parent, child" : "subserverID, roomID")}) VALUES ($parent, $roomID);", parentID, roomID);
 
             List<int> processed = new List<int>();
             foreach (XElement user in room.Descendants("user").Concat(globalUsers))
@@ -406,7 +406,7 @@ namespace Server.DBHandler
                 string table = GetTable(entityName);
                 try
                 {
-                    users = (int[])cursor.Execute(@$"SELECT userID FROM users_{table}
+                        users = (int[])cursor.Execute(@$"SELECT userID FROM users_{table}
                                                      INNER JOIN {table} ON {table}.name='{entityName}'
                                                      INNER JOIN users ON users.id=users_{table}.userID
                                                      WHERE loggedIn={(inactive ? 0 : 1)};");

@@ -941,7 +941,7 @@ On the other hand, ClunksEXP will have the most advanced UI of all the parts of 
 
 # **CLUNKS** - A Guided Tour
 *NOTE:*
-> *For viewing and executing the code, it is recommended to clone the entire repository and load the `CLUNKS.sln` file into Visual Studio so that the approprate files can be loaded to carry through required dependencies and code arrangments. This will load the Client, Server and Common projects. For viewing the ClunksEXP code, it is recommended to open the `ClunksEXP` folder of the repository in a python-supporting IDE*.
+> *For viewing and executing the code, it is recommended to clone the entire repository and load the `CLUNKS.sln` file into Visual Studio so that the approprate files can be loaded to carry through required dependencies and code arrangments. This will load the Client, Server and Common projects which can the be executed using the debug tools within Visual Studio. From here, the Client and Server projects both need to be set to 'Start' in the 'Multiple Startup Projects' menu. To run outside of Visual Studio, the Client and Server executables need to be built and can then be run from the debug binaries. It is recommended to run the Server as a debug executable instead of building it into its target service. When running the Client within Visual Studio, the command line arguments, specifying the socket data to connect to the server need to be supplied in the project properties. For viewing the ClunksEXP code, it is recommended to open the `ClunksEXP` folder of the repository in a python-supporting IDE*.
 
 Now that the programming is complete, a tour of the project can show the most computationally interesting parts of the different componenets that make up the solution. **CLUNKS** contains many different complexities within its programmed solution (some of which will not be covered because this section would go on forever) but this section will look through the 4 main stages of the program:
 - Creating a `.exp` file to construct the configuration of the server
@@ -1296,7 +1296,7 @@ private static void ProcessRoom(Cursor cursor, XElement room, int parentID, IEnu
 {
     cursor.Execute("INSERT INTO rooms (name, password) VALUES ($name, $password)", room.Attribute("name").Value, room.Attribute("password").Value);
     int roomID = Convert.ToInt32(cursor.Execute("SELECT last_insert_rowid();"));
-    cursor.Execute($"INSERT INTO {(parentIsRoom ? "room" : "group")}_rooms ({(parentIsRoom ? "parent, child" : "subserverID, roomID")}) VALUES ($parent, $roomID);", parentID, roomID);
+    cursor.Execute($"INSERT INTO {(parentIsRoom ? "room" : "subserver")}_rooms ({(parentIsRoom ? "parent, child" : "subserverID, roomID")}) VALUES ($parent, $roomID);", parentID, roomID);
 
     List<int> processed = new List<int>();
     foreach (XElement user in room.Descendants("user").Concat(globalUsers))
@@ -1499,11 +1499,15 @@ In the above graph, the red line represents the growth of memory usage for the f
 
 Now both endpoints of the system have the required bases to connect and securely communicate. The database allows user accounts to be logged into so that **CLUNKS** clients can interact with each other within the defined entities. To display this, we will now move onto the client:
 
-[gifs]
+# Client usage GIFS at the beginning of client section (login, connect, send, receive)
 
-[explain gifs]
+Here, a **CLUNKS** Client is being started up and logging into a user account on the connected server. After loggin in, the client then connects to a subserver and begins to exchange messages with another user in the subserver.
 
-[et]
+In order to show these messages...
+
+# Feed Add
+# Feed Update
+# Feed Scroll
 
 The process of connecting to entities is refered to as *'entity traversal'* - this is a key part of using **CLUNKS**. There are two directions for entity traveral:
 - Positive (traversal into an entity that is not in the users current trace)
@@ -1634,7 +1638,7 @@ if (state)
         foreach (string entity in e.client.data["toUnset"].Split(" - ").Where(x => !String.IsNullOrEmpty(x)))
         {
             DBHandler.DBHandler.SetPresent(entity, values[3], false);
-            logger.LogInformation($"User@{e.client.endpoint} ({values[3]}) logged out of '{entity}'");                                               
+            logger.LogInformation($"User@{e.client.endpoint} ({values[3]}) logged out of '{entity}'");
         }
         e.client.data.Remove("toUnset");
         DBHandler.DBHandler.SetPresent(e.client.data["ETTargetSubserver"], values[3]);
@@ -1740,7 +1744,7 @@ if (state)
 }
 ```
 
-Otherwise if the `state` is false, then the password verification failed, seen in the `else` block of the statement:
+Otherwise if `state` is false, then the password verification failed, seen in the `else` block of the statement:
 
 ```c#
 else
@@ -1755,6 +1759,8 @@ else
     outPacket.Add(Communication.FAILURE);
 }
 ```
+
+# Client disconnection cleanup
 
 The event handlers are called back on response to each incoming packet from the remote endpoint so this process will continue until the user successfully enters all the passwords and completes the traversal, or the user enters an incorrect password and the traversal is failed.
 
@@ -1782,12 +1788,10 @@ Hashing is achieved with two libraries in the program. The server uses `BCrypt.N
 
 ClunksEXP's gui is written using widgets built on the classes provided by `tkinter`. These widgets are the styled by `tkinter.ttk` and `ttkthemes`. Image objecs are handled with `PIL`.
 
-
 ### **ClunksEXP IO:**
 
 ClunksEXP's temporary file saving uses the `tempfile` module to create temporary files on the system. These temporary files store data serialized by `pickle`. The `.exp` files are generated programmatically and exporting using the classes and functions exposed by `xml.etree.ElementTree`.
 
-### ****
 
 <br>
 
@@ -1873,7 +1877,6 @@ Now that the main problem had been identified, it could be easily solved by maki
 
 ## Message Feed
 During the late development stages of the `Feed` class a problem was discovered that seemed to come out of nowhere, but had serious implications for the finalisation of the class.
-
 
 *([commit 452623a](https://github.com/lembn/CLUNKS/blob/452623a7831a4658a4d038d629f810c1c3d9d227/.TestEnv/Program.cs) shows the state of the class at this point. Since the class was still in development at this point, it is in `.TestEnv.Program` and hadn't been intergrated into the Client yet)*
 
@@ -1994,19 +1997,22 @@ This objective has been partially completed. The main time factor within **CLUNK
 Throughout the design and programming of **CLUNKS**, there is plenty of evidence to show that the system was built with performance in mind. This ensures that the objective is satisfied, since memory and CPU usage have been considered at every step of the program.
 ### **Provide a flexible underlying codebase that can be expanded for more features in the future such as audio and video calling:**
 This objective was also kept in mind while developing **CLUNKS**. This can be seen in the `Common.Channels.Channel` classes, where it is evident that the `Channel`s support both TCP and UDP, allowing for the potential usage of UDP for audio/video calling in the future. Furthermore the client and sever both define (currently empty) methods for handling `AV` `Packet`s, the `Packet` type that would be used to send audio/visual data across the system.
-### **Provide an application allowing users to easily create and configure their server to their specific needs, Proivde unique user accounts used to perform actions within the program:**
+### **Provide an application allowing users to easily create and configure their server to their specific needs:**
 ClunksEXP acheives both of these objectives, prociding a user-friendly, GUI based application that will generate `.exp` files to the correct specification, so that this procces can be abstracted from the user. The ability to import and edit existing `.exp` files also shows this, as users won't always need to create their `.exp`s from scratch, if their desired configuration is similar to an existing one.
 
 ## Overall Evaluation
 
-Would be nice to add AV with more time
-More testing would be nice for bug fixing
-More time would be nice to finish notification services
-Custom client intergration
+Overall, I would consider the project to be very sucessful. All of the main objectives were completed, and most importantly there is solid groundwork laid down that will allow future developments to be intergrated while retaining the core of the program. **CLUNKS** seems to run well on different machines (but has not been tested outside of Windows) and ended up being everything it was designed to be. Looking reflectively on the project as a whole, it would definetely have benefited from more time for development, as there are most likely some bugs within the program that remain undiscovered but could be solved with some testing and diagnostic research. Alongside this, it would have been interesting to actually add the audio/visual features into the program. In terms of core functionality, the notification services were started but not completed, and still need to be written into the client. Furthermore, some more work needs to be added to fully support the custom client intergration. Currently, there are some responsibilties written into the **CLUNKS** Client to protect the server, that may not be written into a custom client, presenting a potential flaw that can be exploited to damage the server. To solve this these responsibilites would need to be moved over onto the server, so that they client won't need to declare them.
 
-# TODO:
-- Client usage GIFS at the beginning of client section (login, connect, send, receive)
-- Write eval
+## Future Improvements
+
+- Custom Client Intergration
+- Notifications
+- Auio/Visual Support
+- Encrypted Message Storage
+- Automated Database Backups *(into `.exp` files)*
+
+The code will continue to be developed, but the code can be viewed at this point in time with [this link](https://github.com/lembn/CLUNKS/tree/299c1356bf5c559cd85b6e89db070daecc7bad8c). Otherwise, please feel free to follow progress of the project at the [repository](https://github.com/lembn/CLUNKS/). Thanks for reading.
 
 <!-- # Research
 C# Access Webcam: https://www.google.com/search?q=c%23+access+webcam&rlz=1C1CHBF_en-GBGB777GB777&oq=c%23+acc&aqs=chrome.0.69i59j69i57j69i58j69i60l2.1166j0j7&sourceid=chrome&ie=UTF-8

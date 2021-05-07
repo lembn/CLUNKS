@@ -23,7 +23,7 @@ namespace Client
         {
             Console.CancelKeyPress += new ConsoleCancelEventHandler(Quit);
             Title();
-            Helpers.Feed.Initialise(3);
+            Feed.Feed.Initialise(3);
             bool state = true;
             channel = new ClientChannel(1024, IPAddress.Parse(args[0]), Convert.ToInt32(args[1]), Convert.ToInt32(args[2]), EncryptionConfig.Strength.Strong, ref state);
             quit = !state;
@@ -173,7 +173,11 @@ namespace Client
                             channel.Add(outPacket);
                             break;
                         case Communication.FEED:
-                            Helpers.Feed.Show();
+                            if (username == null)
+                                Console.WriteLine("You must log into an account to view chats");
+                            else
+                                Feed.Feed.Show();
+                            prompted = false;
                             break;
                         case "cls":
                             Console.Clear();
@@ -222,7 +226,7 @@ namespace Client
             {
                 Packet outPacket = new Packet(DataID.Command, channel.id);
                 pass = false;
-                outPacket.Add(Communication.CONNECT, ConsoleTools.HideInput($"Enter '{values[0]}' password"), username);
+                outPacket.Add(Communication.CONNECT, HideInput($"Enter '{values[0]}' password"), username);
                 channel.Add(outPacket);
             }
         }
@@ -246,7 +250,7 @@ namespace Client
                 if (values[0] != Communication.FAILURE)
                 {
                     username = values[1];
-                    Helpers.Feed.YOU = username;
+                    Feed.Feed.YOU = username;
                 }
                 channel.StatusDispatch -= LoginResponseHandler;
                 prompted = false;
@@ -257,7 +261,7 @@ namespace Client
             {
                 Packet outPacket = new Packet(DataID.Command, channel.id);
                 pass = false;
-                outPacket.Add(Communication.LOGIN, ConsoleTools.HideInput($"Enter your password"));
+                outPacket.Add(Communication.LOGIN, HideInput($"Enter your password"));
                 channel.Add(outPacket);
             }
         }
@@ -279,16 +283,52 @@ namespace Client
         private static void MessageHandler(object sender, PacketEventArgs e)
         {
             string[] values = e.packet.Get();
-            Helpers.Feed.Add(values[1], values[2], values[0] == Communication.TRUE ? traversalTrace.Peek() : null);
+            Feed.Feed.Add(values[1], values[2], values[0] == Communication.TRUE ? traversalTrace.Peek() : null);
         }
 
         private static void Quit(object sender, ConsoleCancelEventArgs e)
         {
-            Helpers.Feed.Cleanup();
+            Feed.Feed.Cleanup();
             channel.Close("Shutting down CLUNKS...");
             quit = true;
             if (e != null)
                 e.Cancel = true;
+        }
+
+        public static string HideInput(string prompt)
+        {
+            Console.Write($"{prompt}>>> ");
+            string input = String.Empty;
+            ConsoleKeyInfo info;
+            bool entered = false;
+            do
+            {
+                while (!Console.KeyAvailable)
+                    Thread.Sleep(0);
+                info = Console.ReadKey(true);
+                switch (info.Key)
+                {
+                    case ConsoleKey.Enter:
+                        entered = true;
+                        break;
+                    case ConsoleKey.Backspace:
+                        if (!string.IsNullOrEmpty(input))
+                        {
+                            input = input.Substring(0, input.Length - 1);
+                            int pos = Console.CursorLeft;
+                            Console.SetCursorPosition(pos - 1, Console.CursorTop);
+                            Console.Write(" ");
+                            Console.SetCursorPosition(pos - 1, Console.CursorTop);
+                        }
+                        break;
+                    default:
+                        Console.Write("*");
+                        input += info.KeyChar;
+                        break;
+                }
+            } while (!entered);
+            Console.WriteLine();
+            return input;
         }
 
         private static void Title()
