@@ -22,7 +22,7 @@ namespace Server.DBHandler
         public static bool UserExists(string username)
         {
             using (Cursor cursor = new Cursor(connectionString))
-                return Convert.ToInt32(cursor.Execute("SELECT COUNT(*) FROM users WHERE name=$name", username)) > 0;
+                return cursor.Execute<int>("SELECT COUNT(*) FROM users WHERE name=$name", username) > 0;
         }
 
         /// <summary>
@@ -46,7 +46,7 @@ namespace Server.DBHandler
             string table = GetTable(entity);
             object[] results;
             using (Cursor cursor = new Cursor(connectionString))
-                results = (object[])cursor.Execute(String.Format(checkStmt, table.Substring(0, table.Length - 1)), username, entity);
+                results = cursor.Execute<object[]>(String.Format(checkStmt, table.Substring(0, table.Length - 1)), username, entity);
             if (results != null && results.Length > 0)
                 return true;
             return false;
@@ -60,7 +60,7 @@ namespace Server.DBHandler
         public static bool UserLoggedIn(string username)
         {
             using (Cursor cursor = new Cursor(connectionString))
-                return Convert.ToInt32(cursor.Execute("SELECT loggedIn FROM users WHERE name=$username", username)) == 1;
+                return cursor.Execute<int>("SELECT loggedIn FROM users WHERE name=$username", username) == 1;
         }
 
         /// <summary>
@@ -73,8 +73,8 @@ namespace Server.DBHandler
             using (Cursor cursor = new Cursor(connectionString))
             {
                 string table = GetTable(entityName);
-                if ((from info in (object[][])cursor.Execute($"PRAGMA table_info({table})") select (string)info[1]).Contains("password"))
-                    return (string)cursor.Execute($"SELECT password FROM {table} WHERE name=$entityName;", entityName);
+                if ((from info in cursor.Execute<object[][]>($"PRAGMA table_info({table})") select (string)info[1]).Contains("password"))
+                    return cursor.Execute<string>($"SELECT password FROM {table} WHERE name=$entityName;", entityName);
             }                                        
             return String.Empty;
         }
@@ -96,7 +96,7 @@ namespace Server.DBHandler
 
             using (Cursor cursor = new Cursor(connectionString))
             {
-                string hash = (string)cursor.Execute("SELECT password FROM users WHERE name=$username;", username);
+                string hash = cursor.Execute<string>("SELECT password FROM users WHERE name=$username;", username);
                 if (String.IsNullOrEmpty(hash.Trim()))
                     if (String.IsNullOrEmpty(password.Trim()))
                         return Update(cursor, true);
@@ -124,27 +124,24 @@ namespace Server.DBHandler
             if (cursor == null)
                 cursor = new Cursor(connectionString);
             string bottom = trace.Split(" - ")[0];
-            if (Convert.ToInt32(cursor.Execute("SELECT COUNT(*) FROM subservers WHERE name=$entityName;", bottom)) > 0)
+            if (cursor.Execute<int>("SELECT COUNT(*) FROM subservers WHERE name=$entityName;", bottom) > 0)
             {
                 cursor.Dispose();
                 return trace;
             }
             int index = 1;
-            if (Convert.ToInt32(cursor.Execute("SELECT COUNT(*) FROM groups WHERE name=$entityName;", bottom)) > 0)
+            if (cursor.Execute<int>("SELECT COUNT(*) FROM groups WHERE name=$entityName;", bottom) > 0)
                 index = 2;
-            int id = Convert.ToInt32(cursor.Execute($"SELECT id FROM {entityTables[index]} WHERE name=$entityName;", bottom));
+            int id = cursor.Execute<int>($"SELECT id FROM {entityTables[index]} WHERE name=$entityName;", bottom);
             int parentID;
             int offset = 0;
-            try
+            parentID = cursor.Execute<int>($"SELECT parent from {_entityTables[index]}_{entityTables[index]} WHERE child='{id}';");
+            if (parentID == 0)
             {
-                parentID = Convert.ToInt32(cursor.Execute($"SELECT parent from {_entityTables[index]}_{entityTables[index]} WHERE child='{id}';"));
-            }
-            catch (InvalidCastException)
-            {
-                parentID = Convert.ToInt32(cursor.Execute($"SELECT {_entityTables[index - 1]}ID from {_entityTables[index - 1]}_{entityTables[index]} WHERE {_entityTables[index]}ID='{id}';"));
+                parentID = cursor.Execute<int>($"SELECT {_entityTables[index - 1]}ID from {_entityTables[index - 1]}_{entityTables[index]} WHERE {_entityTables[index]}ID='{id}';");
                 offset++;
             }
-            return Trace($"{(string)cursor.Execute($"SELECT name from {entityTables[index - offset]} WHERE id='{parentID}';")} - {trace}", cursor);
+            return Trace($"{cursor.Execute<string>($"SELECT name from {entityTables[index - offset]} WHERE id='{parentID}';")} - {trace}", cursor);
         }
 
         /// <summary>
@@ -193,16 +190,16 @@ namespace Server.DBHandler
                 foreach (XElement subserver in exp.Descendants("subserver"))
                 {
                     cursor.Execute("INSERT INTO subservers (name) VALUES ($name);", subserver.Attribute("name").Value);
-                    int subserverID = Convert.ToInt32(cursor.Execute("SELECT last_insert_rowid();"));
+                    int subserverID = cursor.Execute<int>("SELECT last_insert_rowid();");
 
                     List<int> processed = new List<int>();
                     foreach (XElement user in subserver.Descendants("user").Concat(globalUsers))
                     {
                         if (!processed.Contains(user.ToString().GetHashCode()))
                         {
-                            int elevationID = Convert.ToInt32(cursor.Execute("SELECT id FROM elevations WHERE name=$name", user.Attribute("elevation").Value));
+                            int elevationID = cursor.Execute<int>("SELECT id FROM elevations WHERE name=$name", user.Attribute("elevation").Value);
                             cursor.Execute("INSERT INTO users (name, password, elevation, loggedIn) VALUES ($name, $password, $elevationID, 0);", user.Attribute("username").Value, user.Attribute("password").Value, elevationID);
-                            int userID = Convert.ToInt32(cursor.Execute("SELECT last_insert_rowid();"));
+                            int userID = cursor.Execute<int>("SELECT last_insert_rowid();");
                             cursor.Execute("INSERT INTO users_subservers (userID, subserverID, present) VALUES ($userID, $parentID, 0);", userID, subserverID);
                             processed.Add(user.ToString().GetHashCode());
                         }
@@ -231,7 +228,7 @@ namespace Server.DBHandler
         private static void ProcessRoom(Cursor cursor, XElement room, int parentID, IEnumerable<XElement> globalUsers, bool parentIsRoom = true)
         {
             cursor.Execute("INSERT INTO rooms (name, password) VALUES ($name, $password)", room.Attribute("name").Value, room.Attribute("password").Value);
-            int roomID = Convert.ToInt32(cursor.Execute("SELECT last_insert_rowid();"));
+            int roomID = cursor.Execute<int>("SELECT last_insert_rowid();");
             cursor.Execute($"INSERT INTO {(parentIsRoom ? "room" : "subserver")}_rooms ({(parentIsRoom ? "parent, child" : "subserverID, roomID")}) VALUES ($parent, $roomID);", parentID, roomID);
 
             List<int> processed = new List<int>();
@@ -239,7 +236,7 @@ namespace Server.DBHandler
             {
                 if (!processed.Contains(user.ToString().GetHashCode()))
                 {
-                    int userID = Convert.ToInt32(cursor.Execute("SELECT id FROM users WHERE name=$name;", user.Attribute("username").Value));
+                    int userID = cursor.Execute<int>("SELECT id FROM users WHERE name=$name;", user.Attribute("username").Value);
                     cursor.Execute("INSERT INTO users_rooms (userID, roomID, present) VALUES ($userID, $parentID, 0);", userID, roomID);
                     processed.Add(user.ToString().GetHashCode());
                 }
@@ -286,7 +283,7 @@ namespace Server.DBHandler
         public static int GetUserID(string username)
         {
             using (Cursor cursor = new Cursor(connectionString))
-                return Convert.ToInt32(cursor.Execute("SELECT id FROM users WHERE name=$name", username));
+                return cursor.Execute<int>("SELECT id FROM users WHERE name=$name", username);
         }
 
         /// <summary>
@@ -303,31 +300,21 @@ namespace Server.DBHandler
                 cursor.Execute($"UPDATE users_subservers SET present=0 userID='{userID}';");
                 cursor.Execute($"UPDATE users_rooms SET present=0 userID='{userID}';");
                 cursor.Execute($"UPDATE users_groups SET present=0 userID='{userID}';");
-                object[] groups;
-                try
-                {
-                    groups = (object[])cursor.Execute($"SELECT id FROM groups WHERE owner='{userID}';");
-                }
-                catch (InvalidCastException)
-                {
-                    groups = new object[] { cursor.Execute($"SELECT id FROM groups WHERE owner='{userID}';") };
-                }
-                int newOwner;
+                int[] groups = Cursor.GetIntArray(cursor.Execute<object[]>($"SELECT id FROM groups WHERE owner='{userID}';"));
+                if (cursor.CanRecover)
+                    groups = new int[] { cursor.Recover<int>() };
                 foreach (object groupID in groups)
                 {
-                    try
-                    {
-                        newOwner = Convert.ToInt32(cursor.Execute($"SELECT userID FROM users_groups WHERE groupID='{groupID}' LIMIT 1;"));
-                        cursor.Execute($"UPDATE groups SET owner={newOwner} WHERE id={groupID};");
-                    }
-                    catch (InvalidCastException)
+                    int newOwner = cursor.Execute<int>($"SELECT userID FROM users_groups WHERE groupID='{groupID}' LIMIT 1;");
+                    cursor.Execute($"UPDATE groups SET owner={newOwner} WHERE id={groupID};");
+                    if (newOwner == 0)
                     {
                         cursor.Execute($"DELETE FROM groups WHERE groupID={groupID}");
                         cursor.Execute($"DELETE FROM room_groups WHERE groupID={groupID}");
                         cursor.Execute($"DELETE FROM group_groups WHERE groupID={groupID}");
                     }
                 }
-                username = (string)cursor.Execute($"SELECT name FROM users WHERE id='{userID}';");
+                username = cursor.Execute<string>($"SELECT name FROM users WHERE id='{userID}';");
             }
             return username;
         }
@@ -343,35 +330,25 @@ namespace Server.DBHandler
         {
             using (Cursor cursor = new Cursor(connectionString))
             {
-                if (Convert.ToInt32(cursor.Execute($"SELECT COUNT(*) FROM groups WHERE name=$name;", name)) > 0)
+                if (cursor.Execute<int>($"SELECT COUNT(*) FROM groups WHERE name=$name;", name) > 0)
                     return false;
-                int elevationID = Convert.ToInt32(cursor.Execute($"SELECT elevation FROM users WHERE id='{userID}';"));
-                if (Convert.ToInt32(cursor.Execute($"SELECT canCreateGroup FROM elevations WHERE id='{elevationID}';")) == 0)
+                int elevationID = cursor.Execute<int>($"SELECT elevation FROM users WHERE id='{userID}';");
+                if (cursor.Execute<int>($"SELECT canCreateGroup FROM elevations WHERE id='{elevationID}';") == 0)
                     return false;
                 cursor.Execute($"INSERT INTO groups (name, password, owner) VALUES ($name, $password, {userID});", name, password);
-                int groupID = Convert.ToInt32(cursor.Execute($"SELECT last_insert_rowid();"));
+                int groupID = cursor.Execute<int>($"SELECT last_insert_rowid();");
                 int parentID;
                 int index = 1;
-                try
+                parentID = cursor.Execute<int>($"SELECT id FROM rooms WHERE name=$parentName;", parentName);
+                if (parentID == 0)
                 {
-                    parentID = Convert.ToInt32(cursor.Execute($"SELECT id FROM rooms WHERE name=$parentName;", parentName));
-                }
-                catch (InvalidCastException)
-                {
-                    parentID = Convert.ToInt32(cursor.Execute($"SELECT id FROM groups WHERE name=$parentName;", parentName));
+                    parentID = cursor.Execute<int>($"SELECT id FROM groups WHERE name=$parentName;", parentName);
                     index = 2;
                 }
                 cursor.Execute($"INSERT INTO {(index == 1 ? "room_groups (roomID, groupID)" : "group_groups (parent, child)")} VALUES ({parentID}, {groupID});");
-                object[] users;
-                try
-                {
-                    users = (object[])cursor.Execute($"SELECT userID FROM users_{entityTables[index]} WHERE {_entityTables[index]}ID='{parentID}';");
-
-                }
-                catch (InvalidCastException)
-                {
-                    users = new object[] { Convert.ToInt32(cursor.Execute($"SELECT userID FROM users_{entityTables[index]} WHERE {_entityTables[index]}ID='{parentID}';")) };
-                }
+                int[] users = Cursor.GetIntArray(cursor.Execute<object[]>($"SELECT userID FROM users_{entityTables[index]} WHERE {_entityTables[index]}ID='{parentID}';"));
+                if (cursor.CanRecover)
+                    users = new int[] { cursor.Recover<int>() };
                 foreach (object user in users)
                     cursor.Execute($"INSERT INTO users_groups (userID, groupID, present) VALUES ({user}, {groupID}, 0);");
                 return true;
@@ -400,26 +377,18 @@ namespace Server.DBHandler
         /// <returns>The desired user list and an array</returns>
         public static int[] GetActiveUsers(string entityName, bool inactive = false)
         {
-            int[] users = null;
+            object[] users = null;
             using (Cursor cursor = new Cursor(connectionString))
             {
                 string table = GetTable(entityName);
-                try
-                {
-                        users = (int[])cursor.Execute(@$"SELECT userID FROM users_{table}
-                                                     INNER JOIN {table} ON {table}.name='{entityName}'
-                                                     INNER JOIN users ON users.id=users_{table}.userID
-                                                     WHERE loggedIn={(inactive ? 0 : 1)};");
-                }
-                catch (InvalidCastException)
-                {
-                    users = new int[] { Convert.ToInt32(cursor.Execute(@$"SELECT userID FROM users_{table}
-                                                                          INNER JOIN {table} ON {table}.name='{entityName}'
-                                                                          INNER JOIN users ON users.id=users_{table}.userID
-                                                                          WHERE loggedIn={(inactive ? 0 : 1)};")) };
-                }
+                users = cursor.Execute<object[]>(@$"SELECT userID FROM users_{table}
+                                                 INNER JOIN {table} ON {table}.name='{entityName}'
+                                                 INNER JOIN users ON users.id=users_{table}.userID
+                                                 WHERE loggedIn={(inactive ? 0 : 1)};");
+                if (cursor.CanRecover)
+                    users = new object[] { cursor.Recover<int>() };
             }                           
-            return users;
+            return Cursor.GetIntArray(users);
         }
 
         /// <summary>
@@ -447,8 +416,8 @@ namespace Server.DBHandler
         {
             using (Cursor cursor = new Cursor(connectionString))
             {
-                int elevationID = Convert.ToInt32(cursor.Execute($"SELECT elevation FROM users WHERE id='{userID}';"));
-                return Convert.ToInt32(cursor.Execute($"SELECT canMsg{type} FROM elevations WHERE id='{elevationID}';")) == 1;
+                int elevationID = cursor.Execute<int>($"SELECT elevation FROM users WHERE id='{userID}';");
+                return cursor.Execute<int>($"SELECT canMsg{type} FROM elevations WHERE id='{elevationID}';") == 1;
             }
         }
 
@@ -461,7 +430,7 @@ namespace Server.DBHandler
         {
             using (Cursor cursor = new Cursor(connectionString))
                 foreach (string table in entityTables)
-                    if (Convert.ToInt32(cursor.Execute($"SELECT COUNT(*) FROM {table} WHERE name=$parentName;", entityName)) > 0)
+                    if (cursor.Execute<int>($"SELECT COUNT(*) FROM {table} WHERE name=$parentName;", entityName) > 0)
                     {
                         if (capitalize)
                             return Char.ToUpper(table[0]) + table.Substring(1);

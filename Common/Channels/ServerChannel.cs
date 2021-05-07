@@ -77,7 +77,7 @@ namespace Common.Channels
                     ClientModel client = new ClientModel();
                     client.Handler = TCPSocket.EndAccept(ar);
                     if (Handshake(client))
-                        lock (clientList)
+                        lock (clientList) { }
                             clientList.Add(client);
                 }), null);
             })); //Accept connections and add to clientList
@@ -100,8 +100,8 @@ namespace Common.Channels
                     else
                     {
                         clientList[i].missedHBs += 1;
-                        if (clientList[i].missedHBs == 2)
-                                RemoveClient(clientList[i]);
+                        if (clientList[i].missedHBs == 2) { } //TODO: Replace
+                                //RemoveClient(clientList[i]);
                     }
                 }
             })); //Heartbeat

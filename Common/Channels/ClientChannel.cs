@@ -114,8 +114,8 @@ namespace Common.Channels
                 else
                 {
                     missedHBs += 1;
-                    if (missedHBs == 2)
-                        Close();
+                    if (missedHBs == 2) { } //TODO: Replace
+                        //Close();
                 }
             })); //Heartbeat
 
