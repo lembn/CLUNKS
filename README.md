@@ -943,7 +943,13 @@ On the other hand, ClunksEXP will have the most advanced UI of all the parts of 
 *NOTE:*
 > *For viewing and executing the code, it is recommended to clone the entire repository and load the `CLUNKS.sln` file into Visual Studio so that the approprate files can be loaded to carry through required dependencies and code arrangments. This will load the Client, Server and Common projects. For viewing the ClunksEXP code, it is recommended to open the `ClunksEXP` folder of the repository in a python-supporting IDE*.
 
-Now that the programming is complete, a tour of the project can show the most computationally interesting parts of the different componenets that make up the solution. The best place to start is with a look into ClunksEXP, the program used to create the `.exp` file needed to intialise a server. For reference, this is how it looks to create a new `exp` file from scratch:
+Now that the programming is complete, a tour of the project can show the most computationally interesting parts of the different componenets that make up the solution. **CLUNKS** contains many different complexities within its programmed solution (some of which will not be covered because this section would go on forever) but this section will look through the 4 main stages of the program:
+- Creating a `.exp` file to construct the configuration of the server
+- Importing a `.exp` file configure the server
+- Providing communication between two endpoints connected on a netork
+- Connecting to a **CLUNKS** Server as a **CLUNKS** Client
+
+The best place to start is with a look into ClunksEXP, the program used to create the `.exp` file needed to intialise a server. For reference, this is how it looks to create a new `exp` file from scratch:
 
 ## Creating An EXP
 
@@ -1199,8 +1205,126 @@ for sector, parents in sectorToParent.items():
         ET.SubElement(parent, 'user', {'username': user[0], 'password': user[1] , 'sectors': user[2], 'global': user[3], 'elevation': elevationName})
 ```
 
+## Importing and EXP
+
+If prompted by the `newExp` key of the configuration file, the sever will import `.exp`s into the database. This is done by `Server.DBHandler.DBHandler.LoadExp`. The method was placed on the `DBHandler` class as it is only related to database functionality. Here, `LoadExp` and its related methods will be explained, to walk through the process of loading a `.exp` file into the server.
+
+To begin with, the algorithm will create a new file to store the database in. If one already exists, it is overwritten. As a part of this, regular expressions are used to extract the location that the database should be placed in from the `connectionString` (a string storing the path to the data location and information about how the data should be connected to). Using this database file, the algorithm will then create the database using the following SQL:
+
+```sql
+{table} elevations ({IPK}, {name}, canCallSubservers {iBool}, canCallRooms {iBool}, canCallGroups {iBool}, canCallUsers {iBool}, canMsgSubservers {iBool},
+                    canMsgRooms {iBool}, canMsgGroups {iBool}, canMsgUsers {iBool}, canCreateGroups {iBool});
+{table} subservers ({IPK}, {name});
+{table} rooms ({IPK}, {name}, password TEXT NOT NULL);
+{table} subserver_rooms ({IPK}, subserverID INTEGER REFERENCES subservers(id), roomID INTEGER REFERENCES rooms(id), UNIQUE (subserverID, roomID));
+{table} room_rooms ({IPK}, parent INTEGER REFERENCES rooms(id), child INTEGER REFERENCES rooms(id), UNIQUE (parent, child));
+{table} users ({IPK}, {name}, password TEXT NOT NULL, elevation INTEGER REFERENCES elevations(id), loggedIn {iBool});
+{table} users_subservers ({IPK}, userID INTEGER REFERENCES users(id), subserverID INTEGER REFERENCES subservers(id), present {iBool}, UNIQUE (userID, subserverID));
+{table} users_rooms ({IPK}, userID INTEGER REFERENCES users(id), roomID INTEGER REFERENCES rooms(id), present {iBool}, UNIQUE (userID, roomID));
+{table} groups ({IPK}, {name}, password TEXT NOT NULL, owner INTEGER references users(id));
+{table} room_groups ({IPK}, roomID INTEGER REFERENCES rooms(id), groupID INTEGER REFERENCES groups(id), UNIQUE (roomID, groupID));
+{table} group_groups ({IPK}, parent INTEGER REFERENCES groups(id), child INTEGER REFERENCES groups(id), UNIQUE (parent, child));
+{table} users_groups ({IPK}, userID INTEGER REFERENCES users(id), groupID INTEGER REFERENCES groups(id), present {iBool}, UNIQUE (userID, groupID));
+{table} notifications ({IPK}, sender INTEGER REFERENCES users(id), receiver INTEGER REFERENCES users(id), time TEXT, msg TEXT, isMsg {iBool}, isGlobal {iBool}, UNIQUE (sender, receiver, time));
+```
+
+*Where `{table}` is shorthand for `CREATE TABLE IF NOT EXISTS`, `{IPK}` is shorthand for `id INTEGER PRIMARY KEY`, `{name}` is shorthand for `name TEXT NOT NULL` and `{iBool}` is shorthand for `INTEGER NOT NULL`.*
+
+This script initialises the database with the desired tables and relationships, ready to accept the `.exp` data. After importing the `.ecp`, the first items to be loaded are the elevations. The algorithm iterates over a collection of the elevation elements, inserting their data into the `elevations` table of the database as it goes. An interesting part of this process is the conversion from an privellege number into a collection of integers representing the bits of that number. This process is the reverse of the process mentioned in the `CLunksEXP/IOManager.Export` function. The line responsible for this is:
+```c#
+from num in Convert.ToString(Convert.ToInt32(elevation.Attribute("privilege").Value), 2).PadLeft(9, '0') select (int)Char.GetNumericValue(num)
+```  
+
+This operation is utilising C# LINQ to select characters of a string with an SQL-like syntax. The heavy lifting of this line is performed by:
+```c#
+Convert.ToString(Convert.ToInt32(elevation.Attribute("privilege").Value), 2).PadLeft(9, '0')
+```
+Here the privellge number (`elevation.Attribute("privelege").Value`) is converted to an `int` (`Convert.ToInt32`) so that it can be casted into a string. The string cast converts the number to base 2, providing the bit pattern of the privellege number as a string. The string is padded with zeroes to represent empty bits at the front of the bit pattern.
+
+Global users are then taken from the `.exp`, before the algorithm iterates over the subserver elements of the `.exp`. To process subservers, the subserver element's data is inserted into the database, then any users that exist on that subserver are created on the database. For any subserver, this includes all of the global users, since global users should exist everywhere. After processing all the users on a subserver, the algorithm progresses to process the rooms of the subserver with the method `ProcessRooms` (also a part of the `DBHandler` class). The code described above is shown below:
+
+```c#
+IEnumerable<XElement> globalUsers = exp.Descendants("globalUsers").Descendants("user");
+
+foreach (XElement subserver in exp.Descendants("subserver"))
+{
+    cursor.Execute("INSERT INTO subservers (name) VALUES ($name);", subserver.Attribute("name").Value);
+    int subserverID = Convert.ToInt32(cursor.Execute("SELECT last_insert_rowid();"));
+
+    List<int> processed = new List<int>();
+    foreach (XElement user in subserver.Descendants("user").Concat(globalUsers))
+    {
+        if (!processed.Contains(user.ToString().GetHashCode()))
+        {
+            int elevationID = Convert.ToInt32(cursor.Execute("SELECT id FROM elevations WHERE name=$name", user.Attribute("elevation").Value));
+            cursor.Execute("INSERT INTO users (name, password, elevation, loggedIn) VALUES ($name, $password, $elevationID, 0);", user.Attribute("username").Value, user.Attribute("password").Value, elevationID);
+            int userID = Convert.ToInt32(cursor.Execute("SELECT last_insert_rowid();"));
+            cursor.Execute("INSERT INTO users_subservers (userID, subserverID, present) VALUES ($userID, $parentID, 0);", userID, subserverID);
+            processed.Add(user.ToString().GetHashCode());
+        }
+    }
+
+    processed.Clear();                    
+    foreach (XElement room in subserver.Elements("room"))
+    {
+        if (!processed.Contains(room.ToString().GetHashCode()))
+        {
+            ProcessRoom(cursor, room, subserverID, globalUsers, false);
+            processed.Add(room.ToString().GetHashCode());
+        }
+    }
+}
+```
+
+The snippet also shows the `List` `processed`. `processed` is used by the algorithm to prevent creating duplicate entries into the database. Even though the constraints of the database are written to reject complete duplicates, it is still sub-optimal to process users that have already been processed, especially when it is so easy to check what has or hasn't already been processed. The constraints should only be used as a fallback for the worst case scenario. `processed` stores `int`s which are the value of the hash code of a processed element. The way that C# `XElement`s work makes them very difficult to compare, to demonstrate this are two XML structures below:
+
+```xml
+<root>
+    <parent>
+        <node>This is a node</node> <!-- node1 -->
+    </parent>
+    <node>This is node</node> <!-- node2 -->
+</root>
+```
+
+While the individually `node1` and `node2` are identical, the `XElement` object representations of them would be different because `node1`s parent node would reference `parent` while `node2`s parent would reference `root`. Because of this, `XElement`s were stored directly into `processed`, the program would think that the elements are different because of their position in the overall XML document so would continue to process them. A work around for this is to cast the `XElement` into a string, which will return a string containing the structure of the `XElement`. For example, casting `node1` to a string would return `<node> This is a node</node>`. This is good becasuse it disregards the parents of the element, so can be used for comparisons with `processed`, however, a `.exp` file can potentially be very large and string searching is notoriously slow (because its essentailly searching through a 2-dimensional list so has time complexity O(n^2)). This is why `GetHashCode` is called. It hashes the string to a unique value so that `processed` can store and operate on integers, which are very fast to work with compared to strings.
+
+`ProcessRooms` is the method resposbible for importing the rooms of a subserver into the database. It will process the room passed to it, then recursively calls into itself to process any more rooms found on the current room. When the first call to `ProcessRooms` is placed, the number of rooms that will need to be processed by the call is greater than or equal to 1, but the upper limit is unknown. To handle this, either an iterative or recursive design would be needed for `ProcessRooms` and a recursive design was chosen because recursion works very will with 'node-traversal' problems so because `ProcessRooms` operates on XML, the recursive solution is a good fit. Here is `ProcessRooms` in full:
+
+```c#
+private static void ProcessRoom(Cursor cursor, XElement room, int parentID, IEnumerable<XElement> globalUsers, bool parentIsRoom = true)
+{
+    cursor.Execute("INSERT INTO rooms (name, password) VALUES ($name, $password)", room.Attribute("name").Value, room.Attribute("password").Value);
+    int roomID = Convert.ToInt32(cursor.Execute("SELECT last_insert_rowid();"));
+    cursor.Execute($"INSERT INTO {(parentIsRoom ? "room" : "group")}_rooms ({(parentIsRoom ? "parent, child" : "subserverID, roomID")}) VALUES ($parent, $roomID);", parentID, roomID);
+
+    List<int> processed = new List<int>();
+    foreach (XElement user in room.Descendants("user").Concat(globalUsers))
+    {
+        if (!processed.Contains(user.ToString().GetHashCode()))
+        {
+            int userID = Convert.ToInt32(cursor.Execute("SELECT id FROM users WHERE name=$name;", user.Attribute("username").Value));
+            cursor.Execute("INSERT INTO users_rooms (userID, roomID, present) VALUES ($userID, $parentID, 0);", userID, roomID);
+            processed.Add(user.ToString().GetHashCode());
+        }
+    }
+
+    processed.Clear();
+    foreach (XElement child in room.Elements("room"))
+    {
+        if (!processed.Contains(room.ToString().GetHashCode()))
+        {
+            ProcessRoom(cursor, child, roomID, globalUsers);
+            processed.Add(room.ToString().GetHashCode());
+        }
+    }
+}
+```
+
+The method creates the room in the database, then creates an entry in `subserver_rooms` or `room_rooms` link table depending on the entity type of the room's parent. Users are then processed for the room and finally the method will search for child rooms to be processed next. An interesting thing to note here is that the cursor used for interacting with the database is passed into the method by its caller. This prevents repetitive memory allocation/de-allocation for the creation and disposal of new `Cursor` objects in cases where the recursion depth of `ProcessRooms` is large. 
+
 ## Communicating Over the Network
-The program performs all network operations on seperate threads to ensure that the user isnt left waiting for network repsonses while using the program on the client side, and to allow the server the flexibilty of serving multiple users at once.
+When the server is setup and ready to run, the only thing left to complete the system is the network communication, achieved using C# socket programming. The program performs all network operations on seperate threads to ensure that the user is'nt left waiting for network repsonses while using the program on the client side, and to allow the server the flexibilty of serving multiple users at once.
 
 From a programming perspective, this achieved using asynchronous callbacks. This means that in the channel scripts (the classes created for network communications), a call is made to the socket to begin listening for activity on the bound endpoint (where the endpoint is the IP/port identity of the remote party) and delegate of the callback method is also passed in. The supplied callback is invoked when activity is detected, this allows the executing thread to be free to perform other activities whilst the callback is waiting to be invoked.
 
@@ -1370,6 +1494,269 @@ While the new algorithm is clearly significantly better on memory as `n` grows l
 ![image](README_img/MemoryFootprintAnalysis.png)
 
 In the above graph, the red line represents the growth of memory usage for the first algorithm with a buffer size of `1Kb`; the blue line shows the growth of memory usage for the second algoritm with a `1Kb` buffer; the purple line is the first algorithm with a `3Kb` buffer and the green line is the second algorithm with a `3Kb` buffer. The graph shows that using the first algorithm with a small buffer size is signifiactly better than other combinations as the recursion depth increases.
+
+## The Client
+
+Now both endpoints of the system have the required bases to connect and securely communicate. The database allows user accounts to be logged into so that **CLUNKS** clients can interact with each other within the defined entities. To display this, we will now move onto the client:
+
+[gifs]
+
+[explain gifs]
+
+[et]
+
+The process of connecting to entities is refered to as *'entity traversal'* - this is a key part of using **CLUNKS**. There are two directions for entity traveral:
+- Positive (traversal into an entity that is not in the users current trace)
+- Negative (traversal into an entity that is in the users current trace)
+
+With this in mind, there are also types or *`orders'* of entity traversal, being:
+- Single (traversal into the direct child or parent of the current entity)
+- Skipping (traversal into a a distant entity or into different branch of entities)
+
+To demonstrate this, consider the following `exp`:
+```xml
+<?xml version="1.0"?>
+<root>
+  <subservers>
+    <subserver name="ss1">
+        <room name="r1" password="">
+            <room name="r2" password=""/>
+        </room>
+    </subserver>
+    <subserver name="ss2"/>
+    </subserver>
+  </subservers>
+  <globalUsers>
+    <user username="u1" password="" sectors="user" global="True" elevation="user_elv"/>
+    <user username="u2" password="" sectors="user" global="True" elevation="user_elv"/>
+  </globalUsers>
+  <elevations>
+    <elevation name="user_elv" privilege="511" sectors="user"/>
+  </elevations>
+</root>
+```
+
+If the user `u1` desired to connect to `ss1` could do so with the `connect` command, and this would be considered a single, positive entity traversal. From here they can connect to `r1` which would also be a single posisitve traversal. If the user connected directly to `r1`, the action would be a skipping positive traversal. When connected to `r1` the user could perform a single negative traversal by connecting back to `ss1`or they could perform a skipping positive traversal by connecting to `ss2`. Likewise, a skipping negative traversal would be the traversal of `r2` to `ss1`.
+
+On the client entity traversal is initially performed by with the following code (simplified):
+
+```c#
+if (!(traversalTrace.Count == 0))
+    if (entity == traversalTrace.Peek())
+    {
+        Console.WriteLine($"Already connected to {entity}");
+        prompted = false;
+    }
+if (username == null)
+{
+    Console.WriteLine("You must log into an account before connecting to entities");
+    prompted = false;
+}
+outPacket = new Packet(DataID.Command, channel.id);
+if (traversalTrace.Contains(entity))
+    outPacket.Add(Communication.CONNECT, Communication.START, entity, username, Communication.BACKWARD, String.Join(" - ", traversalTrace));
+else
+    outPacket.Add(Communication.CONNECT, Communication.START, entity, username, Communication.FORWARD, traversalTrace.Count == 0 ? String.Empty : traversalTrace.Peek());
+channel.StatusDispatch += ConnectReponseHanlder;
+channel.Add(outPacket);
+Console.WriteLine($"Requesting CONNECT to '{entity}'...");
+```
+
+This code creates the `Packet` used to store the request data data to be sent from the client. Upon reception of the `Pcakcet`, the server will switch through blocks of selective statements that define the behaviour of the response of the request. The simplest of type of `connect` for the server to handle is any type of negative traversal, because passwords are not required for moving out of entities, only moving into new ones. Likewise, since negative traversal is to do with entities that have already been connected to, the user has already entered the password (if needed) for these entities anyway. This is action is reflected in the server by simply updating the correct `present` values of the database and logging the traversal to the log sink:
+
+```c#
+string[] trace = values[5].Split(" - ").Reverse().ToArray();
+int i;
+for (i = trace.Length - 1; i >= 0; i--)
+{
+    if (trace[i] == values[2])
+        break;
+    DBHandler.DBHandler.SetPresent(trace[i], values[3], false);
+    logger.LogInformation($"User@{e.client.endpoint} ({values[3]}) logged out of '{trace[i]}'");
+}
+outPacket.Add(Communication.SUCCESS, String.Join(" - ", trace.Take(i + 1)));
+```
+*Where `values = ["CONNECT", "START", entity, username, "BACKWARD", userTrace]`*
+
+This functionality becomes much more complicated when the user is traversing positively. In this case, the server needs to keep track of the passwords that the user needs to enter for all the entities they are skipping through, to make sure that the user is authorised for access throughout the branch. Much of this is performed by the server on initial request for traveral, in preperation for the stages to come. After working out the entities that require passwords, the client and server engage in roundtrips with the server sending responses to prompt the client to enter these passwords one by one until the final password is sucessfully entered, in which case the server will update the database and respond to the user with a success message. The initial part of this process is performed by the following code:
+
+```c#
+state = DBHandler.DBHandler.UserInEntity(values[2], values[3]);
+if (state)
+{
+    string next = String.Empty;
+    string[] targetTrace = DBHandler.DBHandler.Trace(values[2]).Split(" - ");
+    if (String.IsNullOrEmpty(values[5]))
+        values[5] = targetTrace[0];
+    string[] currentTrace = DBHandler.DBHandler.Trace(values[5]).Split(" - ");
+    if (!currentTrace.SequenceEqual(targetTrace))
+    {
+        DBHandler.DBHandler.SetPresent(targetTrace[0], values[3], targetTrace[0] == currentTrace[0]);
+        e.client.data["toUnset"] = String.Join(" - ", currentTrace.Where(entity => !targetTrace.Contains(entity)));
+        if (targetTrace.Contains(values[5]))
+            targetTrace = targetTrace.SkipWhile(entity => entity != values[5]).Skip(1).ToArray();
+        e.client.data["requiresPassword"] = String.Join(" - ", targetTrace.Where(entity => !currentTrace.Contains(entity)));
+        e.client.data["makePresent"] = String.Join(" - ", targetTrace);
+        e.client.data["ETTarget"] = values[2];
+        e.client.data["ETTargetSubserver"] = targetTrace[0];
+        foreach (string entity in targetTrace.Reverse())
+        {
+            string pwd = DBHandler.DBHandler.GetEntityPassword(entity);
+            e.client.data[entity] = pwd;
+            if (!String.IsNullOrEmpty(pwd))
+            {
+                state = false;
+                if (String.IsNullOrEmpty(next))
+                    next = entity;
+            }
+        }
+    }
+```
+*Where `values = ["CONNECT", "START", userTargetEntity, username, "FORWARD", userCurrentEntity]` and `state` is a boolean defined outside the scope of this snippet*
+
+First, the database is queried to find if the user is actually on the member list of the entity they are attemptig to connect to. If they are, the server moves on to initialise the `next` variable, a strint to store the name of the next entity the user needs to provide a password for. The trace of the target entity is then calculated. If the user currently isn't connected to any entities, the user's current entity is set to the subserver of the target entity's trace, since subserver can't have passwords anyway and a value is needed for later comparisons. After this the current trace of the user is calculated and compared to the target trace. If the two traces are equal it means that the user was attempting to connnect to a subserver, after previously not being connected to anything. We know this because the client prevents the user from positively traversing to already-connected entities. Because of this, for the server to be in this block of the code at all, the user must have originally had no current entity, then was assigned the current entity of the subserver of the target trace. Since the current trace is only one entity (the assigned subserver), for the target trace to be equal to the current trace, the target trace must also only contain the assigned subserver. In this case there are no passwords required so the server can skip the password finding block.
+
+Otherwise, the server will update the databaase to set the `present` field to true for the user and create an entry `toUnset` in the data dictionary of the `ClientModel` being used to represent the client to store the trace of all the currently connected entities that aren't in the target trace. This entry is used to unset the presence of the user for all these entities so that if they change branch they arent left present on entites of the old branch. `requiresPassoword` is an entry holding the entities of the target trace that havent been connected to yet. Note that some of these entities may not require a password, this is simply a list of all the entries that *could* require a password. `make` present is created to store the entites that should have `present` values updated on sucessful traversal, and the `ETTarget`/`ETTargetSubserver` entries hold data about the target entity.
+
+After populating the dictionary, the server iterates over a list of the entites in the target trace, collecting their passwords out of the database as it goes. This is used to compare passwords sent later on by the user, instead of re-querying the database to get the passwords each time. The `next` variable holds the name of the lowest child in the trace that requires a password. `state` is used to decide if the user has already completed their traversal. If `state` is true, then there were no entities in the target trace that required a password so the the traversal can be completed in this roundtrip, otherwise, an `INCOMPLETE` signal is sent back to the client, prompting them to enter the password for the entity stored in `next`. In the case that the traversal was complete, the database is updated and the client data dictionary is cleared:
+
+```c#
+if (state)
+{
+    if (!currentTrace.SequenceEqual(targetTrace))
+    {
+        foreach (string entity in e.client.data["requiresPassword"].Split(" - ").Where(x => !String.IsNullOrEmpty(x)))
+        {
+            DBHandler.DBHandler.SetPresent(entity, values[3]);
+            logger.LogInformation($"User@{e.client.endpoint} ({values[3]}) logged into of '{entity}'");
+        }
+        e.client.data.Remove("requiresPassword");
+        foreach (string entity in e.client.data["toUnset"].Split(" - ").Where(x => !String.IsNullOrEmpty(x)))
+        {
+            DBHandler.DBHandler.SetPresent(entity, values[3], false);
+            logger.LogInformation($"User@{e.client.endpoint} ({values[3]}) logged out of '{entity}'");                                               
+        }
+        e.client.data.Remove("toUnset");
+        DBHandler.DBHandler.SetPresent(e.client.data["ETTargetSubserver"], values[3]);
+        e.client.data.Remove("ETTargetSubserver");
+        e.client.data.Remove("makePresent");
+        e.client.data.Remove("ETTarget");
+    }
+    DBHandler.DBHandler.SetPresent(values[2], values[3]);
+    logger.LogInformation($"User@{e.client.endpoint} logged into '{values[2]}' with username='{values[3]}'");
+    outPacket.Add(Communication.SUCCESS, DBHandler.DBHandler.Trace(values[2]));
+}
+else
+    outPacket.Add(next, Communication.INCOMPLETE);
+}
+```
+
+The server resposnes (for `connect` requests) are handled by the following event handler on the client:
+
+```c#
+private static void ConnectReponseHanlder(object sender, PacketEventArgs e)
+{
+    string[] values = e.packet.Get();
+    if (Communication.STATUSES.Contains(values[0]))
+    {
+        Console.WriteLine($"CONNECT completed with status '{values[0].ToUpper()}'.");
+        if (values[0] != Communication.FAILURE)
+            traversalTrace = new Stack<string>(values[1].Split(" - "));
+        channel.StatusDispatch -= ConnectReponseHanlder;
+        prompted = false;
+        pass = true;
+    }
+    else
+    {
+        Packet outPacket = new Packet(DataID.Command, channel.id);
+        pass = false;
+        outPacket.Add(Communication.CONNECT, ConsoleTools.HideInput($"Enter '{values[0]}' password"), username);
+        channel.Add(outPacket);
+    }
+}
+```
+*Where `values = [entityName, "INCOMPLETE"] OR [STATUS]` where `entityName` is the name of the entity requiring a password and `STATUS` is a final status of the operation*
+
+As you can see, this handler will repeatedly prompt the user for passwords for as long as the server asks for one. The passwords are then sent to the server and handled by:
+
+```c#
+state = true;
+List<string> trace = e.client.data["requiresPassword"].Split(" - ").ToList();
+bool broke = false;
+string currentEntity = String.Empty;
+string next = String.Empty;
+for (int i = trace.Count - 1; i >= 0; i--)
+{
+    currentEntity = trace[i];
+    string pwd = (string)e.client.data[currentEntity];
+    e.client.data.Remove(currentEntity);
+    trace.RemoveAt(i);
+    if (!String.IsNullOrEmpty(pwd))
+    {
+        state = BCrypt.Net.BCrypt.Verify(values[1], pwd);
+        broke = true;
+        if (i > 0)
+            for (int x = 1; i - x < 1; x++)
+            {
+                next = trace[i - x];
+                if (!String.IsNullOrEmpty((string)e.client.data[next]))
+                    break;
+            }
+        break;
+    }
+}
+```
+
+The code here is resposnible for verifying the passwords sent by the server and setting `next` to prompt the user for the next entity they need a password for. This is done by iterating through the trace stored in `requiredPassword` backwards so that indexing errors won't occur when items are removed from the trace. After this, if `state` is true then either the provided password was correct and the user should be prompted for the new one, or there were no more entities that needed passwords. This is why `broke` was intorduced, to represent if the iteraton was broken (meaning that a password was was checked). Therefore if both `state` and `broke` are true, the current stage of the traversal is complete, however is `state` is true and `broke` is false, the provided password was true and there may be more to be entered. This can be seen in this code:
+
+```c#
+if (state)
+{
+    if (broke && trace.Count > 0)
+    {
+        e.client.data["requiresPassword"] = String.Join(" - ", trace);
+        outPacket.Add(next, Communication.INCOMPLETE);
+    }
+    else
+    {
+        e.client.data.Remove("requiresPassword");
+        foreach (string entity in e.client.data["makePresent"].Split(" - ").Where(x => !String.IsNullOrEmpty(x)))
+        {
+            DBHandler.DBHandler.SetPresent(entity, values[2]);
+            logger.LogInformation($"User@{e.client.endpoint} ({values[2]}) logged into of '{entity}'");
+        }
+        e.client.data.Remove("makePresent");
+        foreach (string entity in e.client.data["toUnset"].Split(" - ").Where(x => !String.IsNullOrEmpty(x)))
+        {
+            DBHandler.DBHandler.SetPresent(entity, values[2], false);
+            logger.LogInformation($"User@{e.client.endpoint} ({values[2]}) logged out of '{entity}'");
+        }
+        e.client.data.Remove("toUnset");
+        DBHandler.DBHandler.SetPresent(e.client.data["ETTargetSubserver"], values[2]);
+        e.client.data.Remove("ETTargetSubserver");
+        outPacket.Add(Communication.SUCCESS, DBHandler.DBHandler.Trace(e.client.data["ETTarget"]));
+        e.client.data.Remove("ETTarget");
+    }
+}
+```
+
+Otherwise if the `state` is false, then the password verification failed, seen in the `else` block of the statement:
+
+```c#
+else
+{
+    e.client.data.Remove("presentChanged");
+    e.client.data.Remove("requiresPassword");
+    e.client.data.Remove("ETTarget");
+    e.client.data.Remove("toUnset");
+    foreach (string entity in trace)
+        if (e.client.data.ContainsKey(entity))
+            e.client.data.Remove(entity);
+    outPacket.Add(Communication.FAILURE);
+}
+```
+
+The event handlers are called back on response to each incoming packet from the remote endpoint so this process will continue until the user successfully enters all the passwords and completes the traversal, or the user enters an incorrect password and the traversal is failed.
 
 ## Dependencies
 
@@ -1591,18 +1978,41 @@ When `sleeper.Cancel` was called this detection loop was broken out of and since
 
 # **CLUNKS** - Evaluation
 
+## Objective Review
+
+### **Contain functionality that will allow users to communicate with each other via messages:**
+The current version of **CLUNKS** is built on built around message based communication which allows users to connect to the server and send messages over the entities defined on the server. The messaging services of **CLUNKS** work fully as orignally designed so this objective can be considered to be completed. 
+### **Provide a smooth user experience by utilising threads to distribute the workload across multiple asynchrounous paths of exeuction:**
+This objective has been achieved. The client and server are both written around C# threads and asynchronous callbacks with the intellegence to optimise the workload spread over the different threads. This provides the smooth user experience that was originally aimed for, since the threading takes the programs long-running tasks away from the main thread that serves the user. Due to this, the only time factor (relative to the user) is the speed of the network.
+### **Provide secure communication by encrypting all network traffic sent through it:**
+The `Common.Packets` classes encrypt the byte streams that `Packet`s are serialized into during the serialization process. Since the `Common.Channel` classes exclusively use `Packet` objects to store store data, the crptographic support of `Common.Packets` is built into `Common.Channels` also. This shows that the objective has been accomplished since the client and server both utilise `Common.Channels` classes for communication.
+### **Provide abosulte confidence of integrity of data:**
+This objective was achieved with the handshake performed by the client and server on connection. The design of the handshake ensures complete certainty that the remote endpoint is who they claim to be using the asymmetric certificate security.
+### **Provide fast communication services:**
+This objective has been partially completed. The main time factor within **CLUNKS** is the network speed and actions have been taken (like minimising the JSON used to store `Packet` data) to reduce bandwidth, however despite this there is only so much the program can do since network speed is an externally controlled factor.
+### **Be a service that can run smoothly on any machine, regardless of its performance grade (within reason):**
+Throughout the design and programming of **CLUNKS**, there is plenty of evidence to show that the system was built with performance in mind. This ensures that the objective is satisfied, since memory and CPU usage have been considered at every step of the program.
+### **Provide a flexible underlying codebase that can be expanded for more features in the future such as audio and video calling:**
+This objective was also kept in mind while developing **CLUNKS**. This can be seen in the `Common.Channels.Channel` classes, where it is evident that the `Channel`s support both TCP and UDP, allowing for the potential usage of UDP for audio/video calling in the future. Furthermore the client and sever both define (currently empty) methods for handling `AV` `Packet`s, the `Packet` type that would be used to send audio/visual data across the system.
+### **Provide an application allowing users to easily create and configure their server to their specific needs, Proivde unique user accounts used to perform actions within the program:**
+ClunksEXP acheives both of these objectives, prociding a user-friendly, GUI based application that will generate `.exp` files to the correct specification, so that this procces can be abstracted from the user. The ability to import and edit existing `.exp` files also shows this, as users won't always need to create their `.exp`s from scratch, if their desired configuration is similar to an existing one.
+
+## Overall Evaluation
+
+Would be nice to add AV with more time
+More testing would be nice for bug fixing
+More time would be nice to finish notification services
+Custom client intergration
+
 # TODO:
-- LoadEXP
-- ET (show git history?)
-- [Both before 'communicating on the network']
-- Client usage GIFS [after memory footprint analysis]
+- Client usage GIFS at the beginning of client section (login, connect, send, receive)
 - Write eval
 
 <!-- # Research
-C# Send Email: https://www.google.com/search?rlz=1C1CHBF_en-GBGB777GB777&sxsrf=ALeKk031_qPKoOIFowLL7Lrg2_e-ZTZgCw%3A1610481594743&ei=uv_9X-TcLPOF1fAP3Pu5wAc&q=c%23+send+email+smtp&oq=c%23+send+emai&gs_lcp=CgZwc3ktYWIQAxgBMgQIIxAnMgcIABDJAxBDMgUIABCRAjIECAAQQzIECAAQQzICCAAyAggAMgIIADICCAAyAggAOgQIABBHOgcIIxDJAxAnOgUIABCxAzoKCAAQsQMQFBCHAjoHCAAQFBCHAjoICAAQsQMQgwE6BAgAEApQn0FY7UlglVRoAHACeACAAeYBiAHbCJIBBTUuNC4xmAEAoAEBqgEHZ3dzLXdpesgBCMABAQ&sclient=psy-ab
-
 C# Access Webcam: https://www.google.com/search?q=c%23+access+webcam&rlz=1C1CHBF_en-GBGB777GB777&oq=c%23+acc&aqs=chrome.0.69i59j69i57j69i58j69i60l2.1166j0j7&sourceid=chrome&ie=UTF-8
 
 <!-- # Keep in mind
 ATM, when encryption level <= EncryptionConfig.Strength.Light, the size of the key is too small for certificates. This is because the size of the key is too small to compensate for the salt which is generated with EncryptionConfig.Strength.Strong settings (as per the Handshake protocol) <br>
 Dates/Time is in UTC <br>
+The whole 'custom client can be used' thing is slightly vulnerable at the moment because there are some things that the client does so that the server doesn't have to, this means that if a custom client was made, it could be used to exploit these things by deliberately not handling them in the client, then sending the data to the server and letting it fail (since it wasn't programmed to handle that data)<br>
+When doing positive skipping ET, the server automatically sets the present to true for the users row in users_subservers. Does it get unset if the rest of the ET fails or is it just left there?<br>
