@@ -1,7 +1,41 @@
+# Contents
+
+1. [A Brief Overview](#clunks---a-brief-overview)
+    1. [The Plan](#the-plan)
+    2. [Feasability](#feasabilty)
+    3. [Objectives](#objectives)
+2. [The Design](#clunks---the-design)
+    1. [The Proposed System - Servers](#the-proposed-system---servers)
+    2. [The Proposed System - Client Side Usage](#the-proposed-system---client-side-usage)
+    3. [Major Components](#major-components)
+    4. [Database Design](#database-design)
+    5. [Class Design - Channels](#class-design---channels)
+    6. [Class Design - Program.cs](#class-design---programcs)
+    7. [Class Design - Programmatic Database Interaction](#class-design---programmatic-database-interaction)
+    8. [Complex Data Processing - Entity Tracing](#complex-data-processing---entity-tracing)
+    9. [Class Design - Message Feed](#class-design---message-feed)
+    10. [ClunksEXP](#clunksexp)
+    11. [UI Design](#ui-design)
+3. [A Guided Tour](#clunks---a-guided-tour)
+    1. [Creating an EXP](#creating-an-exp)
+    2. [Importing an EXP](#importing-an-exp)
+    3. [Communicating Over the Network](#)
+    4. [The Client](#the-client)
+    5. [Dependencies](#dependencies)
+4. [The Testing](#clunks---the-testing)
+    1. [CPU Performance - Thread Sleeping](#cpu-performance---thread-sleeping-on-continuous-threads)
+    2. [Entity Traversal](#entity-traversal)
+    3. [Message Feed](#message-feed)
+5. [Evaluation](#clunks---evaluation)
+    1. [Objective Review](#objective-review)
+    2. [Overall Evaluation](#overall-evaluation)
+    3. [Future Improvements](#future-improvements)
+    4. [Known Issues](#know-issues)
+    5. [Closing Remarks](#closing-remarks)
+
 # **CLUNKS** - A Brief Overview
 
 ***C**ommand **L**ine **U**nification **N**etwork **S**ystem*
-
 
 **CLUNKS** is a system to provide simple LAN communication services for large businesses and establishments. Users will need to create a CLUNK Server on their network, and from there, the clients are able to log into pre-made user accounts, which can use to host, join logical entities on the server to communicate with any users added to it. **CLUNKS** currently runs with messaged based communication but has the underlying framework in place to be compatible with video and audio comminucation aswell.
 
@@ -174,10 +208,10 @@ The user can enter `y` to accept or `n` to decline. After three seconds with no 
 
 For large conference calls, the user can also create a call on their current entity server by running the `call` command with no username. This creates a conference call that anyone on the subserver can join into by running `joincall`. There can only be one call running in a given entity at a time.
 
-### **Call actions**
+### **Call Actions**
 When in large group calls, the screen may become crowded by camera feeds of all the other users. To manage this, the user can user use `hide [username]` and `show [username]` to toggle which user's are shown. When a user is hidden, you can only hear them, but not see. A user in a call can be silenced with `mute [username]`. `mute` can be undone with `unmute`. These commands only apply to the user that runs them Running `mute` or `unmute` with no argument will perfrom the action on the user. This will be applied to everyone.
 
-### **Info commands**
+### **Info Commands**
 There are commands that users can run to obtain information about the subserver. 
 
 *Self:* `self` will show the information of the user who calls it, it can show things like: granted permissions, joined rooms, number of calls, etc. Running `self` during a call will show whether the user is muted and camera is showing.
@@ -915,7 +949,7 @@ Now that the programming is complete, a tour of the project can show the most co
 
 The best place to start is with a look into ClunksEXP, the program used to create the `.exp` file needed to intialise a server. For reference, this is how it looks to create a new `exp` file from scratch:
 
-## Creating An EXP
+## Creating an EXP
 
 ![image](README_img/clunksExp_usage.gif)
 
@@ -1169,7 +1203,7 @@ for sector, parents in sectorToParent.items():
         ET.SubElement(parent, 'user', {'username': user[0], 'password': user[1] , 'sectors': user[2], 'global': user[3], 'elevation': elevationName})
 ```
 
-## Importing and EXP
+## Importing an EXP
 
 If prompted by the `newExp` key of the configuration file, the sever will import `.exp`s into the database. This is done by `Server.DBHandler.DBHandler.LoadExp`. The method was placed on the `DBHandler` class as it is only related to database functionality. Here, `LoadExp` and its related methods will be explained, to walk through the process of loading a `.exp` file into the server.
 
@@ -2006,17 +2040,18 @@ Overall, I would consider the project to be very sucessful. All of the main obje
 - Automated Database Backups *(into `.exp` files)*
 - User Logouts
 - Up/Down Key History *(in client)*
+- Info Commands
 
 ## Know Issues
 - Left/Right Arrow Keys in Client
 
+## Closing Remarks
+
 The code will continue to be developed, but the code can be viewed at this point in time with [this link](https://github.com/lembn/CLUNKS/tree/299c1356bf5c559cd85b6e89db070daecc7bad8c). Otherwise, please feel free to follow progress of the project at the [repository](https://github.com/lembn/CLUNKS/). Thanks for reading.
 
 <!-- # Research
-C# Access Webcam: https://www.google.com/search?q=c%23+access+webcam&rlz=1C1CHBF_en-GBGB777GB777&oq=c%23+acc&aqs=chrome.0.69i59j69i57j69i58j69i60l2.1166j0j7&sourceid=chrome&ie=UTF-8
+C# Access Webcam: https://www.google.com/search?q=c%23+access+webcam&rlz=1C1CHBF_en-GBGB777GB777&oq=c%23+acc&aqs=chrome.0.69i59j69i57j69i58j69i60l2.1166j0j7&sourceid=chrome&ie=UTF-8 -->
 
 <!-- # Keep in mind
 ATM, when encryption level <= EncryptionConfig.Strength.Light, the size of the key is too small for certificates. This is because the size of the key is too small to compensate for the salt which is generated with EncryptionConfig.Strength.Strong settings (as per the Handshake protocol) <br>
-Dates/Time is in UTC <br>
-The whole 'custom client can be used' thing is slightly vulnerable at the moment because there are some things that the client does so that the server doesn't have to, this means that if a custom client was made, it could be used to exploit these things by deliberately not handling them in the client, then sending the data to the server and letting it fail (since it wasn't programmed to handle that data)<br>
-When doing positive skipping ET, the server automatically sets the present to true for the users row in users_subservers. Does it get unset if the rest of the ET fails or is it just left there?<br>
+Dates/Time is in UTC <br> -->
