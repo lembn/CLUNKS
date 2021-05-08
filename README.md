@@ -1,6 +1,6 @@
 # **CLUNKS** - A Brief Overview
 
-***C**ommand* ***L**ine* ***U**nification* ***N***etwor***k*** ***S**ystem*
+***C**ommand **L**ine **U**nification **N**etwork **S**ystem*
 
 
 **CLUNKS** is a system to provide simple LAN communication services for large businesses and establishments. Users will need to create a CLUNK Server on their network, and from there, the clients are able to log into pre-made user accounts, which can use to host, join logical entities on the server to communicate with any users added to it. **CLUNKS** currently runs with messaged based communication but has the underlying framework in place to be compatible with video and audio comminucation aswell.
