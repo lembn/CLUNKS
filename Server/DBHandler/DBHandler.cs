@@ -44,6 +44,8 @@ namespace Server.DBHandler
                 AND {{0}}s.name=$parentName;
             ";
             string table = GetTable(entity);
+            if (table == null)
+                return false;
             object[] results;
             using (Cursor cursor = new Cursor(connectionString))
                 results = cursor.Execute<object[]>(String.Format(checkStmt, table.Substring(0, table.Length - 1)), username, entity);
@@ -73,6 +75,8 @@ namespace Server.DBHandler
             using (Cursor cursor = new Cursor(connectionString))
             {
                 string table = GetTable(entityName);
+                if (table != null)
+                    return String.Empty;
                 if ((from info in cursor.Execute<object[][]>($"PRAGMA table_info({table})") select (string)info[1]).Contains("password"))
                     return cursor.Execute<string>($"SELECT password FROM {table} WHERE name=$entityName;", entityName);
             }                                        
