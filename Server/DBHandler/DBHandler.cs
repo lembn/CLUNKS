@@ -75,8 +75,6 @@ namespace Server.DBHandler
             using (Cursor cursor = new Cursor(connectionString))
             {
                 string table = GetTable(entityName);
-                if (table != null)
-                    return String.Empty;
                 if ((from info in cursor.Execute<object[][]>($"PRAGMA table_info({table})") select (string)info[1]).Contains("password"))
                     return cursor.Execute<string>($"SELECT password FROM {table} WHERE name=$entityName;", entityName);
             }                                        
