@@ -6,7 +6,6 @@ using System.Threading;
 using Common.Channels;
 using Common.Helpers;
 using Common.Packets;
-using System.Threading.Tasks;
 
 namespace Client
 {
@@ -16,8 +15,11 @@ namespace Client
         private static bool quit = false;
         private static bool pass = true;
         private static bool prompted = false;
+        private static bool hide = false;
+        private static string capturedInput;
         private static string username = null;
         private static Stack<string> traversalTrace;
+        private static AutoResetEvent waiter;
 
         //TODO: write notification command
         static void Main(string[] args)
@@ -25,6 +27,7 @@ namespace Client
             Console.CancelKeyPress += new ConsoleCancelEventHandler(Quit);
             Title();
             Feed.Feed.Initialise(3);
+            waiter = new AutoResetEvent(false);
             bool state = true;
             channel = new ClientChannel(1024, IPAddress.Parse(args[0]), Convert.ToInt32(args[1]), Convert.ToInt32(args[2]), EncryptionConfig.Strength.Strong, ref state);
             quit = !state;
@@ -34,59 +37,62 @@ namespace Client
             channel.MessageDispatch += MessageHandler;
             traversalTrace = new Stack<string>();
             while (!quit)
-            {
-                if (!prompted)
-                {
-                    if (username != null)
+            {                
+                bool entered = false;
+                string captured = String.Empty;
+                ConsoleKeyInfo keyInfo;
+                do
+                {                    
+                    while (!Console.KeyAvailable)
                     {
-                        Console.ForegroundColor = ConsoleColor.Cyan;
-                        if (traversalTrace.Count > 0)
-                        {
-                            Console.Write($"'{username}'");
-                            Console.ForegroundColor = ConsoleColor.White;
-                            Console.Write(" @ ");
-                            Console.ForegroundColor = ConsoleColor.Magenta;
-                            if (traversalTrace.Count > 3)
+                        if (!prompted)
+                            Prompt();
+                        Thread.Sleep(0);
+                    }
+                    keyInfo = Console.ReadKey(true);
+                    switch (keyInfo.Key)
+                    {
+                        case ConsoleKey.Enter:
+                            Console.SetCursorPosition(0, ++Console.CursorTop);
+                            if (hide)
                             {
-                                string header = String.Empty;
-                                int i = 0;
-                                bool dash = false;
-                                foreach (string entity in traversalTrace.Reverse())
-                                {
-                                    if (String.IsNullOrEmpty(header))
-                                        header = $"[{entity}";
-                                    if (i++ > traversalTrace.Count - 3)
-                                    {
-                                        header += dash ? $"- {entity}" : $"{entity}";
-                                        if (!dash)
-                                            dash = true;
-                                    }
-                                    else if (!header.Contains("..."))
-                                    {
-                                        header += " ... ";
-                                        dash = false;
-                                    }
-
-                                }
-                                Console.WriteLine($"{header}]");
+                                waiter.Set();
+                                hide = false;
+                                capturedInput = captured;
                             }
                             else
-                                Console.WriteLine($"[{String.Join(" - ", traversalTrace.Reverse())}]");
-                        }
-                        else
-                            Console.WriteLine($"'{username}'");
-                    }                    
-                    Console.ResetColor();
-                    Console.Write("CLUNKS>>> ");
-                    prompted = true;
-                }
-                if (!Console.KeyAvailable || !pass)
-                {
-                    Thread.Sleep(10);
-                    continue;
-                }
-                pass = true;
-                Process(Console.ReadLine());
+                                Process(captured);
+                            entered = true;
+                            break;
+                        case ConsoleKey.Backspace:
+                            captured = ManualBackspace(captured);
+                            break;
+                        case ConsoleKey.OemPlus:
+                            Console.CursorLeft--;
+                            if (keyInfo.Modifiers.HasFlag(ConsoleModifiers.Control) && Feed.Feed.isAlive)
+                                Feed.Feed.Scroll(true);
+                            break;
+                        case ConsoleKey.OemMinus:
+                            Console.CursorLeft--;
+                            if (keyInfo.Modifiers.HasFlag(ConsoleModifiers.Control) && Feed.Feed.isAlive)
+                                Feed.Feed.Scroll(false);
+                            break;
+                        case ConsoleKey.UpArrow:
+                        case ConsoleKey.DownArrow:
+                            break;
+                        case ConsoleKey.LeftArrow:
+                            if (!String.IsNullOrEmpty(captured))
+                            Console.CursorLeft--;
+                            break;
+                        case ConsoleKey.RightArrow:
+                            Console.CursorLeft++;
+                            break;
+                        default:
+                            Console.Write(hide ? '*' : keyInfo.KeyChar);
+                            captured += keyInfo.KeyChar;
+                            break;
+                    }
+                } while (!entered);
             }
             Thread.Sleep(2000);
         }
@@ -158,11 +164,20 @@ namespace Client
                             prompted = false;
                             break;
                         }
-                        outPacket = new Packet(DataID.Command, channel.id);
-                        state = input.Length < 3;
-                        if (!state)
-                            state = String.IsNullOrEmpty(input[2]);
-                        if (!state && (input[1] == username || String.IsNullOrEmpty(input[2].Trim())))
+                        if (!traversalTrace.Contains(input[1].Substring(1)))
+                        {
+                            Console.WriteLine("Invalid entity");
+                            prompted = false;
+                            break;
+                        }
+                        if (String.IsNullOrEmpty(input[2].Trim()))
+                        {
+                            Console.WriteLine("You did not enter a message");
+                            prompted = false;
+                            break;
+                        }
+                        state = input[1][0] == '@';
+                        if (!state && (input[1] == username))
                         {
                             Console.WriteLine("You cannot message yourself");
                             prompted = false;
@@ -174,10 +189,12 @@ namespace Client
                             prompted = false;
                             break;
                         }
+                        outPacket = new Packet(DataID.Command, channel.id);
+                        string message = String.Join(' ', input.Skip(2));
                         if (state)
-                            outPacket.Add(input[0], Communication.TRUE, username, traversalTrace.Peek(), input[1]);
+                            outPacket.Add(input[0], Communication.TRUE, username, input[1].Substring(1), message);
                         else
-                            outPacket.Add(input[0], Communication.FALSE, username, input[1], input[2]);
+                            outPacket.Add(input[0], Communication.FALSE, username, input[1], message);
                         channel.StatusDispatch += ChatHandler;
                         channel.Add(outPacket);
                         break;
@@ -185,48 +202,7 @@ namespace Client
                         if (username == null)
                             Console.WriteLine("You must log into an account to view chats");
                         else
-                        {
                             Feed.Feed.Show();
-                            Task.Run(() =>
-                            {
-
-                                string captured = String.Empty;
-                                ConsoleKeyInfo keyInfo;
-                                do
-                                {
-                                    while (!Console.KeyAvailable)
-                                        Thread.Sleep(0);
-                                    keyInfo = Console.ReadKey();
-                                    switch (keyInfo.Key)
-                                    {
-                                        case ConsoleKey.Enter:
-                                            Console.CursorTop++;
-                                            prompted = false;
-                                            Process(captured);
-                                            captured = String.Empty;
-                                            break;
-                                        case ConsoleKey.Backspace:
-                                            Console.CursorLeft++;
-                                            captured = ManualBackspace(captured);
-                                            break;
-                                        case ConsoleKey.OemPlus:
-                                            if (keyInfo.Modifiers.HasFlag(ConsoleModifiers.Control))
-                                                Feed.Feed.Scroll(true);
-                                            break;
-                                        case ConsoleKey.OemMinus:
-                                            if (keyInfo.Modifiers.HasFlag(ConsoleModifiers.Control))
-                                                Feed.Feed.Scroll(false);
-                                            break;
-                                        case ConsoleKey.UpArrow:
-                                            Console.CursorLeft--;
-                                            break;
-                                        default:
-                                            captured += keyInfo.KeyChar;
-                                            break;
-                                    }
-                                } while (Feed.Feed.isAlive);
-                            });
-                        }
                         prompted = false;
                         break;
                     case "cls":
@@ -276,7 +252,10 @@ namespace Client
             {
                 Packet outPacket = new Packet(DataID.Command, channel.id);
                 pass = false;
-                outPacket.Add(Communication.CONNECT, HideInput($"Enter '{values[0]}' password"), username);
+                hide = true;
+                Console.Write($"Enter '{values[0]}' password>>> ");
+                waiter.WaitOne();
+                outPacket.Add(Communication.CONNECT, capturedInput, username);
                 channel.Add(outPacket);
             }
         }
@@ -311,7 +290,10 @@ namespace Client
             {
                 Packet outPacket = new Packet(DataID.Command, channel.id);
                 pass = false;
-                outPacket.Add(Communication.LOGIN, HideInput($"Enter your password"));
+                hide = true;
+                Console.Write($"Enter your password>>> ");
+                waiter.WaitOne();
+                outPacket.Add(Communication.LOGIN, capturedInput);
                 channel.Add(outPacket);
             }
         }
@@ -343,35 +325,6 @@ namespace Client
             quit = true;
             if (e != null)
                 e.Cancel = true;
-        }
-
-        private static string HideInput(string prompt)
-        {
-            Console.Write($"{prompt}>>> ");
-            string input = String.Empty;
-            ConsoleKeyInfo info;
-            bool entered = false;
-            do
-            {
-                while (!Console.KeyAvailable)
-                    Thread.Sleep(0);
-                info = Console.ReadKey(true);
-                switch (info.Key)
-                {
-                    case ConsoleKey.Enter:
-                        entered = true;
-                        break;
-                    case ConsoleKey.Backspace:
-                        input = ManualBackspace(input);
-                        break;
-                    default:
-                        Console.Write("*");
-                        input += info.KeyChar;
-                        break;
-                }
-            } while (!entered);
-            Console.WriteLine();
-            return input;
         }
 
         private static string ManualBackspace(string line)
@@ -407,6 +360,52 @@ namespace Client
                 Thread.Sleep(50);
             }
             Output(bar);
+        }
+
+        private static void Prompt()
+        {
+            if (username != null)
+            {
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                if (traversalTrace.Count > 0)
+                {
+                    Console.Write($"'{username}'");
+                    Console.ForegroundColor = ConsoleColor.White;
+                    Console.Write(" @ ");
+                    Console.ForegroundColor = ConsoleColor.Magenta;
+                    if (traversalTrace.Count > 3)
+                    {
+                        string header = String.Empty;
+                        int i = 0;
+                        bool dash = false;
+                        foreach (string entity in traversalTrace.Reverse())
+                        {
+                            if (String.IsNullOrEmpty(header))
+                                header = $"[{entity}";
+                            if (i++ > traversalTrace.Count - 3)
+                            {
+                                header += dash ? $"- {entity}" : $"{entity}";
+                                if (!dash)
+                                    dash = true;
+                            }
+                            else if (!header.Contains("..."))
+                            {
+                                header += " ... ";
+                                dash = false;
+                            }
+
+                        }
+                        Console.WriteLine($"{header}]");
+                    }
+                    else
+                        Console.WriteLine($"[{String.Join(" - ", traversalTrace.Reverse())}]");
+                }
+                else
+                    Console.WriteLine($"'{username}'");
+            }
+            Console.ResetColor();
+            Console.Write("CLUNKS>>> ");
+            prompted = true;
         }
 
         private static void ShowHelp()

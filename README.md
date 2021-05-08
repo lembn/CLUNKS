@@ -1976,6 +1976,11 @@ Overall, I would consider the project to be very sucessful. All of the main obje
 - Auio/Visual Support
 - Encrypted Message Storage
 - Automated Database Backups *(into `.exp` files)*
+- User Logouts
+- Up/Down Key History *(in client)*
+
+## Know Issues
+- Left/Right Arrow Keys in Client
 
 The code will continue to be developed, but the code can be viewed at this point in time with [this link](https://github.com/lembn/CLUNKS/tree/299c1356bf5c559cd85b6e89db070daecc7bad8c). Otherwise, please feel free to follow progress of the project at the [repository](https://github.com/lembn/CLUNKS/). Thanks for reading.
 
