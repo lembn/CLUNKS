@@ -801,7 +801,7 @@ PROCEDURE Add(username, message, entity)
     linesAdded = 1
     counter = 0
     insertList = []
-    IF alive == TRUE THEN
+    IF isAlive == TRUE THEN
         insertList = lines
     ENDIF
     insertList.Insert(0, []);
@@ -820,7 +820,7 @@ PROCEDURE Add(username, message, entity)
             counter = counter + text[i].Length
         ENDIF
     ENDFOR
-    IF alive == FALSE THEN
+    IF isAlive == FALSE THEN
         Save(insertList);
     ELSE
         IF updated == TRUE THEN
@@ -843,7 +843,7 @@ First the procedure will take the message data and sort and store it into `text`
 
 The purpose of `pointer` is for the feed to keep track of the user's postion in lines. New lines are always inserted into the `0th` element of the feed such that the bottom off the feed shows the new messaged. `pointer` is checked to see to be greater than zero because that the user has scrolled away from the newest message, and it isn't visible in the feed. Since `Add` is only called when new messages come in, `pointer` being away from zero at this point means that the feed is now out of date, so the header is updated to display `"[INCOMING FEED - (▼)]"` to alert the user that there are new messages to view. The boolean variable `updated` is then set to `false` to represent that the feed is out of date and pointer is incremented to accurately point to the line that is displayed at the bottom of the feed. When `pointer` is checked to be greater than zero, `updated` must also be true for the condition to be satified. Setting updated to `false` prevents the condition from being satisfied again if `Add` is called before the user scrolls down to the bottom of the feed.
 
-`linesAdded` is an integer used to count the number of lines that `Add` has added to `lines`. It is initialised to `1` because any message must take up at least one line. `counter` is an integer used to count the number of characters that the current line has used, to see if a new `line` needs to be created. `insertList` is a reference the list that new lines should be inserted into. `alive` represnets if the current feed is active or not so if the `alive` is true, new lines should be inserted into `lines` so that they can be ouputted by `Update`, otherwise the lines should be added to a new list so they can be saved to the message file and loaded when a new feed is activated.
+`linesAdded` is an integer used to count the number of lines that `Add` has added to `lines`. It is initialised to `1` because any message must take up at least one line. `counter` is an integer used to count the number of characters that the current line has used, to see if a new `line` needs to be created. `insertList` is a reference the list that new lines should be inserted into. `isAlive` represnets if the current feed is active or not so if the `isAlive` is true, new lines should be inserted into `lines` so that they can be ouputted by `Update`, otherwise the lines should be added to a new list so they can be saved to the message file and loaded when a new feed is activated.
 
 A new element of `insertList` is created. This element represents the first line that will be added. After this the procedure will iterate though `text` to continually add all the `text` from the message until it has added eveything. Inside this loop, the algorithm checks to see if the current text to add will fit in the current line or go over. This is done by comparing `counter + text[i].Length` to `width`, where `width` is an integer storing the `width` of the console calculated elsewhere in the class.. If it will fit then it is added to the current line element, and counter is increased to accurately represent the number of characters used up by the current line. If the current text won't fit, then the program will calculate how many characters of the current text will overflow the current line. This value is then stored into `overflow`. The alorithm will then fill the current line with as much of the current text that can fit (with `text[i].Substring(0, text[i].Length - overflow)`), then create a new line element. Since the algorithm is now on a new line, `pointer` and `linesAdded` are and `counter` is reset. The algorithm then inserts the remaining text from the current text back into the `text` list, so that on the next iteration, the overflow characters will be processed accordingly.
 
@@ -855,43 +855,9 @@ For example for a feed of maximum length 5, a circular stack of length 5 could b
 
 Unfortunately, furhter brainstorming identified that while this works in theory, the design is flawed because if the user was scrolled up while new messages came in, the new messages could potentially overwrite the chat history even up to the message that the user was viewing, so the continuity was lost. Solving this would mean either disabling the scroll or looking for a new design, and since the scroll was such a valuable part of the feed, a new design was sought after, bringing feed to uses the `lines` list it is designed for now.
 
-### **Offscreen Detection**
-
-One of the features of `Feed` is that it should be able to automatically detect if the message feed is no longer visible in the console (because the user has progressed in the program causing the console to scroll). This will be done with a thread, a `CancellationTokenSource` and a handy bit of boolean logic. A high level overview of the operation is shown here:
-
-![image](README_img/feed_detection.png)
-[*Raw view here*](https://raw.githubusercontent.com/lembn/CLUNKS/master/README_img/feed_detection.png)
-
-This will be run on a thread that will loop endlessly, repeatedly polling a `CancellationTokenSource`. `CancellationTokenSource` contain `CancellationToken`s a `CancellationToken` is used to cancel long running threads such as this. The detection thread will poll a `CancellationTokenSource` on the `Feed` class called `sleeper` to see if its `IsCancellationRequested` property is set to true. If it is then `sleeper` has been cancelled with `sleeper.Cancel`, so the thread should stop otherwise, it would continue.
-
-The thread will use `sleeper`s `WaitHandle` to perform the 3 second sleep shown in the flowchart (hence where `sleeper` gets its name). A `WaitHandle` is a C# object used to make threads wait for a signal. In their standard usage, a `WaitHandle` will wait forever until they receive a signal from `WaitHandle.Set()`, in this case the `WaitHandle` will pause the thread until it receives a signal from `sleeper.Cancel` (which invokes `WaitHandle.Set`) or if three seconds elapses in that time. The reason that `sleeper`'s `WaitHandle` is used for sleeping instead of `Thread.Sleep` is so that the sleep can be cancelled by `sleeper.Cancel`. If `Thread.Sleep` was used and `sleeper` was cancelled during the three seconds of waiting, the loop would have to wait for the thread to stop sleeping to poll the `CancellationToken` and realise that it should stop looping.
-
-Now that the thread and `CancellationTokenSource` have been explained, what about the boolean logic? Well the logic that will be used to carry out the questions asked in the flowchart's descisions can be seen here:
-
-```
-IF (Console.CursorTop > Console.WindowHeight - 1) && (Console.CursorTop >= size + 2 + (Console.WindowHeight - 1)) && alive == TRUE THEN
-    Deactivate(true);
-```
-
-The first boolean expression: `(Console.CursorTop > Console.WindowHeight - 1)` performs the first descison from the flowchart. `Console.CursorTop` is an integer property storing the zero-based position index of the row of the cursor in the console. This index is relative the to the first row of the console, not the top row of the console. For example if a user scrolled the console down 20 lines `Console.CursorTop` would equal 19. If the user then reset the console so that the cursor would be at the top of the console, `Console.CursorTop` would still equal 19, the only for the user to way to decrease `Console.CursorTop` would be to scroll back up to the first line of the console.
-
-`Console.CursorTop` is compared to `Console.WindowHeight - 1` (the number of rows in the console) to see if it is greater. If this is true then the cursor is at the bottom of the console, because it has reached or suppased the bottom line of the console (`Console.WindowHeight` is decremented by 1 so that it will match the zero-based offset of `Console.CursorTop`). We check this because if the console hasn't scrolled at all, then the feed will definitely still be visible so shouldn't be deacitavted.
-
-Next `Console.CursorTop` is compared to `size + 2 + (Console.WindowHeight - 1)`. `size` is the number of lines that the feed will display. For example, for a feed that looks like this:
-
-```
-========================[INCOMING FEED - (LIVE)]=========================
-(1)
-(2)
-(3)
-=========================================================================
-```
-
-`size` would equal 3. The value `2` is added to size for this comparison to include the header and footer lines of the feed. `size + 2` is then added to `Console.WindowHeight - 1` to get the row number that the cursor would have to be at for the whole feed to be off the screen. Therefore, if `Console.CursorTop` is greater than or equal to this number, the feed must no longer be visible. Finally, the variable `alive` is compared to true to carry out the last check show in the flowchart. 
-
 ### **State**
 
-`Feed` needs a variable (`alive`) to keep track of if the feed is active of if it has been automatically deactivated. Normally this could be implemented a standard C# boolean, but booleans are `struct`s which are *'value type'* objects. This means that they store the actual data they are supposed to represent. In comparison, a *'refence type'* object like `class` stores refences to the memory location where the data is stored, instead of storing the actual data itself. The problem this introduces is that `alive` needs to be locked in some places of the class, to make sure that threads don't edit it's value while other threads are reading it. This is a problem becase value type objects cannoot be used with C#'s `lock` statement, only refence types. The solution was to create a wrapper, `State` to wrap the standard C# boolean in a class so that it can be used as a refence type object. After this the wrapper must define the `implicit` and `explicit` cast operators. These operators tell the compiler how to cast a `State` object into a boolean so that `State` objects could be used like normal booleans for comparisons and assingments. `State` can be found in the `Client.Helpers` namespace.
+`Feed` needs a variable (`isAlive`) to keep track of if the feed is active of if it has been automatically deactivated. Normally this could be implemented a standard C# boolean, but booleans are `struct`s which are *'value type'* objects. This means that they store the actual data they are supposed to represent. In comparison, a *'refence type'* object like `class` stores refences to the memory location where the data is stored, instead of storing the actual data itself. The problem this introduces is that `isAlive` needs to be locked in some places of the class, to make sure that threads don't edit it's value while other threads are reading it. This is a problem becase value type objects cannoot be used with C#'s `lock` statement, only refence types. The solution was to create a wrapper, `State` to wrap the standard C# boolean in a class so that it can be used as a refence type object. After this the wrapper must define the `implicit` and `explicit` cast operators. These operators tell the compiler how to cast a `State` object into a boolean so that `State` objects could be used like normal booleans for comparisons and assingments. `State` can be found in the `Client.Helpers` namespace.
 
 --------
 <br>
@@ -1503,9 +1469,8 @@ Now both endpoints of the system have the required bases to connect and securely
 
 Here, a **CLUNKS** Client is being started up and logging into a user account on the connected server. After loggin in, the client then connects to a subserver and begins to exchange messages with another user in the subserver.
 
-In order to show these messages...
+The `Feed.Add` method (shown in the design) is called in order to show these messages... 
 
-# Feed Add
 # Feed Update
 # Feed Scroll
 
@@ -1918,16 +1883,16 @@ When this new code also failed it was clear that `Feed.Save` was not causing the
 ``` c#
 private static void Deactivate(bool save)
 {
-    lock (alive)
+    lock (isAlive)
     {
-        if (!alive)
+        if (!isAlive)
             return;
         if (deactivating)
             return;
         deactivating = true;
         sleeper.Cancel();
         PrintHeader(DEADFEED);
-        alive = false;
+        isAlive = false;
     }
     lock (saveLock)
         if (save)
@@ -1936,14 +1901,14 @@ private static void Deactivate(bool save)
 }
 ```
 
-First, the alive object is locked, to prevent any other methods from changing it while it is being used within this method. The first condition (`if (!alive)`) is a safety check to make sure the feed isn't already deactivated. Likewise, the second condition (`if (deactivating)`) is another safety to make sure a differents thread don't deactivate the feed at the same time. Then `deactivating` is set to true (so that any other thread attempting to deactivate after this point in time will fail the second safety check) and an object called `sleeper` is cancelled. This here is the important line. When debugging this method with breakpoints, the program would run until `Save` was called, and then fail within `Save`. However, when the line `sleeper.Cancel();` was commented out, the program would run with the expected behavoiur and the issue was gone. This mean either `sleeper.Cancel()` was the cause of the problem or commenting out `sleeper.Cancel();` pushed the issue elsewhere into the program that wasn't being hit by the current tests. *Being pushed elsewhere would mean that the execution of `sleeper.Cancel()` was taking enough time that the program was caught by the crash while executing this line, and removing it would allow the program to escape this.*
+First, the `isAlive` object is locked, to prevent any other methods from changing it while it is being used within this method. The first condition (`if (!isAlive)`) is a safety check to make sure the feed isn't already deactivated. Likewise, the second condition (`if (deactivating)`) is another safety to make sure a differents thread don't deactivate the feed at the same time. Then `deactivating` is set to true (so that any other thread attempting to deactivate after this point in time will fail the second safety check) and an object called `sleeper` is cancelled. This here is the important line. When debugging this method with breakpoints, the program would run until `Save` was called, and then fail within `Save`. However, when the line `sleeper.Cancel();` was commented out, the program would run with the expected behavoiur and the issue was gone. This mean either `sleeper.Cancel()` was the cause of the problem or commenting out `sleeper.Cancel();` pushed the issue elsewhere into the program that wasn't being hit by the current tests. *Being pushed elsewhere would mean that the execution of `sleeper.Cancel()` was taking enough time that the program was caught by the crash while executing this line, and removing it would allow the program to escape this.*
 
 `sleeper` is a C# `CancellationTokenSource`. `CancellationTokenSource`s contain `CancellationToken`s which can be used to asynchronously cancel a running thread from outside the thread. Here is a sample of the code that `sleeper` manages:
 
 ```c#
 while (!sleeper.Token.IsCancellationRequested)
 {
-    if ((Console.CursorTop > Console.WindowHeight - 1) && (Console.CursorTop >= size + 2 + (Console.WindowHeight - 1)) && alive)
+    if ((Console.CursorTop - bottom > Console.WindowHeight) && isAlive)
         Deactivate(true);
     else
         sleeper.Token.WaitHandle.WaitOne(3000);
@@ -1951,7 +1916,7 @@ while (!sleeper.Token.IsCancellationRequested)
 }
 ```
 
-As you can see, the state of `sleeper`'s token's cancellation is repeatedly polled, and the code inside it is repeatedly executed for as long as the token remains uncancelled. The purpose of this loop is to detect if the current message feed is offscreen (if the user has scrolled so far from it that it is no longer visible in the console). The logic to achieve this can be seen in the `if` condition, where: `Console.CursorTop` is the (zero based) row location of the cursor from the first row in the console and `size` is the number of message lines that the feed should display. Size is incremented by two for this comparison to inlucde the two extra box lines that the feeed will have.
+As you can see, the state of `sleeper`'s token's cancellation is repeatedly polled, and the code inside it is repeatedly executed for as long as the token remains uncancelled. The purpose of this loop is to detect if the current message feed is offscreen (if the user has scrolled so far from it that it is no longer visible in the console). The logic to achieve this can be seen in the `if` condition, where: `Console.CursorTop` is the (zero based) row location of the cursor from the first row in the console and `bottom` is the (zero based) row location of the bottom line of the fee
 
 What matters here, is that if the feed is offscreen, `Deactivate` is called, otherwise, the loop should sleep for three seconds on `sleeper`'s `WaitHandle`. If `sleeper.Cancel` is called within those three seconds, the wait is interrupted and broken out of and the loop will continue on as if it had waited the full time. While removing `sleeper.Cancel` from deactivate seemed to solve the problem, the unfortunate situation was that `sleeper` was needed, so it couldn't be removed. Furthermore, a very similiar design pattern was used in the `Common.Channel` classes for their threads and was working fine, so it was strange that here `sleeper.Cancel` was causing issues.
 
