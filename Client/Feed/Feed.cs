@@ -119,7 +119,8 @@ namespace Client.Feed
             Add(message, @default);
             if (pointer > 0 && updated)
             {
-                PrintHeader(OLDFEED);
+                if (isAlive)
+                    PrintHeader(OLDFEED);
                 updated = false;
                 pointer++;
             }
@@ -131,7 +132,10 @@ namespace Client.Feed
                 if (isAlive)
                     insertList = lines;
                 else
+                {
                     insertList = new List<List<KeyValuePair<string, ConsoleColor>>>();
+                    width = Console.WindowWidth;
+                }
                 insertList.Insert(0, new List<KeyValuePair<string, ConsoleColor>>());
                 lock (insertList)
                 {
