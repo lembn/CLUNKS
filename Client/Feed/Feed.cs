@@ -179,7 +179,15 @@ namespace Client.Feed
                 {
                     if (pointer + size == lines.Count)
                         return;
-                    else pointer++;
+                    else
+                    {
+                        pointer++;
+                        if (pointer > 0 && updated)
+                        {
+                            PrintHeader(OLDFEED);
+                            updated = false;
+                        }
+                    }
                 }
                 else
                 {
@@ -202,7 +210,12 @@ namespace Client.Feed
         /// <summary>
         /// Cleanup the resources held by the Feed class
         /// </summary>
-        public static void Cleanup() => Directory.Delete(tempLoc);
+        public static void Cleanup()
+        {
+            foreach (string filename in Directory.GetFiles(tempLoc))
+                File.Delete(filename);
+            Directory.Delete(tempLoc);
+        }
 
         /// <summary>
         /// A method to set the feed to inactive
