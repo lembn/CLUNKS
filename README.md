@@ -1787,8 +1787,6 @@ else
 }
 ```
 
-# Client disconnection cleanup
-
 The event handlers are called back on response to each incoming packet from the remote endpoint so this process will continue until the user successfully enters all the passwords and completes the traversal, or the user enters an incorrect password and the traversal is failed.
 
 ## Dependencies
