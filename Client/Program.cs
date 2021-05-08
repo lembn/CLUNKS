@@ -6,6 +6,7 @@ using System.Threading;
 using Common.Channels;
 using Common.Helpers;
 using Common.Packets;
+using System.Threading.Tasks;
 
 namespace Client
 {
@@ -31,7 +32,6 @@ namespace Client
             if (!quit)
                 channel.Start();
             channel.MessageDispatch += MessageHandler;
-            Packet outPacket;
             traversalTrace = new Stack<string>();
             while (!quit)
             {
@@ -86,128 +86,178 @@ namespace Client
                     continue;
                 }
                 pass = true;
-                string[] input = Console.ReadLine().Split();
-                Array.ForEach(input, x => x = x.Trim());
-                try
-                {
-                    switch (input[0].ToLower())
-                    {
-                        case "help":
-                            ShowHelp();
-                            break;
-                        case Communication.CONNECT:
-                            if (!(traversalTrace.Count == 0))
-                                if (input[1] == traversalTrace.Peek())
-                                {
-                                    Console.WriteLine($"Already connected to {input[1]}");
-                                    prompted = false;
-                                    break;
-                                }
-                            if (username == null)
-                            {
-                                Console.WriteLine("You must log into an account before connecting to entities");
-                                prompted = false;
-                                break;
-                            }
-                            outPacket = new Packet(DataID.Command, channel.id);
-                            if (traversalTrace.Contains(input[1]))
-                                outPacket.Add(input[0], Communication.START, input[1], username, Communication.BACKWARD, String.Join(" - ", traversalTrace));
-                            else
-                                outPacket.Add(input[0], Communication.START, input[1], username, Communication.FORWARD, traversalTrace.Count == 0 ? String.Empty : traversalTrace.Peek());
-                            channel.StatusDispatch += ConnectReponseHanlder;
-                            channel.Add(outPacket);
-                            Console.WriteLine($"Requesting CONNECT to '{input[1]}'...");
-                            break;
-                        case Communication.LOGIN:
-                            outPacket = new Packet(DataID.Command, channel.id);
-                            outPacket.Add(input[0], Communication.START, input[1]);
-                            channel.StatusDispatch += LoginResponseHandler;
-                            channel.Add(outPacket);
-                            break;
-                        case Communication.MAKE_GROUP:
-                            if (traversalTrace.Count == 0)
-                            {
-                                Console.WriteLine("You are not connected to any entities");
-                                prompted = false;
-                                break;
-                            }
-                            if (traversalTrace.Count == 1)
-                            {
-                                Console.WriteLine("You can't create groups directly on a subserver");
-                                prompted = false;
-                                break;
-                            }
-                            outPacket = new Packet(DataID.Command, channel.id);
-                            outPacket.Add(input[0], input[1], input.Length > 2 ? input[2] : String.Empty, traversalTrace.Peek());
-                            channel.StatusDispatch += MGResponseHandler;
-                            channel.Add(outPacket);
-                            break;
-                        case Communication.CHAT:
-                            if (username == null)
-                            {
-                                Console.WriteLine("You must log into an account before sending chats");
-                                prompted = false;
-                                break;
-                            }
-                            outPacket = new Packet(DataID.Command, channel.id);
-                            state = input.Length < 3;
-                            if (!state)
-                                state = String.IsNullOrEmpty(input[2]);
-                            if (!state && (input[1] == username || String.IsNullOrEmpty(input[2].Trim())))
-                            {
-                                Console.WriteLine("You cannot message yourself");
-                                prompted = false;
-                                break;
-                            }                                
-                            if (state && traversalTrace.Count == 0)
-                            {
-                                Console.WriteLine("You need to be connected to an entity to send global chats");
-                                prompted = false;
-                                break;
-                            }
-                            if (state)
-                                outPacket.Add(input[0],Communication.TRUE, username, traversalTrace.Peek(), input[1]);
-                            else
-                                outPacket.Add(input[0], Communication.FALSE, username, input[1], input[2]);
-                            channel.StatusDispatch += ChatHandler;
-                            channel.Add(outPacket);
-                            break;
-                        case Communication.FEED:
-                            if (username == null)
-                                Console.WriteLine("You must log into an account to view chats");
-                            else
-                                Feed.Feed.Show();
-                            prompted = false;
-                            break;
-                        case "cls":
-                            Console.Clear();
-                            prompted = false;
-                            break;
-                        case "exit":
-                            if (traversalTrace.Count == 0)
-                                Quit(null, null);
-                            else
-                            {
-                                outPacket = new Packet(DataID.Command, channel.id);
-                                outPacket.Add(Communication.DISCONNECT, traversalTrace.Peek(), username);
-                                channel.StatusDispatch += DisconnectResponseHandler;
-                                channel.Add(outPacket);
-                                Console.WriteLine($"Leaving...");
-                            }
-                            break;
-                        default:
-                            Console.WriteLine("Try 'help' for more info.");
-                            prompted = false;
-                            break;
-                    }
-                }
-                catch (IndexOutOfRangeException)
-                {
-                    Console.WriteLine("Missing parameters, try 'help' for more info.");
-                    prompted = false;
-                }
+                Process(Console.ReadLine());
             }
             Thread.Sleep(2000);
+        }
+
+        private static void Process(string source)
+        {
+            bool state;
+            Packet outPacket;
+            string[] input = source.Split();
+            Array.ForEach(input, x => x = x.Trim());
+            try
+            {
+                switch (input[0].ToLower())
+                {
+                    case "help":
+                        ShowHelp();
+                        break;
+                    case Communication.CONNECT:
+                        if (!(traversalTrace.Count == 0))
+                            if (input[1] == traversalTrace.Peek())
+                            {
+                                Console.WriteLine($"Already connected to {input[1]}");
+                                prompted = false;
+                                break;
+                            }
+                        if (username == null)
+                        {
+                            Console.WriteLine("You must log into an account before connecting to entities");
+                            prompted = false;
+                            break;
+                        }
+                        outPacket = new Packet(DataID.Command, channel.id);
+                        if (traversalTrace.Contains(input[1]))
+                            outPacket.Add(input[0], Communication.START, input[1], username, Communication.BACKWARD, String.Join(" - ", traversalTrace));
+                        else
+                            outPacket.Add(input[0], Communication.START, input[1], username, Communication.FORWARD, traversalTrace.Count == 0 ? String.Empty : traversalTrace.Peek());
+                        channel.StatusDispatch += ConnectReponseHanlder;
+                        channel.Add(outPacket);
+                        Console.WriteLine($"Requesting CONNECT to '{input[1]}'...");
+                        break;
+                    case Communication.LOGIN:
+                        outPacket = new Packet(DataID.Command, channel.id);
+                        outPacket.Add(input[0], Communication.START, input[1]);
+                        channel.StatusDispatch += LoginResponseHandler;
+                        channel.Add(outPacket);
+                        break;
+                    case Communication.MAKE_GROUP:
+                        if (traversalTrace.Count == 0)
+                        {
+                            Console.WriteLine("You are not connected to any entities");
+                            prompted = false;
+                            break;
+                        }
+                        if (traversalTrace.Count == 1)
+                        {
+                            Console.WriteLine("You can't create groups directly on a subserver");
+                            prompted = false;
+                            break;
+                        }
+                        outPacket = new Packet(DataID.Command, channel.id);
+                        outPacket.Add(input[0], input[1], input.Length > 2 ? input[2] : String.Empty, traversalTrace.Peek());
+                        channel.StatusDispatch += MGResponseHandler;
+                        channel.Add(outPacket);
+                        break;
+                    case Communication.CHAT:
+                        if (username == null)
+                        {
+                            Console.WriteLine("You must log into an account before sending chats");
+                            prompted = false;
+                            break;
+                        }
+                        outPacket = new Packet(DataID.Command, channel.id);
+                        state = input.Length < 3;
+                        if (!state)
+                            state = String.IsNullOrEmpty(input[2]);
+                        if (!state && (input[1] == username || String.IsNullOrEmpty(input[2].Trim())))
+                        {
+                            Console.WriteLine("You cannot message yourself");
+                            prompted = false;
+                            break;
+                        }
+                        if (state && traversalTrace.Count == 0)
+                        {
+                            Console.WriteLine("You need to be connected to an entity to send global chats");
+                            prompted = false;
+                            break;
+                        }
+                        if (state)
+                            outPacket.Add(input[0], Communication.TRUE, username, traversalTrace.Peek(), input[1]);
+                        else
+                            outPacket.Add(input[0], Communication.FALSE, username, input[1], input[2]);
+                        channel.StatusDispatch += ChatHandler;
+                        channel.Add(outPacket);
+                        break;
+                    case Communication.FEED:
+                        if (username == null)
+                            Console.WriteLine("You must log into an account to view chats");
+                        else
+                        {
+                            Feed.Feed.Show();
+                            Task.Run(() =>
+                            {
+
+                                string captured = String.Empty;
+                                ConsoleKeyInfo keyInfo;
+                                do
+                                {
+                                    while (!Console.KeyAvailable)
+                                        Thread.Sleep(0);
+                                    keyInfo = Console.ReadKey();
+                                    switch (keyInfo.Key)
+                                    {
+                                        case ConsoleKey.Enter:
+                                            Console.CursorTop++;
+                                            prompted = false;
+                                            Process(captured);
+                                            captured = String.Empty;
+                                            break;
+                                        case ConsoleKey.Backspace:
+                                            Console.CursorLeft++;
+                                            captured = ManualBackspace(captured);
+                                            break;
+                                        case ConsoleKey.OemPlus:
+                                            if (keyInfo.Modifiers.HasFlag(ConsoleModifiers.Control))
+                                                Feed.Feed.Scroll(true);
+                                            break;
+                                        case ConsoleKey.OemMinus:
+                                            if (keyInfo.Modifiers.HasFlag(ConsoleModifiers.Control))
+                                                Feed.Feed.Scroll(false);
+                                            break;
+                                        case ConsoleKey.UpArrow:
+                                            Console.CursorLeft--;
+                                            break;
+                                        default:
+                                            captured += keyInfo.KeyChar;
+                                            break;
+                                    }
+                                } while (Feed.Feed.isAlive);
+                            });
+                        }
+                        prompted = false;
+                        break;
+                    case "cls":
+                        if (Feed.Feed.isAlive)
+                            Feed.Feed.Deactivate(true);
+                        Console.Clear();
+                        prompted = false;
+                        break;
+                    case "exit":
+                        if (traversalTrace.Count == 0)
+                            Quit(null, null);
+                        else
+                        {
+                            outPacket = new Packet(DataID.Command, channel.id);
+                            outPacket.Add(Communication.DISCONNECT, traversalTrace.Peek(), username);
+                            channel.StatusDispatch += DisconnectResponseHandler;
+                            channel.Add(outPacket);
+                            Console.WriteLine($"Leaving...");
+                        }
+                        break;
+                    default:
+                        Console.WriteLine("Try 'help' for more info.");
+                        prompted = false;
+                        break;
+                }
+            }
+            catch (IndexOutOfRangeException)
+            {
+                Console.WriteLine("Missing parameters, try 'help' for more info.");
+                prompted = false;
+            }
         }
 
         private static void ConnectReponseHanlder(object sender, PacketEventArgs e)
@@ -295,7 +345,7 @@ namespace Client
                 e.Cancel = true;
         }
 
-        public static string HideInput(string prompt)
+        private static string HideInput(string prompt)
         {
             Console.Write($"{prompt}>>> ");
             string input = String.Empty;
@@ -312,14 +362,7 @@ namespace Client
                         entered = true;
                         break;
                     case ConsoleKey.Backspace:
-                        if (!string.IsNullOrEmpty(input))
-                        {
-                            input = input.Substring(0, input.Length - 1);
-                            int pos = Console.CursorLeft;
-                            Console.SetCursorPosition(pos - 1, Console.CursorTop);
-                            Console.Write(" ");
-                            Console.SetCursorPosition(pos - 1, Console.CursorTop);
-                        }
+                        input = ManualBackspace(input);
                         break;
                     default:
                         Console.Write("*");
@@ -329,6 +372,19 @@ namespace Client
             } while (!entered);
             Console.WriteLine();
             return input;
+        }
+
+        private static string ManualBackspace(string line)
+        {
+            if (!String.IsNullOrEmpty(line))
+            {
+                line = line.Substring(0, line.Length - 1);
+                Console.CursorLeft--;
+                Console.Write(' ');
+                Console.CursorLeft--;
+            }
+            
+            return line;
         }
 
         private static void Title()

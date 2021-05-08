@@ -3,7 +3,7 @@
     /// <summary>
     /// A reference type wrapper for the bool class
     /// </summary>
-    internal class State
+    public class State
     {
         private bool state;
 

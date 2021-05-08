@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
 using System.Xml.Linq;
 
 namespace Client.Feed
@@ -23,7 +22,6 @@ namespace Client.Feed
         private static string OLDFEED = "[INCOMING FEED - (▼)]";
         private static string DEADFEED = "[FEED - (DEACTIVATED)]";
         private static bool updated = true;
-        private static State alive;
         private static bool deactivating;
         private static CancellationTokenSource sleeper;
         private static int saveCount;
@@ -32,7 +30,12 @@ namespace Client.Feed
 
         #endregion
 
+        #region Public Members
+
         public static string YOU;
+        public static State isAlive;
+        
+        #endregion
 
         /// <summary>
         /// A method to setup the Feed class
@@ -41,7 +44,7 @@ namespace Client.Feed
         public static void Initialise(int size)
         {
             Feed.size = size;
-            alive = new State(false);
+            isAlive = new State(false);
             lines = new List<List<KeyValuePair<string, ConsoleColor>>>();
             sleeper = new CancellationTokenSource();
             saveLock = new object();
@@ -59,7 +62,7 @@ namespace Client.Feed
             ///it means the user is trying to get a new feed while one
             ///is already present so the old one should be decactivated
             ///if the deacitivation process hasn't already started
-            if (alive)
+            if (isAlive)
                 Deactivate(false);
             Console.WriteLine();
             top = Console.CursorTop;
@@ -81,35 +84,14 @@ namespace Client.Feed
             }
             pointer = 0;
             Update((Console.CursorLeft, Console.CursorTop));
-            alive = true;
+            isAlive = true;
             ThreadHelper.GetECThread(sleeper.Token, () =>
             {
-                ///deactivate if...
-                /// - cursor is at the bottom of the console
-                /// - console been scrolled far enough for the feed to be off screen
-                /// - feed is still alive
-                if ((Console.CursorTop > Console.WindowHeight - 1) && (Console.CursorTop >= size + 2 + (Console.WindowHeight - 1)) && alive)
+                if ((Console.CursorTop - bottom > Console.WindowHeight) && isAlive)
                     Deactivate(true);
                 else
-                    sleeper.Token.WaitHandle.WaitOne(3000);
+                    sleeper.Token.WaitHandle.WaitOne(10); //3000
             }).Start();
-            Task.Run(() =>
-            {
-                while (alive)
-                {
-                    ConsoleKeyInfo keyInfo = Console.ReadKey();
-                    if (keyInfo.Modifiers.HasFlag(ConsoleModifiers.Control))
-                    {
-                        if (keyInfo.Key == ConsoleKey.OemPlus)
-                            Scroll(true);
-                        else if (keyInfo.Key == ConsoleKey.OemMinus)
-                            Scroll(false);
-                    }
-                    if (keyInfo.Key == ConsoleKey.Enter)
-                        Console.CursorTop++;
-                    Thread.Sleep(10);
-                }
-            });
         }
 
         /// <summary>
@@ -144,9 +126,9 @@ namespace Client.Feed
             int linesAdded = 1;
             int counter = 0;
             List<List<KeyValuePair<string, ConsoleColor>>> insertList;
-            lock (alive)
+            lock (isAlive)
             {
-                if (alive)
+                if (isAlive)
                     insertList = lines;
                 else
                     insertList = new List<List<KeyValuePair<string, ConsoleColor>>>();
@@ -174,10 +156,10 @@ namespace Client.Feed
                     }
                 }
                 lock (saveLock)
-                    if (!alive)
+                    if (!isAlive)
                         Save(insertList);
                 lock (lines)
-                    if (alive && updated)
+                    if (isAlive && updated)
                         Update((Console.CursorLeft, Console.CursorTop));
             }
         }
@@ -225,19 +207,16 @@ namespace Client.Feed
         /// <summary>
         /// A method to set the feed to inactive
         /// </summary>
-        private static void Deactivate(bool save)
+        public static void Deactivate(bool save)
         {
-            lock (alive)
+            lock (isAlive)
             {
-                if (!alive)
+                if (!isAlive)
                     return;
                 if (deactivating)
                     return;
-                //sleeper.Cancel();
-                //sleeper.Dispose();
-                //sleeper = new CancellationTokenSource();
                 PrintHeader(DEADFEED);
-                alive = false;
+                isAlive = false;
             }
             lock (saveLock)
                 if (save)
