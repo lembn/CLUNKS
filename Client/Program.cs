@@ -11,6 +11,8 @@ namespace Client
 {
     class Program
     {
+        #region Private Members
+
         private static ClientChannel channel;
         private static bool quit = false;
         private static bool prompted = false;
@@ -20,6 +22,8 @@ namespace Client
         private static string username = null;
         private static Stack<string> traversalTrace;
         private static AutoResetEvent waiter;
+
+        #endregion
 
         //TODO: write notification command
         static void Main(string[] args)

@@ -11,5 +11,7 @@
 	<globalUsers>
 		<user username="mark" password="$2b$12$Kq6xOm1KK7rcHHgq.7GQg.fcJMA6Kd.WTAGCvig3JvIdNRcRnR5Dm" sectors="user" global="True" elevation="user_elv" />
 		<user username="john" password="$2b$12$5AROkTgLhY5lcBoIxTi/RuTAqCw6EoJTYtr3A3hWsxew3KkgzUqi." sectors="user" global="True" elevation="user_elv" />
+		<user username="luke" password="$2a$12$mff7VKTbgpg4iR5XZ8eq6OHiJm5Ve7O9DKQ8srWnzF8wS15AwbcNi" sectors="user" global="True" elevation="user_elv" />
 	</globalUsers>
 </root>
+
