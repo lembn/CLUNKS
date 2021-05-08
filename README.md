@@ -614,6 +614,7 @@ The stream of bytes that `Packet`s get serialized into/deserialized out of is st
 
 | Data | Length (in bytes) |
 | ----------- | ----------- |
+
 | Header | 4 |
 | Crpytography Data | 256 |
 | Payload | Value of Header |
@@ -1468,16 +1469,46 @@ Now both endpoints of the system have the required bases to connect and securely
 
 Here, a **CLUNKS** Client is being started up and logging into a user account on the connected server. After loggin in, the client then connects to a subserver and begins to exchange messages with another user in the subserver.
 
-The `Feed.Add` method (shown in the design) is called in order to show these messages... 
+The `Feed.Add` method (shown in the design) is called in order to store these messages. If the feed is alive, after adding the new message lines to `Feed.lines`, `Feed.Update` is called, which updates the feed to display the new messages:
 
-# Feed Update
-# Feed Scroll
+```c#
+private static void Update((int, int) original)
+{
+    int counter = 0;
+    lock (lines)
+    {
+        if (size > lines.Count - pointer)
+            Console.CursorTop = bottom - (lines.Count - pointer);
+        else
+            Console.CursorTop = top + 1;
+        Console.CursorLeft = 0;
+        foreach (List<KeyValuePair<string, ConsoleColor>> line in lines.Skip(pointer).Take(size).ToArray().Reverse())
+        {
+            if (counter == size)
+                break;
+            Console.Write(new string(' ', Console.WindowWidth));
+            Console.CursorTop--;
+            foreach (KeyValuePair<string, ConsoleColor> entry in line)
+            {
+                Console.ForegroundColor = entry.Value;
+                Console.Write(entry.Key);
+            }
+            Console.SetCursorPosition(0, Console.CursorLeft == 0 ? Console.CursorTop : Console.CursorTop + 1);
+            counter++;
+        }
+        Console.ResetColor();
+        Console.SetCursorPosition(original.Item1, original.Item2);
+    }
+}
+```
 
-The process of connecting to entities is refered to as *'entity traversal'* - this is a key part of using **CLUNKS**. There are two directions for entity traveral:
+The method here manipulates the position of the console's cursor, to have row by row access to the lines within the console, so that the message lines can be printed as a continous feed directly out of the list `lines`. The conditions at the start of the method are used to initialise the position of the cursor in the printed feed so that lines will fill the feed from the bottom upwards (newer lines at the bottom) and if the number of lines stored is less than size of the feed, then the messages will stick to the bottom of the feed, rather than the top. The method then moves onto iterating through the available lines and displaying their contents on the console until it the feed is filled or there are no lines left.
+
+Another key feature shown in the gifs above is the user's ability to connect to different entities. The process of connecting to entities is refered to as *'entity traversal'* - this is a key part of using **CLUNKS**. There are two directions for entity traversal:
 - Positive (traversal into an entity that is not in the users current trace)
 - Negative (traversal into an entity that is in the users current trace)
 
-With this in mind, there are also types or *`orders'* of entity traversal, being:
+With this in mind, there are also types or *'orders'* of entity traversal, being:
 - Single (traversal into the direct child or parent of the current entity)
 - Skipping (traversal into a a distant entity or into different branch of entities)
 
