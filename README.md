@@ -456,11 +456,9 @@ While this may not seem to be an issue with today's computational abilities, the
 
 | Hash | Password |
 | ----------- | ----------- |
-
 | tNuqe)98:JXSMV3g#^@u&(dV | P4s5W0rd |
-| zsk7[$XZ#nbZv*~*6)v:Enf9 | thisismypassword |
-| B&A:JWPHEL98[Es]5$"{$X6T | !y3l10wC4t! |
-<br>
+| zsk7-XZ#nbZva~A6)v:Enf9 | thisismypassword |
+| B&A:JWPHEL98_s]5$"{$X6T | !y3l10wC4t! |
 
 This could be used by an attacker who breahced the database, and came across the hash `zsk7[$XZ#nbZv*~*6)v:Enf9`. This attacker wouldn't need to spend any time cracking the password, since by looking up the hash in their rainbow table, they would quickly discover that the original password was '`thisismypassword`'.
 
@@ -615,7 +613,6 @@ The stream of bytes that `Packet`s get serialized into/deserialized out of is st
 
 | Data | Length (in bytes) |
 | ----------- | ----------- |
-
 | Header | 4 |
 | Crpytography Data | 256 |
 | Payload | Value of Header |
