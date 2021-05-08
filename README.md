@@ -147,8 +147,7 @@ CLUNKS>>> chat [username] [message]
 ```
 This will send a message to the user. Messages are stored in the database. A user can send a message to all members of the entity with:
 ```
-[subservername]
-CLUNKS>>> chat [message]
+CLUNKS>>> chat @[entityname] [message]
 ```
 To see incoming messages, users can use the `feed` command to display a message feed onto the console:
 ```

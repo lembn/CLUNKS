@@ -13,9 +13,9 @@ namespace Client
     {
         private static ClientChannel channel;
         private static bool quit = false;
-        private static bool pass = true;
         private static bool prompted = false;
         private static bool hide = false;
+        private static int promptRow;
         private static string capturedInput;
         private static string username = null;
         private static Stack<string> traversalTrace;
@@ -36,13 +36,19 @@ namespace Client
                 channel.Start();
             channel.MessageDispatch += MessageHandler;
             traversalTrace = new Stack<string>();
+            RunLoop();
+            Thread.Sleep(2000);
+        }
+
+        private static void RunLoop()
+        {
             while (!quit)
-            {                
+            {
                 bool entered = false;
                 string captured = String.Empty;
                 ConsoleKeyInfo keyInfo;
                 do
-                {                    
+                {
                     while (!Console.KeyAvailable)
                     {
                         if (!prompted)
@@ -82,7 +88,7 @@ namespace Client
                             break;
                         case ConsoleKey.LeftArrow:
                             if (!String.IsNullOrEmpty(captured))
-                            Console.CursorLeft--;
+                                Console.CursorLeft--;
                             break;
                         case ConsoleKey.RightArrow:
                             Console.CursorLeft++;
@@ -94,7 +100,53 @@ namespace Client
                     }
                 } while (!entered);
             }
-            Thread.Sleep(2000);
+        }
+        
+        private static void Prompt()
+        {
+            if (username != null)
+            {
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                if (traversalTrace.Count > 0)
+                {
+                    Console.Write($"'{username}'");
+                    Console.ForegroundColor = ConsoleColor.White;
+                    Console.Write(" @ ");
+                    Console.ForegroundColor = ConsoleColor.Magenta;
+                    if (traversalTrace.Count > 3)
+                    {
+                        string header = String.Empty;
+                        int i = 0;
+                        bool dash = false;
+                        foreach (string entity in traversalTrace.Reverse())
+                        {
+                            if (String.IsNullOrEmpty(header))
+                                header = $"[{entity}";
+                            if (i++ > traversalTrace.Count - 3)
+                            {
+                                header += dash ? $"- {entity}" : $"{entity}";
+                                if (!dash)
+                                    dash = true;
+                            }
+                            else if (!header.Contains("..."))
+                            {
+                                header += " ... ";
+                                dash = false;
+                            }
+
+                        }
+                        Console.WriteLine($"{header}]");
+                    }
+                    else
+                        Console.WriteLine($"[{String.Join(" - ", traversalTrace.Reverse())}]");
+                }
+                else
+                    Console.WriteLine($"'{username}'");
+            }
+            Console.ResetColor();
+            Console.Write("CLUNKS>>> ");
+            prompted = true;
+            promptRow = Console.CursorTop - 1;
         }
 
         private static void Process(string source)
@@ -189,6 +241,12 @@ namespace Client
                             prompted = false;
                             break;
                         }
+                        for (int i = Console.CursorTop - 1; i >= promptRow; i--)
+                        {
+                            Console.SetCursorPosition(0, i);
+                            Console.Write(new string(' ', Console.WindowWidth));
+                        }
+                        Console.CursorTop--;
                         outPacket = new Packet(DataID.Command, channel.id);
                         string message = String.Join(' ', input.Skip(2));
                         if (state)
@@ -245,13 +303,11 @@ namespace Client
                 if (values[0] != Communication.FAILURE)
                     traversalTrace = new Stack<string>(values[1].Split(" - "));
                 channel.StatusDispatch -= ConnectReponseHanlder;
-                prompted = false;
-                pass = true;             
+                prompted = false;  
             }
             else
             {
                 Packet outPacket = new Packet(DataID.Command, channel.id);
-                pass = false;
                 hide = true;
                 Console.Write($"Enter '{values[0]}' password>>> ");
                 waiter.WaitOne();
@@ -283,13 +339,11 @@ namespace Client
                 }
                 channel.StatusDispatch -= LoginResponseHandler;
                 prompted = false;
-                pass = true;
                 //TODO: 'You have 2 new notifications' on login
             }
             else
             {
                 Packet outPacket = new Packet(DataID.Command, channel.id);
-                pass = false;
                 hide = true;
                 Console.Write($"Enter your password>>> ");
                 waiter.WaitOne();
@@ -316,6 +370,12 @@ namespace Client
         {
             string[] values = e.packet.Get();
             Feed.Feed.Add(values[1], values[2], values[0] == Communication.TRUE ? traversalTrace.Peek() : null);
+        }
+        
+        public static void FailHandler(object sender, ChannelFailEventArgs e)
+        {
+            Console.WriteLine(e.Message);
+            quit = true;
         }
 
         private static void Quit(object sender, ConsoleCancelEventArgs e)
@@ -362,62 +422,10 @@ namespace Client
             Output(bar);
         }
 
-        private static void Prompt()
-        {
-            if (username != null)
-            {
-                Console.ForegroundColor = ConsoleColor.Cyan;
-                if (traversalTrace.Count > 0)
-                {
-                    Console.Write($"'{username}'");
-                    Console.ForegroundColor = ConsoleColor.White;
-                    Console.Write(" @ ");
-                    Console.ForegroundColor = ConsoleColor.Magenta;
-                    if (traversalTrace.Count > 3)
-                    {
-                        string header = String.Empty;
-                        int i = 0;
-                        bool dash = false;
-                        foreach (string entity in traversalTrace.Reverse())
-                        {
-                            if (String.IsNullOrEmpty(header))
-                                header = $"[{entity}";
-                            if (i++ > traversalTrace.Count - 3)
-                            {
-                                header += dash ? $"- {entity}" : $"{entity}";
-                                if (!dash)
-                                    dash = true;
-                            }
-                            else if (!header.Contains("..."))
-                            {
-                                header += " ... ";
-                                dash = false;
-                            }
-
-                        }
-                        Console.WriteLine($"{header}]");
-                    }
-                    else
-                        Console.WriteLine($"[{String.Join(" - ", traversalTrace.Reverse())}]");
-                }
-                else
-                    Console.WriteLine($"'{username}'");
-            }
-            Console.ResetColor();
-            Console.Write("CLUNKS>>> ");
-            prompted = true;
-        }
-
         private static void ShowHelp()
         {
             //TODO: Populate
             Console.WriteLine("TODO");
-        }
-
-        public static void FailHandler(object sender, ChannelFailEventArgs e)
-        {
-            Console.WriteLine(e.Message);
-            quit = true;
         }
     }
 }
