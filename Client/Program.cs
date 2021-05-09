@@ -27,7 +27,7 @@ namespace Client
 
         static void Main(string[] args)
         {
-            Console.CancelKeyPress += new ConsoleCancelEventHandler(Quit);
+            Console.CancelKeyPress += Quit;
             Title();
             Feed.Feed.Initialise(3);
             waiter = new AutoResetEvent(false);

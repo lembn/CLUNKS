@@ -1499,7 +1499,7 @@ In the above graph, the red line represents the growth of memory usage for the f
 
 Now both endpoints of the system have the required bases to connect and securely communicate. The database allows user accounts to be logged into so that **CLUNKS** clients can interact with each other within the defined entities. To display this, we will now move onto the client:
 
-# Client usage GIFS at the beginning of client section (login, connect, send, receive)
+![image](README_img/client_usage.gif)
 
 Here, a **CLUNKS** Client is being started up and logging into a user account on the connected server. After loggin in, the client then connects to a subserver and begins to exchange messages with another user in the subserver.
 
@@ -2048,7 +2048,7 @@ Overall, I would consider the project to be very sucessful. All of the main obje
 
 ## Closing Remarks
 
-The code will continue to be developed, but the code can be viewed at this point in time with [this link](https://github.com/lembn/CLUNKS/tree/299c1356bf5c559cd85b6e89db070daecc7bad8c). Otherwise, please feel free to follow progress of the project at the [repository](https://github.com/lembn/CLUNKS/). Thanks for reading.
+The code will continue to be developed, but the code can be viewed at this point in time with [this link](https://github.com/lembn/CLUNKS/tree/v1.0.1-alpha). Otherwise, please feel free to follow progress of the project at the [repository](https://github.com/lembn/CLUNKS/). Thanks for reading.
 
 <!-- # Research
 C# Access Webcam: https://www.google.com/search?q=c%23+access+webcam&rlz=1C1CHBF_en-GBGB777GB777&oq=c%23+acc&aqs=chrome.0.69i59j69i57j69i58j69i60l2.1166j0j7&sourceid=chrome&ie=UTF-8 -->

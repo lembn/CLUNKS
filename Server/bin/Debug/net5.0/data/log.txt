@@ -664,3 +664,13 @@
 2021-05-09 10:15:48.352 +01:00 [INF] User@192.168.0.14:49963 (john) logged into of '13CSA'
 2021-05-09 10:16:42.253 +01:00 [INF] User@192.168.0.14:49963 (john) logged out of CLUNKS'
 2021-05-09 10:17:38.875 +01:00 [INF] User@192.168.0.21:59141 (mark) logged out of CLUNKS'
+2021-05-09 13:27:03.358 +01:00 [INF] User@192.168.0.21:57530 logged in as 'mark'
+2021-05-09 13:27:11.493 +01:00 [INF] User@192.168.0.21:57530 (mark) logged into of '13CSA'
+2021-05-09 13:27:14.683 +01:00 [INF] User@192.168.0.21:57530 (mark) logged out of '13CSA'
+2021-05-09 13:27:16.043 +01:00 [INF] User@192.168.0.21:57530 (mark) logged out of 'year13'
+2021-05-09 13:27:19.589 +01:00 [INF] User@192.168.0.21:57530 (mark) logged out of CLUNKS
+2021-05-09 13:29:15.732 +01:00 [INF] User@192.168.0.21:57571 logged in as 'mark'
+2021-05-09 13:29:23.312 +01:00 [INF] User@192.168.0.21:57571 (mark) logged into of '13CSA'
+2021-05-09 13:29:26.595 +01:00 [INF] User@192.168.0.21:57571 (mark) logged out of '13CSA'
+2021-05-09 13:29:29.743 +01:00 [INF] User@192.168.0.21:57571 (mark) logged out of 'year13'
+2021-05-09 13:29:34.171 +01:00 [INF] User@192.168.0.21:57571 (mark) logged out of CLUNKS

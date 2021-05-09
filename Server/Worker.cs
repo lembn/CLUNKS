@@ -74,10 +74,10 @@ namespace Server
                 logger.LogCritical("Failed to start server. Invalid IP.");
                 return;
             }
-            server.ChannelFail += new Channel.ChannelFailEventHanlder(FailHandler);
-            server.CommandDispatch += new Channel.DispatchEventHandler(CommandHandler);
-            server.AVDispatch += new Channel.DispatchEventHandler(AVHandler);
-            server.RemoveClientEvent += new ServerChannel.RemoveClientEventHandler(RemoveClientHandler);
+            server.ChannelFail += FailHandler;
+            server.CommandDispatch += CommandHandler;
+            server.AVDispatch += AVHandler;
+            server.RemoveClientEvent += RemoveClientHandler;
             if (ConfigurationManager.AppSettings.Get("newExp") == "true")
             {
                 try
