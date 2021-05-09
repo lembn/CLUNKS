@@ -33,6 +33,8 @@
     4. [Known Issues](#know-issues)
     5. [Closing Remarks](#closing-remarks)
 
+---
+
 # **CLUNKS** - A Brief Overview
 
 ***C**ommand **L**ine **U**nification **N**etwork **S**ystem*
