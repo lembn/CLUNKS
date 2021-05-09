@@ -25,7 +25,6 @@ namespace Client
 
         #endregion
 
-        //TODO: write notification command
         static void Main(string[] args)
         {
             Console.CancelKeyPress += new ConsoleCancelEventHandler(Quit);
@@ -53,12 +52,14 @@ namespace Client
                 ConsoleKeyInfo keyInfo;
                 do
                 {
-                    while (!Console.KeyAvailable)
+                    while (!Console.KeyAvailable && !quit)
                     {
                         if (!prompted)
                             Prompt();
                         Thread.Sleep(0);
                     }
+                    if (quit)
+                        break;
                     keyInfo = Console.ReadKey(true);
                     switch (keyInfo.Key)
                     {
@@ -341,7 +342,6 @@ namespace Client
                 }
                 channel.StatusDispatch -= LoginResponseHandler;
                 prompted = false;
-                //TODO: 'You have 2 new notifications' on login
             }
             else
             {
@@ -377,7 +377,7 @@ namespace Client
         public static void FailHandler(object sender, ChannelFailEventArgs e)
         {
             Console.WriteLine(e.Message);
-            quit = true;
+            Quit(null, null);
         }
 
         private static void Quit(object sender, ConsoleCancelEventArgs e)
@@ -426,7 +426,6 @@ namespace Client
 
         private static void ShowHelp()
         {
-            //TODO: Populate
             Console.WriteLine("TODO");
         }
     }

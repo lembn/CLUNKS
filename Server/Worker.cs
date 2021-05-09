@@ -346,7 +346,6 @@ namespace Server
                     server.Add(outPacket, e.client);
         }
 
-        //TODO: use DB to figure out which users need to be sent the AV packet
         public static void AVHandler(object sender, PacketEventArgs e)
         {
             throw new NotImplementedException();
@@ -362,7 +361,7 @@ namespace Server
         public static void RemoveClientHandler(object sender, RemoveClientEventArgs e)
         {
             string username = DBHandler.DBHandler.Logout(e.ID);
-            logger.LogInformation($"User@{e.Client.endpoint} ({username}) logged out of CLUNKS'");
+            logger.LogInformation($"User@{e.Client.endpoint} ({username}) logged out of CLUNKS");
         }
     }
 }

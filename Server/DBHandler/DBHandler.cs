@@ -7,7 +7,6 @@ using System.Xml.Linq;
 
 namespace Server.DBHandler
 {
-    //TODO: Summarise
     internal static class DBHandler
     {
         public static string connectionString; //The connection string to use when connecting to the database
