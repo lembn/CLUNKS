@@ -2041,6 +2041,7 @@ Overall, I would consider the project to be very sucessful. All of the main obje
 - User Logouts
 - Up/Down Key History *(in client)*
 - Info Commands
+- Upgrade Client to .NET 5
 
 ## Know Issues
 - Left/Right Arrow Keys in Client

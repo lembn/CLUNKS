@@ -216,9 +216,8 @@ namespace Client.Feed
         /// </summary>
         public static void Cleanup()
         {
-            foreach (string filename in Directory.GetFiles(tempLoc))
-                File.Delete(filename);
-            Directory.Delete(tempLoc);
+            if (File.Exists(Path.Combine(tempLoc, "msgs.xml")))
+                File.Delete(Path.Combine(tempLoc, "msgs.xml"));
         }
 
         /// <summary>

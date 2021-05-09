@@ -78,12 +78,10 @@ namespace Client
                             captured = ManualBackspace(captured);
                             break;
                         case ConsoleKey.OemPlus:
-                            Console.CursorLeft--;
                             if (keyInfo.Modifiers.HasFlag(ConsoleModifiers.Control) && Feed.Feed.isAlive)
                                 Feed.Feed.Scroll(true);
                             break;
                         case ConsoleKey.OemMinus:
-                            Console.CursorLeft--;
                             if (keyInfo.Modifiers.HasFlag(ConsoleModifiers.Control) && Feed.Feed.isAlive)
                                 Feed.Feed.Scroll(false);
                             break;
