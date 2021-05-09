@@ -1981,7 +1981,7 @@ Overall, I would consider the project to be very sucessful. All of the main obje
 ## Know Issues
 - Left/Right Arrow Keys in Client
 
-The code will continue to be developed, but the code can be viewed at this point in time with [this link](https://github.com/lembn/CLUNKS/tree/299c1356bf5c559cd85b6e89db070daecc7bad8c). Otherwise, please feel free to follow progress of the project at the [repository](https://github.com/lembn/CLUNKS/). Thanks for reading.
+The code will continue to be developed, but the code can be viewed at this point in time with [this link](https://github.com/lembn/CLUNKS/tree/v1.0.0-alpha). Otherwise, please feel free to follow progress of the project at the [repository](https://github.com/lembn/CLUNKS/). Thanks for reading.
 
 <!-- # Research
 C# Access Webcam: https://www.google.com/search?q=c%23+access+webcam&rlz=1C1CHBF_en-GBGB777GB777&oq=c%23+acc&aqs=chrome.0.69i59j69i57j69i58j69i60l2.1166j0j7&sourceid=chrome&ie=UTF-8

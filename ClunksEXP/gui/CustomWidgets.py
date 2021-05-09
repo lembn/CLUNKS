@@ -4,6 +4,8 @@ from tkinter import messagebox
 from ttkthemes import themed_tk as tk
 from datetime import datetime
 import threading
+import sys
+import os
 
 class RootWindow(tk.ThemedTk):
     def __init__(self, *args, **kwargs):
@@ -222,3 +224,11 @@ class Editor:
             pass
         self.closed.set()
         self.window.destroy()
+
+def RelToAbs(relPath):
+    try:
+        basePath = sys._MEIPASS
+    except Exception:
+        basePath = os.path.abspath(".")
+
+    return os.path.join(basePath, relPath)

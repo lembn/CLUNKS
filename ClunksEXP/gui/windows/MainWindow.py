@@ -7,7 +7,7 @@ import threading
 
 from IOManager import IOManager
 from ThreadingHelper import STWThread, QUIT
-from gui.CustomWidgets import TextArea
+from gui.CustomWidgets import TextArea, RelToAbs
 from gui.windows.UsersEditor import UsersEditor
 from gui.windows.SubServersEditor import SubServersEditor
 from gui.windows.RoomsEditor import RoomsEditor
@@ -18,7 +18,7 @@ class MainWindow():
         self.master = master
         self.width = width
         self.height = height
-        self.master.SetupWindow(title='ClunksEXP', icon='gui/img/icon.ico', width=self.width, height=self.height, center=True, resizable=False, onClosing=self.Closing)
+        self.master.SetupWindow(title='ClunksEXP', icon=RelToAbs('gui/img/icon.ico'), width=self.width, height=self.height, center=True, resizable=False, onClosing=self.Closing)
         self.master.protocol('WM_DELETE_WINDOW', self.Closing)
         self.Setup()
 
@@ -97,7 +97,7 @@ class MainWindow():
     def Populate(self):
         self.contentFrame = ttk.Frame(self.master.container)
         self.contentFrame.pack(fill=tkinter.BOTH, expand=True)
-        img = Image.open('gui/img/title.png')
+        img = Image.open(RelToAbs('gui/img/title.png'))
         img.thumbnail([self.width, self.height/10], Image.ANTIALIAS)
         self.titleImg = ImageTk.PhotoImage(img)
         self.titleLbl = ttk.Label(self.contentFrame, image=self.titleImg)
