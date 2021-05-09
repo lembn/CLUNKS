@@ -1,0 +1,1 @@
+pipenv run pyinstaller --windowed --onefile freeze.spec
