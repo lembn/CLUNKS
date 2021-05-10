@@ -2044,7 +2044,7 @@ Overall, I would consider the project to be very successful. All of the main obj
 - Upgrade Client to .NET 5
 
 ## Know Issues
-- Left/Right Arrow Keys in Client
+- Client hanging on quit
 
 ## Closing Remarks
 
