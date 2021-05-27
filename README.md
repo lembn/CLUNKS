@@ -242,122 +242,122 @@ Below is an entity-relationship diagram displaying the structure of the database
 ![image](README_img/dbschema.png)
 [*Raw view here*](https://raw.githubusercontent.com/lembn/CLUNKS/master/README_img/dbschema.png)
 
-<!-- TABLE elevations {
- id int PK
- name varchar
- canCallSubservers int
- canCallRooms int
- canCallGroups int
- canCallUsers int
- canMsgSubservers int
- canMsgRooms int
- canMsgGroups int
- canMsgUsers int
- canCreateGroups int
-}
-TABLE subservers {
- id int PK
- name varchar
-}
-TABLE rooms {
- id int PK
- name varchar
- password varchar
-}
-TABLE subserver_rooms {
- id int PK
- subserverID int
- roomID int
-}
-TABLE room_rooms {
- id int PK
- parent int
- child int
-}
-TABLE users {
- id int PK
- name varchar
- password varchar
- elevation int
- loggedIn int
-}
-TABLE users_subservers {
- id int PK
- userID int
- subserverID int
- present int
-}
-TABLE users_rooms {
- id int PK
- userID int
- roomID int
- present int
-}
-TABLE groups {
- id int PK
- name varchar
- password varchar
- owner int
-}
-TABLE room_groups {
- id int PK
- roomID int
- groupID int
-}
-TABLE group_groups {
- id int PK
- parent int
- child int
-}
-TABLE users_groups {
- id int PK
- userID int
- groupID int
- present int
-}
-TABLE notifications {
- id int PK
- sender int
- receiver int
- time varchar
- msg varchar
- isMsg int 
- isGlobal int 
-}
+<!--TABLE elevations {-->
+ <!--id int PK-->
+ <!--name varchar-->
+ <!--canCallSubservers int-->
+ <!--canCallRooms int-->
+ <!--canCallGroups int-->
+ <!--canCallUsers int-->
+ <!--canMsgSubservers int-->
+ <!--canMsgRooms int-->
+ <!--canMsgGroups int-->
+ <!--canMsgUsers int-->
+ <!--canCreateGroups int-->
+<!--}-->
+<!--TABLE subservers {-->
+ <!--id int PK-->
+ <!--name varchar-->
+<!--}-->
+<!--TABLE rooms {-->
+ <!--id int PK-->
+ <!--name varchar-->
+ <!--password varchar-->
+<!--}-->
+<!--TABLE subserver_rooms {-->
+ <!--id int PK-->
+ <!--subserverID int-->
+ <!--roomID int-->
+<!--}-->
+<!--TABLE room_rooms {-->
+ <!--id int PK-->
+ <!--parent int-->
+ <!--child int-->
+<!--}-->
+<!--TABLE users {-->
+ <!--id int PK-->
+ <!--name varchar-->
+ <!--password varchar-->
+ <!--elevation int-->
+ <!--loggedIn int-->
+<!--}-->
+<!--TABLE users_subservers {-->
+ <!--id int PK-->
+ <!--userID int-->
+ <!--subserverID int-->
+ <!--present int-->
+<!--}-->
+<!--TABLE users_rooms {-->
+ <!--id int PK-->
+ <!--userID int-->
+ <!--roomID int-->
+ <!--present int-->
+<!--}-->
+<!--TABLE groups {-->
+ <!--id int PK-->
+ <!--name varchar-->
+ <!--password varchar-->
+ <!--owner int-->
+<!--}-->
+<!--TABLE room_groups {-->
+ <!--id int PK-->
+ <!--roomID int-->
+ <!--groupID int-->
+<!--}-->
+<!--TABLE group_groups {-->
+ <!--id int PK-->
+ <!--parent int-->
+ <!--child int-->
+<!--}-->
+<!--TABLE users_groups {-->
+ <!--id int PK-->
+ <!--userID int-->
+ <!--groupID int-->
+ <!--present int-->
+<!--}-->
+<!--TABLE notifications {-->
+ <!--id int PK-->
+ <!--sender int-->
+ <!--receiver int-->
+ <!--time varchar-->
+ <!--msg varchar-->
+ <!--isMsg int--> 
+ <!--isGlobal int--> 
+<!--}-->
 
-Ref: "users"."elevation" < "elevations"."id"
+<!--Ref: "users"."elevation" < "elevations"."id"-->
 
-Ref: "users"."id" < "users_subservers"."userID"
+<!--Ref: "users"."id" < "users_subservers"."userID"-->
 
-Ref: "subservers"."id" < "users_subservers"."subserverID"
+<!--Ref: "subservers"."id" < "users_subservers"."subserverID"-->
 
-Ref: "subservers"."id" < "subserver_rooms"."subserverID"
+<!--Ref: "subservers"."id" < "subserver_rooms"."subserverID"-->
 
-Ref: "subserver_rooms"."roomID" < "rooms"."id"
+<!--Ref: "subserver_rooms"."roomID" < "rooms"."id"-->
 
-Ref: "rooms"."id" < "room_rooms"."parent"
+<!--Ref: "rooms"."id" < "room_rooms"."parent"-->
 
-Ref: "rooms"."id" < "room_rooms"."child"
+<!--Ref: "rooms"."id" < "room_rooms"."child"-->
 
-Ref: "rooms"."id" < "room_groups"."roomID"
+<!--Ref: "rooms"."id" < "room_groups"."roomID"-->
 
-Ref: "room_groups"."groupID" < "groups"."id"
+<!--Ref: "room_groups"."groupID" < "groups"."id"-->
 
-Ref: "groups"."id" < "group_groups"."parent"
+<!--Ref: "groups"."id" < "group_groups"."parent"-->
 
-Ref: "groups"."id" < "group_groups"."child"
+<!--Ref: "groups"."id" < "group_groups"."child"-->
 
-Ref: "rooms"."id" < "users_rooms"."roomID"
+<!--Ref: "rooms"."id" < "users_rooms"."roomID"-->
 
-Ref: "users"."id" < "users_rooms"."userID"
+<!--Ref: "users"."id" < "users_rooms"."userID"-->
 
-Ref: "users"."id" < "users_groups"."userID"
+<!--Ref: "users"."id" < "users_groups"."userID"-->
 
-Ref: "groups"."id" < "users_groups"."groupID"
+<!--Ref: "groups"."id" < "users_groups"."groupID"-->
 
-Ref: "users"."id" < "notifications"."sender"
+<!--Ref: "users"."id" < "notifications"."sender"-->
 
-Ref: "users"."id" < "notifications"."receiver" -->
+<!--Ref: "users"."id" < "notifications"."receiver"-->
 
 For a more detailed veiew, here is the SQL schema of the database (*In SQLite syntax*):
 ``` sql
@@ -873,7 +873,6 @@ First, the procedure will take the message data and sort and store it into `text
 >&nbsp;&nbsp;&nbsp;&nbsp;*`[["fred", "red"], [" - ", "gray"], ["good thanks, how about you?", "gray"]],`* <br>
 >&nbsp;&nbsp;&nbsp;&nbsp;*`[["mark", "blue"], [" - ", "gray"], ["all good over here too.", "gray"]],`* <br>
 >*`]`* <br>
->
 
 The purpose of `pointer` is for the feed to keep track of the user's position in lines. New lines are always inserted into the `0th` element of the feed such that the bottom of the feed shows the new messaged. `pointer` is checked to see to be greater than zero because that the user has scrolled away from the newest message, and it isn't visible in the feed. Since `Add` is only called when new messages come in, `pointer` being away from zero at this point means that the feed is now out of date, so the header is updated to display `"[INCOMING FEED - (▼)]"` to alert the user that there are new messages to view. The boolean variable `updated` is then set to `false` to represent that the feed is out of date and `pointer` is incremented to accurately point to the line that is displayed at the bottom of the feed. When `pointer` is checked to be greater than zero, `updated` must also be true for the condition to be satisfied. Setting updated to `false` prevents the condition from being satisfied again if `Add` is called before the user scrolls down to the bottom of the feed.
 
@@ -905,7 +904,6 @@ ClunksEXP, developed in python, is a GUI program the wraps around its main funct
 >*`[],`* //*room data*<br>
 >*`[["u1", "", "user", "True"], ["u3", "", "user", "True"]],`* //*user data*<br>
 >*`["user_elv", "True", "True", "True", "True", "True", "True", "True", "True", "True", "user"],`* //*elevation data*<br>
->
 
 Which would generate the corresponding `.exp`:
 ```xml
@@ -1171,7 +1169,6 @@ If the sequence for this series could be programmatically expressed as a list of
 >&nbsp;&nbsp;&nbsp;&nbsp;*`(1, b),`* <br>
 >&nbsp;&nbsp;&nbsp;&nbsp;*`(2, c),`* <br>
 >*`]`* <br>
->
 
 As you can see, the first element of each returned element is the desired *`r`* value, and the second value is the *`Vr`*. Because of this, using python list comprehension, the sequence of the series can be found by:
 ```python
@@ -1233,7 +1230,7 @@ To begin with, the algorithm will create a new file to store the database in. If
 This script initialises the database with the desired tables and relationships, ready to accept the `.exp` data. After importing the `.ecp`, the first items to be loaded are the elevations. The algorithm iterates over a collection of the elevation elements, inserting their data into the `elevations` table of the database as it goes. An interesting part of this process is the conversion from a privilege number into a collection of integers representing the bits of that number. This process is the reverse of the process mentioned in the `CLunksEXP/IOManager.Export` function. The line responsible for this is:
 ```c#
 from num in Convert.ToString(Convert.ToInt32(elevation.Attribute("privilege").Value), 2).PadLeft(9, '0') select (int)Char.GetNumericValue(num)
-```  
+```
 
 This operation is utilising C# LINQ to select characters of a string with an SQL-like syntax. The heavy lifting of this line is performed by:
 ```c#
